@@ -1,3 +1,3 @@
 fastapi>=0.110
-uvicorn>=0.27
+uvicorn>=0.54.0
 gatekeeper-asgi @ git+https://github.com/Eche-Dev/Gatekeeper.git@main#subdirectory=gatekeeper-v0.3/gatekeeper
