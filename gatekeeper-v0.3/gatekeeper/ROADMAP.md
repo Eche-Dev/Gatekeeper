@@ -38,8 +38,12 @@
 - [x] Demo desplegable (`demo/`: playground con payloads, Vercel/Docker) con
       el GIF de una sesión real (`docs/assets/demo.gif`)
 - [x] Artículo de publicación (`ARTICLE.md`)
-- [ ] Despliegue efectivo: GitHub Pages (docs) y demo en Vercel — requiere
-      activación con las credenciales del propietario
+- [x] GitHub Pages publicando la docs en cada push a main
+      (https://eche-dev.github.io/Gatekeeper/)
+- [ ] Demo en Vercel (`vercel --prod` desde `demo/`) — credenciales del
+      propietario
+- [ ] Publicación del artículo (`ARTICLE.md` listo, sin placeholders)
+- [ ] (opcional) CodeQL y Release v0.3.0 en GitHub
 
 ## v0.4 — siguiente
 - [ ] Inspección de `multipart/form-data` (nombres de campo y de archivo, no el contenido)

@@ -1,7 +1,6 @@
 <!--
-  Artículo listo para publicar tal cual en dev.to, Hashcode o echedev.vercel.app.
-  Antes de pegarlo: sustituye DEMO_GIF por la URL raw del GIF del repo, p. ej.
-  https://raw.githubusercontent.com/Eche-Dev/Gatekeeper/main/gatekeeper-v0.3/gatekeeper/docs/assets/demo.gif
+  Artículo listo para publicar tal cual en dev.to, Hashnode o echedev.vercel.app.
+  El GIF ya apunta a la URL raw definitiva del repo; no hay que sustituir nada.
   Tags sugeridos para dev.to (al final del todo): python, security, fastapi, ...
   Original en español; si pides traducción al inglés, publícala en cross-post.
 -->
@@ -10,7 +9,7 @@
 
 *o: cómo medir un WAF casero sin mentirte a ti mismo*
 
-![DEMO_GIF](DEMO_GIF)
+![Demo del comportamiento de Gatekeeper](https://raw.githubusercontent.com/Eche-Dev/Gatekeeper/main/gatekeeper-v0.3/gatekeeper/docs/assets/demo.gif)
 
 **Gatekeeper** es un middleware ASGI que escribí para FastAPI/Starlette: rate
 limiting, cabeceras de seguridad y detección de patrones de ataque (SQLi, XSS,
