@@ -76,6 +76,17 @@ El detalle, incluidos los payloads que se escapan y por qué, está en
 [corpus/REPORT.md](corpus/REPORT.md). El workflow falla si una regla nueva
 empeora esas cifras (`python tools/evaluate.py --check`).
 
+## Demo
+
+Una sesión real contra [`demo/app.py`](demo/) (uvicorn + curl, sin trucos):
+tráfico normal pasa, los payloads reciben 403 y la auditoría registra la
+regla que saltó — nunca el contenido.
+
+![Demo de Gatekeeper](docs/assets/demo.gif)
+
+La app de la demo incluye un playground con botones y configs de despliegue
+para Vercel (`vercel --prod`) y Docker: [`demo/`](demo/).
+
 ## Latencia
 
 `python benchmarks/latency.py` mide el coste por petición en tu máquina

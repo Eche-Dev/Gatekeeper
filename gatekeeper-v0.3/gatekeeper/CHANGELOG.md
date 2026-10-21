@@ -26,6 +26,11 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 - Gobernanza en la raíz del repo: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
   plantillas de issues y PR, y workflows movidos a `.github/` de la raíz
   (GitHub solo ejecuta los workflows y lee las plantillas de raíz).
+- Demo desplegable en `demo/`: app FastAPI de juguete con playground de
+  payloads, configs para Vercel y Docker, y el GIF de una sesión real
+  (`docs/assets/demo.gif`, regenerable con `demo/make_gif.py`).
+- `ARTICLE.md`: artículo listo para publicar (dev.to / blog personal) sobre la
+  medición honesta con dos corpus y el ReDoS cuadrático de v0.3.
 - `tools/evaluate.py`: mide tasa de detección y falsos positivos; `--check` sirve de
   umbral en CI y `--write-report` genera `corpus/REPORT.md`.
 - `benchmarks/latency.py`: latencia añadida por petición, por escenario.

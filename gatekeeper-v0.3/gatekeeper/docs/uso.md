@@ -67,7 +67,7 @@ En este orden, y el primero que salta manda:
 La respuesta de bloqueo es `403` con JSON:
 
 ```json
-{"detail": "forbidden"}
+{"detail": "Forbidden"}
 ```
 
 Para medir falsos positivos con tu tráfico real antes de bloquear nada:

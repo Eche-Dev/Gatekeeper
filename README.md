@@ -31,6 +31,10 @@ app = FastAPI()
 app.add_middleware(GatekeeperMiddleware, config=Config(rate_limit=100, rate_window=60))
 ```
 
+Hay una **demo** con playground de payloads y GIF de una sesión real en
+[`gatekeeper-v0.3/gatekeeper/demo/`](gatekeeper-v0.3/gatekeeper/demo/)
+(despliegue en un comando con Vercel o Docker).
+
 ## Qué mide (no qué promete)
 
 Dos corpus, uno propio y otro externo, ambos con guarda en CI:

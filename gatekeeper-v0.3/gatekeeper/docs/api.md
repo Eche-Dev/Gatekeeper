@@ -23,7 +23,7 @@ Se añade con `app.add_middleware(GatekeeperMiddleware, config=...)`.
 
 | Status | Body | Cuándo |
 |---|---|---|
-| `403` | `{"detail": "forbidden"}` | Regla de detección, IP bloqueada |
+| `403` | `{"detail": "Forbidden"}` | Regla de detección, IP bloqueada |
 | `429` | `{"detail": "rate limit exceeded"}` | Rate limit |
 | `413` | `{"detail": "payload too large"}` | Body sobre `max_body_size` o sin `Content-Length` |
 | `503` | `{"detail": "rate_limit_backend_unavailable"}` | Redis caído con `rate_fail_open=False` |

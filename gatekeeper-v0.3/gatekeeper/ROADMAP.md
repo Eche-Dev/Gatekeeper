@@ -35,6 +35,11 @@
 - [x] Documentación con MkDocs Material (`docs/`), CONTRIBUTING, código de
       conducta y plantillas de issues/PR; workflows en la raíz del repo para
       que GitHub los ejecute
+- [x] Demo desplegable (`demo/`: playground con payloads, Vercel/Docker) con
+      el GIF de una sesión real (`docs/assets/demo.gif`)
+- [x] Artículo de publicación (`ARTICLE.md`)
+- [ ] Despliegue efectivo: GitHub Pages (docs) y demo en Vercel — requiere
+      activación con las credenciales del propietario
 
 ## v0.4 — siguiente
 - [ ] Inspección de `multipart/form-data` (nombres de campo y de archivo, no el contenido)

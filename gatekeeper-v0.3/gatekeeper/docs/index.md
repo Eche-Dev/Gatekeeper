@@ -40,6 +40,14 @@ diseñado para un WAF de 500+ reglas y mucho más ofuscado, y el workflow la
 vigila para que no baje. Ver [Detección y medición](deteccion.md) y
 [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md).
 
+## Demo
+
+El mismo comportamiento en vivo, con una app de juguete y un playground de
+botones en [`demo/`](https://github.com/Eche-Dev/Gatekeeper/tree/main/gatekeeper-v0.3/gatekeeper/demo)
+(vercel.json y Dockerfile incluidos):
+
+![Demo de Gatekeeper](assets/demo.gif)
+
 ## Características
 
 | Protección | Detalle |
