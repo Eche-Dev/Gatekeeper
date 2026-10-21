@@ -154,7 +154,7 @@ class RedisBackend:
                 self.clock(),
                 uuid.uuid4().hex,
             )
-        except Exception as exc:  # noqa: BLE001 - cualquier fallo de Redis es "no disponible"
+        except Exception as exc:  # cualquier fallo de Redis es "no disponible"
             raise BackendUnavailable(str(exc)) from exc
         return bool(int(result))
 
@@ -167,6 +167,6 @@ class RedisBackend:
                 self.window,
                 self.clock(),
             )
-        except Exception as exc:  # noqa: BLE001 - cualquier fallo de Redis es "no disponible"
+        except Exception as exc:  # cualquier fallo de Redis es "no disponible"
             raise BackendUnavailable(str(exc)) from exc
         return int(result)

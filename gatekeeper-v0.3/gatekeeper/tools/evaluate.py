@@ -32,8 +32,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gatekeeper.body import content_type_of, extract_strings, is_inspectable  # noqa: E402
-from gatekeeper.rules import scan  # noqa: E402
+from gatekeeper.body import content_type_of, extract_strings, is_inspectable
+from gatekeeper.rules import scan
 
 CORPUS_DIR = ROOT / "corpus"
 CRS_FILE = CORPUS_DIR / "crs_payloads.json"

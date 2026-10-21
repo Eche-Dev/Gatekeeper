@@ -27,11 +27,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from starlette.applications import Starlette  # noqa: E402
-from starlette.responses import PlainTextResponse  # noqa: E402
-from starlette.routing import Route  # noqa: E402
+from starlette.applications import Starlette
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
 
-from gatekeeper import Config, GatekeeperMiddleware  # noqa: E402
+from gatekeeper import Config, GatekeeperMiddleware
 
 QUERY_OK = b"q=hello+world&page=2"
 QUERY_ATTACK = b"q=1+UNION+SELECT+password+FROM+users"

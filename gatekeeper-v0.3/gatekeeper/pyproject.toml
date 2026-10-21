@@ -54,6 +54,11 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 
+[tool.ruff.lint]
+# Selección explícita y fija: sin esto el resultado de `ruff check` depende de
+# la versión instalada, y cada ruff nuevo puede añadir reglas que rompan CI.
+select = ["E4", "E7", "E9", "F", "W"]
+
 [tool.ruff.lint.per-file-ignores]
 # los scripts de evaluación y benchmark insertan src/ en sys.path
 "tools/*" = ["E402"]

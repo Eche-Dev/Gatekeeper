@@ -134,7 +134,7 @@ def test_header_devuelve_str_o_none(headers: list) -> None:
 
 
 def test_scan_es_lineal_con_entradas_patologicas() -> None:
-    """Regresión del ReDoS cuadrático de v0.3: `\s*` adyacentes sin acotar.
+    """Regresión del ReDoS cuadrático de v0.3: `\\s*` adyacentes sin acotar.
 
     Medido antes del arreglo: `or` + 80.000 espacios tardaba 118 s y crecía 4x
     por cada doblón de entrada. Con cuantificadores acotados, lineal.
