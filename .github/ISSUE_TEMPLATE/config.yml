@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 🔒 Reportar una vulnerabilidad
+    url: https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY.md
+    about: No abras un issue público para fallos de seguridad: el proceso es privado.
+  - name: 📖 Documentación y límites conocidos
+    url: https://eche-dev.github.io/Gatekeeper/
+    about: Antes de abrir un issue, revisa la guía, la medición y los FP/FN documentados.

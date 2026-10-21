@@ -90,6 +90,18 @@ empeora esas cifras (`python tools/evaluate.py --check`).
 | completo (inspección + rate limit) | 50.76 | +38.30 |
 | request atacante (403 temprano) | 22.88 | +10.42 |
 
+## Documentación
+
+Guía completa con [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
+en [`docs/`](docs/): uso, detección y medición, seguridad, referencia de API y
+desarrollo. En local: `mkdocs serve`. Se publica en
+<https://eche-dev.github.io/Gatekeeper/> al etiquetar un release (build
+`--strict` en CI: un enlace roto rompe el workflow).
+
+Contribuir: [CONTRIBUTING.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/CONTRIBUTING.md)
+· [Código de conducta](https://github.com/Eche-Dev/Gatekeeper/blob/main/CODE_OF_CONDUCT.md)
+· Plantillas de issues y PR en la raíz del repo.
+
 Son microsegundos relativos, no una promesa de latencia: sirve para comparar
 escenarios y detectar regresiones.
 

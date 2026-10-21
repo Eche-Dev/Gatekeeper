@@ -38,6 +38,8 @@ dev = [
   "build",
   "twine",
   "hypothesis",
+  "mkdocs",
+  "mkdocs-material",
   "pyyaml>=6",
   "redis>=5.0",
   "fakeredis[lua]>=2.24",

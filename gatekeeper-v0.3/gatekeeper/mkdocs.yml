@@ -1,0 +1,46 @@
+site_name: Gatekeeper
+site_description: Middleware ASGI de seguridad para FastAPI y Starlette
+site_url: https://eche-dev.github.io/Gatekeeper/
+repo_url: https://github.com/Eche-Dev/Gatekeeper
+repo_name: Eche-Dev/Gatekeeper
+edit_uri: edit/main/gatekeeper-v0.3/gatekeeper/docs/
+docs_dir: docs
+theme:
+  name: material
+  language: es
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      toggle:
+        icon: material/weather-night
+        name: Cambiar a oscuro
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      toggle:
+        icon: material/weather-sunny
+        name: Cambiar a claro
+  features:
+    - navigation.top
+    - navigation.sections
+    - content.code.copy
+    - content.action.edit
+nav:
+  - Inicio: index.md
+  - Instalación: instalacion.md
+  - Uso: uso.md
+  - Detección y medición: deteccion.md
+  - Seguridad: seguridad.md
+  - Referencia (API): api.md
+  - Desarrollo: desarrollo.md
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true

@@ -32,6 +32,9 @@
       `scan`, `normalize`, `extract_strings`, `Config` y `allow_paths`
 - [x] ReDoS cuadrático de los cuantificadores de blancos medido y corregido
       (`or` + 80k espacios: 118 s → <1 s) con test de regresión
+- [x] Documentación con MkDocs Material (`docs/`), CONTRIBUTING, código de
+      conducta y plantillas de issues/PR; workflows en la raíz del repo para
+      que GitHub los ejecute
 
 ## v0.4 — siguiente
 - [ ] Inspección de `multipart/form-data` (nombres de campo y de archivo, no el contenido)

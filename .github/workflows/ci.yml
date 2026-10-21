@@ -1,5 +1,9 @@
 name: CI
 on: [push, pull_request]
+defaults:
+  run:
+    # El proyecto vive en un subdirectorio (convención del repo: v0.1 / v0.2 / v0.3)
+    working-directory: gatekeeper-v0.3/gatekeeper
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -50,4 +54,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist/
+          path: gatekeeper-v0.3/gatekeeper/dist/

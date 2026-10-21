@@ -20,6 +20,12 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 - Tests de propiedades con **hypothesis** (`tests/test_fuzz.py`): ninguna entrada
   arbitraria revienta `scan()`, `normalize()`, `extract_strings()` ni `Config`;
   `allow_paths` nunca exime una ruta con indicios de traversal.
+- Documentación con **MkDocs Material** en `docs/` (guía de uso, detección y
+  medición, seguridad, API y desarrollo), con `mkdocs build --strict` en CI y
+  despliegue en GitHub Pages al etiquetar releases.
+- Gobernanza en la raíz del repo: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
+  plantillas de issues y PR, y workflows movidos a `.github/` de la raíz
+  (GitHub solo ejecuta los workflows y lee las plantillas de raíz).
 - `tools/evaluate.py`: mide tasa de detección y falsos positivos; `--check` sirve de
   umbral en CI y `--write-report` genera `corpus/REPORT.md`.
 - `benchmarks/latency.py`: latencia añadida por petición, por escenario.
