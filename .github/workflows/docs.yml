@@ -1,7 +1,7 @@
 name: Docs
-# Compueba la documentación en cada push/PR; la publica en GitHub Pages al
-# etiquetar un release (o manualmente desde la pestaña Actions).
-# Para que el despliegue funcione: Settings -> Pages -> Source: GitHub Actions.
+# Compueba la documentación en cada push/PR y la publica en GitHub Pages en
+# cada push a main (y en tags o manualmente desde la pestaña Actions).
+# Requiere: Settings -> Pages -> Source: GitHub Actions.
 on:
   push:
     branches: [main]
@@ -27,12 +27,14 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: mkdocs build --strict
       - uses: actions/upload-pages-artifact@v3
-        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+        if: github.event_name != 'pull_request'
         with:
           path: gatekeeper-v0.3/gatekeeper/site
 
   deploy:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    # En los PR solo se construye (para validarlos); en push a main, tags y
+    # despliegue manual, se publica.
+    if: github.event_name != 'pull_request'
     needs: build
     permissions:
       pages: write

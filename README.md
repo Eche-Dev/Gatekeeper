@@ -51,7 +51,7 @@ número bajo del corpus ajeno es tan importante como el alto del propio.
 ## Documentación
 
 - **Guía**: <https://eche-dev.github.io/Gatekeeper/> (se publica desde
-  [`docs/`](gatekeeper-v0.3/gatekeeper/docs/) en cada tag; `mkdocs serve` en local)
+  [`docs/`](gatekeeper-v0.3/gatekeeper/docs/) en cada push a `main`; `mkdocs serve` en local)
 - [README completo](gatekeeper-v0.3/gatekeeper/README.md) ·
   [Contribuir](CONTRIBUTING.md) ·
   [Seguridad](gatekeeper-v0.3/gatekeeper/SECURITY.md) ·

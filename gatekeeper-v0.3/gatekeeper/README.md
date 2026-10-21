@@ -106,7 +106,7 @@ para Vercel (`vercel --prod`) y Docker: [`demo/`](demo/).
 Guía completa con [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
 en [`docs/`](docs/): uso, detección y medición, seguridad, referencia de API y
 desarrollo. En local: `mkdocs serve`. Se publica en
-<https://eche-dev.github.io/Gatekeeper/> al etiquetar un release (build
+<https://eche-dev.github.io/Gatekeeper/> en cada push a `main` (build
 `--strict` en CI: un enlace roto rompe el workflow).
 
 Contribuir: [CONTRIBUTING.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/CONTRIBUTING.md)

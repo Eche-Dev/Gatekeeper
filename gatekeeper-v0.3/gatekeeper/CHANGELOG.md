@@ -22,7 +22,7 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   `allow_paths` nunca exime una ruta con indicios de traversal.
 - Documentación con **MkDocs Material** en `docs/` (guía de uso, detección y
   medición, seguridad, API y desarrollo), con `mkdocs build --strict` en CI y
-  despliegue en GitHub Pages al etiquetar releases.
+  despliegue en GitHub Pages en cada push a `main`.
 - Gobernanza en la raíz del repo: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
   plantillas de issues y PR, y workflows movidos a `.github/` de la raíz
   (GitHub solo ejecuta los workflows y lee las plantillas de raíz).

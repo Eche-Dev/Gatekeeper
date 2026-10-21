@@ -53,9 +53,9 @@ mkdocs serve      # en local con recarga
 mkdocs build --strict
 ```
 
-La publicación es el job `deploy` del workflow **Docs**: corre al etiquetar un
-tag (`git tag v0.3.0 && git push --tags`) o manualmente desde la pestaña
-Actions. Requiere **Settings → Pages → Source: GitHub Actions** en el repo.
+La publicación es el job `deploy` del workflow **Docs**: corre en cada push a
+`main`, al etiquetar un tag o manualmente desde la pestaña Actions. Requiere
+**Settings → Pages → Source: GitHub Actions** en el repo.
 `--strict` hace que un enlace roto rompa el build en CI.
 
 ## Añadir una regla

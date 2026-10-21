@@ -1,0 +1,20 @@
+# Dependabot: actualizaciones automáticas de las actions de CI (ahí es donde
+# más se deprecan versiones: lo de Node 20 lo avisó esta misma semana) y de
+# las dependencias del proyecto activo. Los v0.1/v0.2 son históricos: no se
+# tocan. Cadencia mensual para no abrir PRs por cada minuto.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: pip
+    directory: /gatekeeper-v0.3/gatekeeper
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: pip
+    directory: /gatekeeper-v0.3/gatekeeper/demo
+    schedule:
+      interval: monthly
