@@ -1,0 +1,17 @@
+# Uso: app.add_middleware(GatekeeperMiddleware, config=Config.from_yaml("gatekeeper.yaml"))
+rate_limit: 100          # peticiones por ventana y por IP (0 = desactivado)
+rate_window: 60          # segundos
+monitor_only: false      # true: solo registra, no bloquea (útil para medir falsos positivos)
+max_body_size: 1048576   # bytes; JSON/form por encima -> 413
+trust_proxy: false       # true solo detrás de un proxy de confianza
+allow_paths:             # exentas de inspección (siguen sujetas a rate limit)
+  - /docs
+  - /openapi.json
+  - /health
+blocked_ips: []
+disabled_rules: []       # sqli, xss, path_traversal o nombres de custom_rules
+custom_rules:            # regex sobre texto decodificado y en MINÚSCULAS
+  - name: wp-probe
+    pattern: 'wp-(login|admin)'
+  - name: dotfiles
+    pattern: '/\.(env|git)'

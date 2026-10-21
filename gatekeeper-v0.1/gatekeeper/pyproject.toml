@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gatekeeper-asgi"
+version = "0.1.0"
+description = "Middleware ASGI de seguridad para FastAPI/Starlette: rate limiting, cabeceras seguras, detección de patrones de ataque y auditoría en JSON."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Ángel Echenique" }]
+dependencies = ["starlette>=0.37"]
+classifiers = [
+  "Framework :: FastAPI",
+  "Topic :: Security",
+  "Programming Language :: Python :: 3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "httpx", "ruff", "bandit"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gatekeeper"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
