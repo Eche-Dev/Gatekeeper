@@ -13,7 +13,41 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: pip install -e ".[dev]"
       - run: ruff check .
+      - run: mypy
       - run: bandit -r src -q
       - run: pytest --cov=gatekeeper --cov-fail-under=90
       - name: Tasa de detección y falsos positivos contra el corpus
         run: python tools/evaluate.py --check
+      - name: Procedencia del corpus externo de CRS
+        run: python tools/import_crs.py --check
+
+  package:
+    # El paquete se construye, se valida y se instala en un entorno limpio:
+    # así un fallo de empaquetado (falta py.typed, metadata rota) no llega a PyPI.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+      - name: Instala el wheel en un entorno limpio y comprueba que importa
+        run: |
+          python -m venv /tmp/gk-venv
+          /tmp/gk-venv/bin/pip install dist/*.whl
+          /tmp/gk-venv/bin/python -c "import gatekeeper; from gatekeeper import Config; print(gatekeeper.__version__)"
+      - name: Comprueba que los tipos llegan al consumidor (py.typed)
+        run: |
+          /tmp/gk-venv/bin/pip install mypy
+          printf 'from gatekeeper import Config\nconfig: int = Config()\n' > /tmp/consumidor.py
+          if /tmp/gk-venv/bin/mypy /tmp/consumidor.py; then
+            echo "mypy NO detectó el error esperado: faltan tipos en el wheel"
+            exit 1
+          fi
+          echo "mypy detectó el error esperado: py.typed funciona"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/

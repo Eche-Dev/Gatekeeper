@@ -8,14 +8,21 @@ version = "0.3.0"
 description = "Middleware ASGI de seguridad para FastAPI/Starlette: rate limiting, cabeceras seguras, detección de patrones de ataque y auditoría en JSON."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
-authors = [{ name = "Ángel Echenique" }]
+# PEP 639: SPDX + licencias incluidas en el wheel y en el sdist
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Ángel David Echenique Villanueva", email = "angel98dev26@gmail.com" }]
 dependencies = ["starlette>=0.37"]
 classifiers = [
   "Framework :: FastAPI",
   "Topic :: Security",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Typing :: Typed",
 ]
+keywords = ["security", "asgi", "fastapi", "starlette", "waf", "rate-limiting", "sqli", "xss"]
 
 [project.optional-dependencies]
 yaml = ["pyyaml>=6"]
@@ -26,6 +33,11 @@ dev = [
   "httpx",
   "ruff",
   "bandit",
+  "mypy",
+  "types-PyYAML",
+  "build",
+  "twine",
+  "hypothesis",
   "pyyaml>=6",
   "redis>=5.0",
   "fakeredis[lua]>=2.24",
@@ -44,3 +56,10 @@ line-length = 100
 # los scripts de evaluación y benchmark insertan src/ en sys.path
 "tools/*" = ["E402"]
 "benchmarks/*" = ["E402"]
+
+[tool.mypy]
+# estricto y contra la versión mínima soportada (3.10): si algo no existe en
+# 3.10, mypy lo dice aunque lo ejecutes en una versión más nueva
+python_version = "3.10"
+strict = true
+files = ["src/gatekeeper"]

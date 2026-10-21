@@ -1,0 +1,3 @@
+# Marca PEP 561: el paquete expone anotaciones de tipos para mypy/pyright.
+# No borres: sin este fichero, los usuarios que importen gatekeeper no reciben
+# comprobación de tipos en su IDE.

@@ -23,11 +23,19 @@
 - [x] Rate limiting en Redis con script Lua atómico y cliente `redis.asyncio`
       (no bloquea el event loop), política `rate_fail_open`
 - [x] Benchmark de latencia por petición (`benchmarks/latency.py`)
+- [x] mypy estricto + `py.typed` (PEP 561), `CHANGELOG.md`, `SECURITY.md`,
+      build + `twine check` y prueba de instalación limpia en CI
+- [x] Corpus **externo** de OWASP CRS (1379 tests, Apache-2.0 con atribución y
+      commit de procedencia) como segunda batería de medida, con guarda de
+      regresión en CI
+- [x] Fuzzing con hypothesis (`tests/test_fuzz.py`): propiedades sobre
+      `scan`, `normalize`, `extract_strings`, `Config` y `allow_paths`
+- [x] ReDoS cuadrático de los cuantificadores de blancos medido y corregido
+      (`or` + 80k espacios: 118 s → <1 s) con test de regresión
 
 ## v0.4 — siguiente
 - [ ] Inspección de `multipart/form-data` (nombres de campo y de archivo, no el contenido)
 - [ ] Métricas Prometheus (contadores de bloqueos y de rate limit)
-- [ ] Importar payloads del OWASP Core Rule Set (Apache 2.0) con atribución
 - [ ] Integración con Starlette/FastAPI como dependencia declarada en tests
 - [ ] Decodificación de entidades HTML y de UTF-8 sobre-long para cerrar los
       falsos negativos documentados

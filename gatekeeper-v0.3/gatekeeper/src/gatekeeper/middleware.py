@@ -46,7 +46,8 @@ def build_limiter(config: Config) -> RateLimitBackend | None:
 def _header(scope: Scope, name: bytes) -> str | None:
     for key, value in scope.get("headers", []):
         if key == name:
-            return value.decode("latin-1")
+            decoded: str = value.decode("latin-1")
+            return decoded
     return None
 
 

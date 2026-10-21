@@ -92,7 +92,7 @@ class Config:
                 raise ValueError(f"Regla personalizada '{name}': el patrón está vacío")
             try:
                 self.compiled_custom[name] = [re.compile(pattern)]
-            except re.error as exc:
+            except (re.error, OverflowError) as exc:
                 raise ValueError(f"Regla personalizada '{name}': patrón inválido ({exc})") from exc
 
         unknown = set(self.disabled_rules) - set(RULES) - set(rules)

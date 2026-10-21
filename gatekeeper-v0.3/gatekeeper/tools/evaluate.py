@@ -6,6 +6,11 @@ Mide los dos números que el README publica con honestidad:
 - **tasa de detección**: qué porcentaje de los payloads de ataque bloquea;
 - **tasa de falsos positivos**: qué porcentaje del tráfico legítimo bloquea.
 
+Además puntúa el corpus EXTERNO de OWASP CRS (corpus/crs_payloads.json,
+Apache-2.0, importado con tools/import_crs.py): un corpus escrito por gente
+distinta, con sus propios negativos. Ahí los umbrales son una guarda de
+regresión sobre la línea base medida, no una promesa de cobertura.
+
 Uso:
     python tools/evaluate.py                 # resumen por consola
     python tools/evaluate.py --write-report  # genera corpus/REPORT.md
@@ -13,7 +18,7 @@ Uso:
     python tools/evaluate.py --json          # salida legible por máquina
 
 Los falsos positivos y falsos negativos *documentados* en el corpus (campos
-`known_fp` y `documented_miss`) se cont aparte: son límites conocidos y
+`known_fp` y `documented_miss`) se cuentan aparte: son límites conocidos y
 aceptados, no sorpresas. El umbral de CI se aplica a los no documentados.
 """
 from __future__ import annotations
@@ -27,11 +32,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from gatekeeper.body import content_type_of, extract_strings, is_inspectable  # noqa: E402
 from gatekeeper.rules import scan  # noqa: E402
 
 CORPUS_DIR = ROOT / "corpus"
+CRS_FILE = CORPUS_DIR / "crs_payloads.json"
 DEFAULT_MIN_DETECTION = 0.90  # umbral de CI sobre la tasa de detección en crudo
 DEFAULT_MAX_FP = 0.0  # umbral de CI sobre falsos positivos NO documentados
+# Umbrales sobre el corpus externo de CRS: guardas de regresión sobre la línea
+# base medida (185/982 = 18.8% de detección, 8/185 = 4.3% de FP), redondeada al
+# entero por debajo (detección) y por encima (FP). Se recalculan al reimportar.
+DEFAULT_MIN_CRS_DETECTION = 0.18
+DEFAULT_MAX_CRS_FP = 0.05
 
 
 @dataclass
@@ -101,12 +113,194 @@ def evaluate() -> Report:
     return report
 
 
+@dataclass
+class CrsReport:
+    """Resultado sobre el corpus externo de OWASP CRS."""
+
+    source: dict = field(default_factory=dict)
+    attacks_total: int = 0  # en alcance (transportados por campos inspeccionados)
+    attacks_detected: int = 0
+    per_family: dict[str, tuple[int, int]] = field(default_factory=dict)
+    misses: list[dict] = field(default_factory=list)
+    benign_total: int = 0  # negativos de CRS en alcance
+    benign_flagged: int = 0
+    fps: list[dict] = field(default_factory=list)
+    fp_by_rule: dict[str, int] = field(default_factory=dict)
+    excluded: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def detection_rate(self) -> float:
+        return self.attacks_detected / self.attacks_total if self.attacks_total else 0.0
+
+    @property
+    def fp_rate(self) -> float:
+        return self.benign_flagged / self.benign_total if self.benign_total else 0.0
+
+    @property
+    def missed(self) -> int:
+        return self.attacks_total - self.attacks_detected
+
+
+def _crs_carriers(item: dict) -> tuple[list[str], bool]:
+    """Strings que el middleware inspeccionaría en esa petición CRS y si el body es inspeccionable.
+
+    El middleware inspecciona ruta+query siempre; el body solo con content-type
+    JSON/form (los tests de CRS sin content-type se asumen formularios).
+    """
+    uri = item.get("uri") or ""
+    carriers = [uri] if uri else []
+    data = item.get("data")
+    raw = item.get("content_type")
+    # sin content-type se asume formulario (el navegador lo hace por defecto);
+    # con parámetros (`; charset=...`) se recorta igual que en el middleware
+    content_type = content_type_of(raw) if raw else "application/x-www-form-urlencoded"
+    inspectable = is_inspectable(content_type)
+    if data and inspectable:
+        carriers.extend(extract_strings(content_type, data.encode("utf-8", "replace")))
+    return carriers, inspectable
+
+
+def _crs_in_scope(item: dict, inspectable: bool) -> bool:
+    """Fuera de alcance: payload en cabeceras o en body con content-type no inspeccionado.
+
+    Son límites documentados de Gatekeeper (ver SECURITY.md), no fallos: se
+    excluyen del denominador y se contabilizan en el informe.
+    """
+    if item.get("carrier") == "headers":
+        return False
+    if item.get("carrier") == "body" and not inspectable:
+        return False
+    return True
+
+
+def evaluate_crs() -> CrsReport:
+    """Puntúa corpus/crs_payloads.json (importado con tools/import_crs.py)."""
+    data = json.loads(CRS_FILE.read_text(encoding="utf-8"))
+    report = CrsReport(source=data.get("source", {}))
+    per_family: dict[str, list[int]] = {}
+
+    def _note_family(family: str, detected: bool) -> None:
+        total, det = per_family.setdefault(family, [0, 0])
+        per_family[family] = [total + 1, det + (1 if detected else 0)]
+
+    for item in data["payloads"]:
+        carriers, inspectable = _crs_carriers(item)
+        fired = next((r for r in (scan(c) for c in carriers) if r), None)
+        in_scope = _crs_in_scope(item, inspectable)
+        family = item.get("family") or "?"
+        if item["expect"] == "attack":
+            if fired:
+                report.attacks_total += 1
+                report.attacks_detected += 1
+                _note_family(family, True)
+            elif in_scope:
+                report.attacks_total += 1
+                _note_family(family, False)
+                if len(report.misses) < 12:
+                    report.misses.append(item)
+            else:
+                reason = ("payload solo en cabeceras (no inspeccionadas)"
+                          if item.get("carrier") == "headers"
+                          else "payload en body con content-type no inspeccionado")
+                report.excluded[reason] = report.excluded.get(reason, 0) + 1
+        else:  # benign: negativos de CRS
+            if not in_scope:
+                reason = ("payload solo en cabeceras (no inspeccionadas)"
+                          if item.get("carrier") == "headers"
+                          else "payload en body con content-type no inspeccionado")
+                report.excluded[reason] = report.excluded.get(reason, 0) + 1
+                continue
+            report.benign_total += 1
+            if fired:
+                report.benign_flagged += 1
+                report.fp_by_rule[fired] = report.fp_by_rule.get(fired, 0) + 1
+                report.fps.append({**item, "rule": fired})
+
+    report.per_family = {k: (v[1], v[0]) for k, v in per_family.items()}
+    return report
+
+
 def _code(text: str) -> str:
     """Texto listo para una celda de tabla markdown."""
     return "`" + text.replace("|", "\\|").replace("`", "'") + "`"
 
 
-def to_markdown(r: Report, min_detection: float, max_fp: float) -> str:
+def _crs_payload(item: dict) -> str:
+    text = item.get("data") or item.get("uri") or ""
+    return text[:90] + ("…" if len(text) > 90 else "")
+
+
+def crs_section(
+    c: CrsReport,
+    min_detection: float = DEFAULT_MIN_CRS_DETECTION,
+    max_fp: float = DEFAULT_MAX_CRS_FP,
+) -> list[str]:
+    """Sección markdown del corpus externo de OWASP CRS."""
+    commit = (c.source.get("commit") or "sin commit")[:12]
+    lines = [
+        "",
+        "## Corpus externo: OWASP Core Rule Set",
+        "",
+        f"> Fuente: [{c.source.get('project', 'OWASP CRS')}]({c.source.get('url')}), "
+        f"commit `{commit}`, licencia {c.source.get('license')}. "
+        "Extraído con `tools/import_crs.py`; alcance, exclusiones y límites en "
+        "[README.md](README.md).",
+        "",
+        "| Familia (familias CRS 930/941/942) | Detectados / total |",
+        "|---|---|",
+    ]
+    for family in sorted(c.per_family):
+        detected, total = c.per_family[family]
+        lines.append(f"| {family} | {detected} / {total} |")
+    lines += [
+        f"| **total en alcance** | **{c.attacks_detected} / {c.attacks_total} "
+        f"({c.detection_rate:.1%})** |",
+        "",
+        "| Métrica externa | Valor |",
+        "|---|---|",
+        f"| Negativos de CRS en alcance | {c.benign_total} |",
+        f"| Falsos positivos sobre esos negativos | {c.benign_flagged} ({c.fp_rate:.1%}) |",
+    ]
+    for reason in sorted(c.excluded):
+        lines.append(f"| Excluidos: {reason} | {c.excluded[reason]} |")
+
+    if c.fps:
+        lines += ["", "### Falsos positivos sobre los negativos de CRS", "",
+                  "| id | regla | payload |", "|---|---|---|"]
+        for item in c.fps:
+            lines.append(
+                f"| {item['id']} | {item['rule']} | {_code(_crs_payload(item))} |"
+            )
+
+    if c.misses:
+        lines += ["", f"### Muestra de falsos negativos ({len(c.misses)} de {c.missed})", "",
+                  "| id | familia | payload |", "|---|---|---|"]
+        for item in c.misses:
+            lines.append(
+                f"| {item['id']} | {item['family']} | {_code(_crs_payload(item))} |"
+            )
+
+    lines += [
+        "",
+        "### Umbrales del corpus externo (guarda de regresión sobre la línea base)",
+        "",
+        f"- detección CRS ≥ {min_detection:.0%}: "
+        f"{'✅' if c.detection_rate >= min_detection else '❌'} ({c.detection_rate:.1%})",
+        f"- FP CRS ≤ {max_fp:.1%}: "
+        f"{'✅' if c.fp_rate <= max_fp else '❌'} ({c.fp_rate:.1%})",
+        "",
+    ]
+    return lines
+
+
+def to_markdown(
+    r: Report,
+    min_detection: float,
+    max_fp: float,
+    crs: CrsReport | None = None,
+    min_crs_detection: float = DEFAULT_MIN_CRS_DETECTION,
+    max_crs_fp: float = DEFAULT_MAX_CRS_FP,
+) -> str:
     undocumented_fp = r.benign_flagged - r.benign_documented_fp
     lines = [
         "# Informe de detección",
@@ -160,7 +354,10 @@ def to_markdown(r: Report, min_detection: float, max_fp: float) -> str:
               f"- detección ≥ {min_detection:.0%}: "
               f"{'✅' if r.detection_rate >= min_detection else '❌'} ({r.detection_rate:.1%})",
               f"- falsos positivos no documentados ≤ {max_fp:.0%}: "
-              f"{'✅' if r.fp_rate <= max_fp else '❌'} ({r.fp_rate:.1%})", ""]
+              f"{'✅' if r.fp_rate <= max_fp else '❌'} ({r.fp_rate:.1%})"]
+    if crs is not None:
+        lines += crs_section(crs, min_crs_detection, max_crs_fp)
+    lines += [""]
     return "\n".join(lines)
 
 
@@ -178,9 +375,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="salida JSON")
     parser.add_argument("--min-detection", type=float, default=DEFAULT_MIN_DETECTION)
     parser.add_argument("--max-fp", type=float, default=DEFAULT_MAX_FP)
+    parser.add_argument("--min-crs-detection", type=float, default=DEFAULT_MIN_CRS_DETECTION,
+                        help="guarda de regresión sobre el corpus externo de CRS")
+    parser.add_argument("--max-crs-fp", type=float, default=DEFAULT_MAX_CRS_FP,
+                        help="FP máximos sobre los negativos de CRS")
     args = parser.parse_args(argv)
 
     report = evaluate()
+    crs = evaluate_crs() if CRS_FILE.exists() else None
 
     if args.json:
         payload = {
@@ -194,13 +396,28 @@ def main(argv: list[str] | None = None) -> int:
             "fp_rate": round(report.fp_rate, 4),
             "per_rule": {k: list(v) for k, v in report.per_rule.items()},
         }
+        if crs is not None:
+            payload["crs"] = {
+                "source": crs.source,
+                "attacks_total": crs.attacks_total,
+                "attacks_detected": crs.attacks_detected,
+                "detection_rate": round(crs.detection_rate, 4),
+                "per_family": {k: list(v) for k, v in crs.per_family.items()},
+                "benign_total": crs.benign_total,
+                "benign_flagged": crs.benign_flagged,
+                "fp_rate": round(crs.fp_rate, 4),
+                "excluded": crs.excluded,
+            }
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
-        print(to_markdown(report, args.min_detection, args.max_fp))
+        print(to_markdown(report, args.min_detection, args.max_fp, crs,
+                          args.min_crs_detection, args.max_crs_fp))
 
     if args.write_report:
         (CORPUS_DIR / "REPORT.md").write_text(
-            to_markdown(report, args.min_detection, args.max_fp), encoding="utf-8"
+            to_markdown(report, args.min_detection, args.max_fp, crs,
+                        args.min_crs_detection, args.max_crs_fp),
+            encoding="utf-8",
         )
         print(f"informe escrito en {CORPUS_DIR / 'REPORT.md'}", file=sys.stderr)
 
@@ -216,6 +433,16 @@ def main(argv: list[str] | None = None) -> int:
         if report.fp_rate > args.max_fp:
             print(f"❌ FP {report.fp_rate:.1%} > {args.max_fp:.0%}", file=sys.stderr)
             return 1
+        if crs is not None:
+            if crs.detection_rate < args.min_crs_detection:
+                print(f"❌ detección CRS {crs.detection_rate:.1%} < "
+                      f"{args.min_crs_detection:.0%} (regresión sobre la línea base)",
+                      file=sys.stderr)
+                return 1
+            if crs.fp_rate > args.max_crs_fp:
+                print(f"❌ FP sobre CRS {crs.fp_rate:.1%} > {args.max_crs_fp:.1%}",
+                      file=sys.stderr)
+                return 1
         print("✅ umbrales de detección cumplidos", file=sys.stderr)
     return 0
 
