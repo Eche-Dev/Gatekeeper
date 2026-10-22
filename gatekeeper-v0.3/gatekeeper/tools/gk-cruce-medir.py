@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 """Measure cruce query+body impact on top of existing detection."""
 
-import json, sys, pathlib
+import json
+import sys
+import pathlib
 sys.path.insert(0, ".")
 import importlib.util
 spec = importlib.util.spec_from_file_location("ev", "tools/evaluate.py")
@@ -38,21 +40,21 @@ for it in attacks:
     c, i = ev._crs_carriers(it)
     if len(c) < 2:
         continue
-    
+
     # Ya detectado individualmente? Skip.
     if any(ev.scan_detailed(x) for x in c if x):
         continue
-    
+
     # Intentar combinar los carriers
     # Usar los primeros 2 carriers no vacíos
     non_empty = [x for x in c if x and x.strip()]
     if len(non_empty) < 2:
         continue
-    
+
     t1, t2 = non_empty[0], non_empty[1]
     combined = " ".join([t1, t2]).strip()
     combined_norm = ev.normalize(combined)
-    
+
     # Escanear el combinado
     hit = None
     for familia, patrones in ev.RULES.items():
@@ -62,7 +64,7 @@ for it in attacks:
                 break
         if hit:
             break
-    
+
     if hit:
         cross_detected += 1
         # Ver si era nuevo (no se detectaba individualmente)
@@ -107,9 +109,9 @@ print(f"   Detección individual: {detected_indiv}/{len(attacks)} ({detected_ind
 print(f"   Con cruce query+body: {cross_detected}/{len(attacks)} ({cross_detected/len(attacks)*100:.1f}%)")
 print(f"   Nuevos ataques detectados: {cross_new} ({cross_new/len(attacks)*100:.1f}%)")
 print(f"   FP en benignos (muestreo): {fp_cross}/100")
-print(f"\n   Si aplicáramos el cruce, la detección subiría de")
+print("\n   Si aplicáramos el cruce, la detección subiría de")
 print(f"   {detected_indiv/len(attacks)*100:.1f}% a {(detected_indiv+cross_new)/len(attacks)*100:.1f}%")
-print(f"   (siempre que FP_cross <= 0 en el corpus propio)")
+print("   (siempre que FP_cross <= 0 en el corpus propio)")
 
 # Paso 5: Verificar corpus propio
 print("\n3. Verificando corpus propio...")

@@ -1,4 +1,6 @@
-import json, sys, pathlib, re, collections
+import json
+import sys
+import pathlib
 sys.path.insert(0, ".")
 import importlib.util
 spec = importlib.util.spec_from_file_location("ev", "tools/evaluate.py")
@@ -53,7 +55,7 @@ for it in attacks:
             ind2 = ev.scan_detailed(t2) if t2 else None
             if not ind1 and not ind2:
                 cross_new += 1
-                print(f"    NUEVO por cruce: {uri[:50]!r}")
+                print(f"    NUEVO por cruce: {it.get('uri', '?')[:50]!r}")
                 print(f"      carriers: {t1[:50]!r} + {t2[:50]!r}")
                 print(f"      combined: {combined_norm[:60]!r}")
                 print(f"      regla: {h[0]}")
@@ -71,7 +73,7 @@ for it in benign[:50]:  # muestreo
             fp_cross += 1
             print(f"    FP cruzado: {it.get('uri')!r} -> {h[0]}")
 
-print(f"\nResultado cruce query+body:")
+print("\nResultado cruce query+body:")
 print(f"  Ataques detectados con cruce: {cross_detected}")
 print(f"  Nuevos descubiertos (no Individual): {cross_new}")
 print(f"  FP en benignos (muestreo): {fp_cross}")
