@@ -13,6 +13,14 @@ app.add_middleware(GatekeeperMiddleware, config=Config())
 `Config()` con sus defectos ya es una configuración sensata: 100 peticiones por
 minuto por IP, inspección activa, body hasta 1 MiB.
 
+La combinación de ruta/query con valores textuales del body es opt-in:
+`Config(inspect_cross_carrier=True)`. Puede detectar firmas divididas entre
+ambos componentes, pero combinar contextos también puede aumentar falsos
+positivos. Pruébala primero con `monitor_only=True` sobre tráfico representativo.
+Los campos excluidos no participan en la combinación; las claves JSON se
+inspeccionan individualmente, pero no se unen al objetivo de query. La métrica
+CRS publicada mide el modo normal; no representa el rendimiento de esta opción.
+
 ## Rate limiting
 
 | Campo | Defecto | Notas |
@@ -57,7 +65,7 @@ En este orden, y el primero que salta manda:
    `X-Forwarded-For`) → 403.
 5. **Body** con cualquier content-type textual (JSON, form, `text/plain`, XML
    o sin `content-type`) → 403. Si el body supera
-   `max_body_size` (o no declara `Content-Length`) → 413.
+   `max_body_size`, por tamaño declarado o al leer el stream → 413.
 
 !!! note "Qué NO inspecciona (por diseño)"
     `multipart/form-data` y bodies binarios (imagen, PDF, zip…): no son cadenas

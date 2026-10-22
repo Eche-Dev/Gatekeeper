@@ -50,15 +50,15 @@
 
 | Familia (familias CRS 930/941/942) | Detectados / total |
 |---|---|
-| path_traversal | 50 / 62 |
-| sqli | 269 / 869 |
+| path_traversal | 55 / 62 |
+| sqli | 304 / 869 |
 | xss | 100 / 204 |
-| **total en alcance** | **419 / 1135 (36.9%)** |
+| **total en alcance** | **459 / 1135 (40.4%)** |
 
 | Métrica externa | Valor |
 |---|---|
 | Negativos de CRS en alcance | 232 |
-| Falsos positivos sobre esos negativos | 10 (4.3%) |
+| Falsos positivos sobre esos negativos | 11 (4.7%) |
 | Excluidos: payload en body con content-type no inspeccionado | 3 |
 | Excluidos: payload en cabeceras fuera de inspect_headers | 9 |
 
@@ -69,6 +69,7 @@
 | crs-941100-t5-s1 | xss | `/get` |
 | crs-941140-t14-s1 | xss | `/get/bar?test=url%28javascript%3Aalert%281%29%29` |
 | crs-941180-t7-s1 | xss | `/get/javascript-manual/document.cookie` |
+| crs-942101-t10-s1 | sensitive_files | `/post/foo/9'union+all/bar` |
 | crs-942101-t11-s1 | sqli | `/post/foo/24+union+all+select+1,2,3+from+aa/bar` |
 | crs-942160-t12-s1 | sqli | `/BENChmARk(2999/**/999,Md5(/` |
 | crs-942360-t29-s1 | sqli | `\|\|(SELECT(DBMS_LDAP.INIT('169.1.1.1',19))FROM(DUAL))/investigate` |
@@ -77,7 +78,7 @@
 | crs-942521-t16-s1 | sqli | `var=Incorrectly%20constructed%20SQL%20statements%0AThis%20form%20of%20injection%20relies%2…` |
 | crs-942522-t8-s1 | sqli | `var=Incorrectly%20constructed%20SQL%20statements%0AThis%20form%20of%20injection%20relies%2…` |
 
-### Muestra de falsos negativos (12 de 716)
+### Muestra de falsos negativos (12 de 676)
 
 | id | familia | payload |
 |---|---|---|
@@ -85,17 +86,17 @@
 | crs-930120-t9-s1 | path_traversal | `/get?code=>/tmp/curl` |
 | crs-930120-t14-s1 | path_traversal | `/get?code=backup.sql.zip` |
 | crs-930120-t18-s1 | path_traversal | `/get?file=node_modules/some-package/package.json` |
-| crs-930121-t3-s1 | path_traversal | `/get` |
 | crs-930121-t4-s1 | path_traversal | `/get` |
-| crs-930121-t8-s1 | path_traversal | `/get` |
 | crs-930121-t9-s1 | path_traversal | `/get` |
-| crs-930130-t1-s1 | path_traversal | `/get/sys/class` |
-| crs-930130-t2-s1 | path_traversal | `/get/proc/interrupts` |
-| crs-930130-t3-s1 | path_traversal | `/get/backup.sql.zip` |
 | crs-930130-t6-s1 | path_traversal | `/@id/__x00__?import` |
+| crs-941100-t8-s1 | xss | `/?id=%u00abscript%u00bballert(1)%u00ab/script%u00bb` |
+| crs-941100-t9-s1 | xss | `/?id=%u2039script%u203aalert(1)%u2039/script%u203a` |
+| crs-941120-t2-s1 | xss | `/post?%20%20onabcdefgh%3d%20=vardata` |
+| crs-941120-t4-s1 | xss | `/post?%20%20onabcdefghijklmnopqrstuvwxyz%3d%20=vardata` |
+| crs-941120-t7-s1 | xss | `/get?%20%20onwebkitplaybacktargetavailabilitychanged%3d%20=vardata` |
 
 ### Umbrales del corpus externo (guarda de regresión sobre la línea base)
 
-- detección CRS ≥ 19%: ✅ (36.9%)
-- FP CRS ≤ 5.0%: ✅ (4.3%)
+- detección CRS ≥ 19%: ✅ (40.4%)
+- FP CRS ≤ 5.0%: ✅ (4.7%)
 

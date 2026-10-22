@@ -25,7 +25,8 @@ detección y registro, no sustitución de controles fundamentales.
 
 - Ataques HTTP automatizados que llegan por ruta, query string o body
   JSON/form-urlencoded: SQLi, XSS, path traversal y descubrimiento de ficheros
-  sensibles.
+  sensibles. `inspect_cross_carrier=True` combina ruta/query con valores
+  textuales del body; está desactivado por defecto.
 - Abuso de recursos por volumen: rate limiting por IP (memoria o Redis).
 - Exposición de información por cabeceras de respuesta.
 
@@ -36,7 +37,8 @@ detección y registro, no sustitución de controles fundamentales.
   capa de detección te salva**. Es el control nº 1 y va en tu código.
 - Contenido `multipart/form-data`, tráfico cifrado, ataques a nivel de red,
   ataques de denegación de servicio distribuidos, o lógica de negocio.
-- El body de un ataque repartido en varios campos (cada valor se analiza aislado).
+- Ataques repartidos entre query y body si `inspect_cross_carrier=False`,
+  entre query y cabeceras, o dentro de bodies multipart.
 
 ## Decisiones de diseño y su porqué
 

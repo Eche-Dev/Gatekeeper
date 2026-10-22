@@ -44,7 +44,8 @@ app.add_middleware(GatekeeperMiddleware, config=Config(rate_limit=100, rate_wind
 | Log4Shell | `${jndi:ldap://…}` con sus ofuscaciones (`${${::-j}ndi:`) y lookups de exfiltración (`${env:AWS_SECRET…}`) |
 | Proto-pollución | `__proto__` en cualquier posición y `constructor.prototype` |
 | Evasiones | URL-encoding repetido (3 rondas), escapes IIS `%uXXXX` mayúsculas o no, ancho completo (`＜script` vía NFKC), comentarios SQL `/**/` y versionados (`/*!50000union*/`), entidades HTML numéricas **y nombradas** (`&lt;script`), tab/NL dentro del esquema (`java\tscript:`) |
-| Límite de body | `max_body_size` (1 MiB por defecto) → 413, también sin `Content-Length` |
+| Límite de body | `max_body_size` (1 MiB por defecto) → 413 si el tamaño declarado o leído lo supera |
+| Cruce query + body | Opt-in con `inspect_cross_carrier=True`; combina ruta/query con valores textuales no excluidos del body, puede añadir falsos positivos, probar primero con `monitor_only=True` |
 | Reglas propias | Regex en YAML o `Config(custom_rules=...)`, validadas al arrancar |
 | Exclusión de rutas | `allow_paths` (globs). Rutas con `..`, `\` o codificación residual nunca se eximen |
 | Auditoría | Eventos JSON en el logger `gatekeeper`; **nunca** incluye el contenido del payload |
@@ -76,13 +77,15 @@ para otro WAF, con sus propios negativos:
 | Métrica (corpus externo CRS, familias 930/941/942) | Valor |
 |---|---|
 | Tests importados | 1379 (1135 en alcance, 12 excluidos y declarados) |
-| Ataques detectados | 394 / 1135 (**34.7%**) |
+| Ataques detectados | 459 / 1135 (**40.4%**) |
 | Negativos de CRS bloqueados (FP) | 11 / 232 (4.7%) |
 
-Ese 34.7% no es una meta: es la **línea base** de un corpus diseñado para un
+Ese 40.4% no es una meta: es la **línea base** de un corpus diseñado para un
 WAF de 500+ reglas y payloads mucho más ofuscados, y el workflow la vigila para
-que no baje. Publicarlo entero es el punto: un 100% propio y un 34.7% ajeno, los
+que no baje. Publicarlo entero es el punto: un 100% propio y un 40.4% ajeno, los
 dos medidos y los dos con guarda en CI.
+Estas cifras miden los escaneos individuales; no incluyen
+`inspect_cross_carrier=True`.
 
 El detalle, incluidos los payloads que se escapan y por qué, está en
 [corpus/REPORT.md](corpus/REPORT.md). El workflow falla si una regla nueva
@@ -101,69 +104,50 @@ para Vercel (`vercel --prod`) y Docker: [`demo/`](demo/).
 
 ## Latencia
 
-`python benchmarks/latency.py` mide el coste por petición en tu máquina
-(Python 3.14, portátil, sin red):
+`python benchmarks/latency.py` mide el coste por petición en tu máquina,
+invocando ASGI directamente y sin red:
 
 | Escenario | p50 | p95 | p99 | +p50 vs base |
 |---|---|---|---|---|
-| sin middleware (base) | 13.10 | 20.30 | 28.50 | — |
-| solo cabeceras | 25.10 | 42.60 | 60.20 | +12.00 |
-| inspección (query + body), sin rate limit | 70.10 | 85.40 | 108.50 | +57.40 |
-| rate limit solo | 31.20 | 45.80 | 62.20 | +18.50 |
-| completo (inspección + rate limit) | 72.20 | 107.90 | 146.00 | +59.60 |
-| request atacante (403 temprano) | 65.00 | 100.30 | 141.00 | +51.90 |
+| sin middleware (base) | 17.40 | 56.70 | 308.70 | — |
+| solo cabeceras | 41.60 | 194.10 | 989.50 | +23.50 |
+| inspección de query, sin body ni rate limit | 206.10 | 937.80 | 2057.20 | +171.20 |
+| inspección de body JSON, sin rate limit | 346.60 | 612.90 | 1029.60 | +329.20 |
+| cruce query/body opt-in (benigno) | 434.80 | 715.00 | 1179.90 | +429.20 |
+| cruce query/body opt-in (ataque, 403) | 322.90 | 474.50 | 709.50 | +305.50 |
+| rate limit solo | 46.50 | 55.30 | 99.00 | +27.30 |
+| completo (inspección + rate limit) | 193.40 | 394.10 | 677.90 | +173.70 |
+| request atacante (403 temprano) | 114.40 | 331.30 | 743.20 | +97.40 |
 
-**El pre filtro de familias.** Normalizar cuesta ~5 µs; el resto eran las 60
-regex de Python corriendo sobre texto inocuo. Casi ninguna puede casar sin un
-literal concreto (`script`, `union`, `/etc/`), así que se comprueba primero
-si el texto contiene alguno de los literales de cada familia — una búsqueda de
-subcadena en C, no una regex — y si no, esa familia se salta entera. Medido
-sobre texto limpio: **8× más rápido** (un payload de 250 caracteres pasó
-de 262 a 33 µs).
+Una corrida local de **Python 3.14.8 en Windows**, con 1000 iteraciones × 5
+rondas, produjo esos percentiles; la columna de overhead usa 3 repeticiones.
+Los resultados dependen del entorno y no son una promesa de latencia de producción.
+Los escenarios de body y cruce entregan el body real al middleware; los tests
+verifican que el caso benigno responde 200 y el cruce de ataque 403.
 
-Solo se aplica a partir de 128 caracteres: por debajo de eso el pre filtro no
-compensa (156 comparaciones `in` cuestan ~7 µs y el escaneo corto ya es
-rápido). Así un ataque SQLi corto queda **1,04×, ni mejor ni peor**, y
-un payload largo que antes costaba 262 µs ahora cuesta 33.
+**El pre filtro de familias.** Antes de ejecutar las regex, comprueba si el
+texto contiene un literal obligatorio de cada familia y omite las que no
+pueden coincidir. Para textos de menos de 128 caracteres no lo aplica. Esta
+optimización no debe cambiar detecciones. `tests/test_prefilter.py` compara el
+escaneo con y sin pre filtro sobre los 1787 valores de ambos corpus (payloads
+propios, solicitudes CRS y valores de cabecera) y exige el mismo resultado.
 
-No cambia qué se detecta: `tests/test_prefilter.py` compara el escaneo con y sin
-pre filtro sobre los 1582 valores de ambos corpus (propio y los 1379 tests de
-OWASP CRS) y exige el mismo resultado. El coste es la latencia de los ataques,
-que era el escenario barato (10 µs) y sube a 17 µs.
-
-**Por qué p95 y no la media.** Hasta 0.3.1 el benchmark publicaba la media por
-ronda, y esa cifra escondía justo lo que un usuario nota: la cola. El mismo
-escenario «completo» que la media rondaba los ~90 µs tiene un **p95 de 123 µs y
-un p99 de 149 µs**; una pausa puntual del recolector de basura puede llevar una
-petición aislada a 500–1500 µs, y con 7500 muestras esa cola existe. Medir el
-percentil 95 de la distribución real es lo que permite poner una guardia útil.
+El benchmark publica p50, p95 y p99 por petición para que la cola no quede
+oculta por un promedio. En esta corrida el escenario completo tuvo p50 de
+193.40 µs, p95 de 394.10 µs y p99 de 677.90 µs; son medidas locales con ruido,
+no latencia de extremo a extremo ni un SLA.
 
 `python benchmarks/latency.py --save base.json` y, tras cambiar el código,
 `python benchmarks/latency.py --baseline base.json` comparan dos versiones **en
 tu máquina** y dicen si algún escenario empeoró más de un margen (25 % por
-defecto). Es la única comparación fiable, y la que se usa antes de abrir un PR
-que toca el camino caliente.
+defecto). Sirven para comparar cambios bajo condiciones locales similares
+antes de abrir un PR que toca el camino caliente.
 
-### Por qué no hay un guard de latencia en CI
+### Comparar rendimiento
 
-Se intentó y se descartó **con datos, no por pereza**. La señal (el coste
-real del middleware) es menor que el ruido de la máquina en un runner de CI con
-CPU compartida. Overhead p50 medido con el mismo código:
-
-| Situación | Overhead p50 |
-|---|---|
-| Portátil sin carga | 73 µs |
-| Runner de CI saturado (o portátil al 30 % de CPU) | 220–312 µs |
-| **Regresión real** (200 firmas nuevas en el código) | 175 µs |
-
-Una máquina lenta da un overhead **mayor** que una regresión de código. Ningún
-umbral los separa, así que el guard solo podría dar falsos positivos en cada
-build o ser ciego a regresiones moderadas. Un pipeline rojo por ruido entrena al
-equipo a ignorar pipelines rojos, que es peor que no medir.
-
-Así que el benchmark es un **informe y una herramienta local**, no un veredicto
-automático. Si algún día quieres automatizarlo, necesita un runner con CPU
-fijada y sin otros jobs; en `ubuntu-latest` compartido no es fiable.
+No hay un umbral fijo de latencia en CI: los runners compartidos no son una
+base estable. El benchmark es un informe local; para comparar cambios, guarda
+una línea base y ejecuta ambas versiones en la misma máquina:
 
 ## Documentación
 
@@ -182,7 +166,8 @@ Contribuir: [CONTRIBUTING.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/C
 - La detección por regex tiene falsos positivos y falsos negativos: **no sustituye**
   a consultas parametrizadas, a validación de entradas ni a un WAF.
 - `multipart/form-data` y bodies binarios no se inspeccionan (las subidas de archivos pasan intactas; parser en v0.4).
-- Cada valor del body se analiza por separado: un ataque repartido en varios campos no se detecta.
+- Por defecto, cada valor del body se analiza por separado. Con `inspect_cross_carrier=True`, los valores textuales no excluidos se combinan con ruta/query; las claves JSON y las cabeceras no participan.
+- `inspect_cross_carrier=True` combina ruta/query con los valores textuales no excluidos del body cuando los escaneos individuales no detectan nada. Las claves se inspeccionan individualmente, pero no se combinan. Es opt-in; su resultado no está incluido en las métricas publicadas del corpus.
 - Los operadores `$gt`/`$lt`/`$in` de Mongo quedan fuera de la firma NoSQL a propósito (los usan los filtros legítimos); `localhost` y `127.0.0.1` no cuentan como SSRF (OAuth de desarrollo).
 - Con `rate_backend="memory"` y varios workers, el límite efectivo se multiplica: usa Redis.
 - Si Redis no responde, `rate_fail_open=True` (por defecto) sigue admitiendo peticiones; ponlo a `False` si prefieres 503.
@@ -199,6 +184,7 @@ Contribuir: [CONTRIBUTING.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/C
 | `redis_url` / `redis_prefix` | `redis://localhost:6379/0` / `gatekeeper:rl:` | conexión y prefijo de claves |
 | `rate_fail_open` | `True` | política si Redis no responde: admitir o 503 |
 | `inspect_requests` / `inspect_body` | `True` | inspección de query y de body |
+| `inspect_cross_carrier` | `False` | combinar ruta/query + valores textuales del body tras escaneos individuales limpios |
 | `monitor_only` | `False` | registrar sin bloquear |
 | `disabled_rules` | `∅` | `sqli`, `xss`, `path_traversal`, `sensitive_files`, `nosql`, `cmdi`, `ssrf`, `ssti`, `crlf`, `log4shell`, `proto_pollution` o tus reglas |
 | `rule_packs` | `∅` (todas) | packs opt-in: `minimal`, `api`, `web`, `infrastructure`, `strict` (ver abajo) |

@@ -3,6 +3,14 @@
 Todo lo notable de Gatekeeper. El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/)
 y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
+## [Sin publicar]
+
+### Añadido
+- Detección opt-in de firmas repartidas entre ruta/query y valores textuales del
+  body mediante `Config(inspect_cross_carrier=True)`. Está desactivada por
+  defecto por el posible aumento de falsos positivos; se recomienda validar en
+  `monitor_only`. No está incluida en las cifras de evaluación existentes.
+
 ## [0.3.1] - 2026-10-22
 
 ### Añadido

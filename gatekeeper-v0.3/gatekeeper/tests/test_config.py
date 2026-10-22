@@ -6,6 +6,7 @@ YAML = """
 rate_limit: 5
 rate_window: 30
 monitor_only: true
+inspect_cross_carrier: true
 max_body_size: 2048
 allow_paths: ["/docs", "/health"]
 blocked_ips: ["10.0.0.1"]
@@ -22,6 +23,7 @@ def test_from_yaml_loads_all_fields(tmp_path):
     cfg = Config.from_yaml(f)
     assert cfg.rate_limit == 5 and cfg.rate_window == 30
     assert cfg.monitor_only is True
+    assert cfg.inspect_cross_carrier is True
     assert cfg.max_body_size == 2048
     assert cfg.allow_paths == ["/docs", "/health"]
     assert cfg.blocked_ips == {"10.0.0.1"}

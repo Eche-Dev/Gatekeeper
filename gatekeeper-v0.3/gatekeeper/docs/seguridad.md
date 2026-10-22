@@ -8,7 +8,8 @@
 - Once familias de inyección con firma reconocible en query, cabeceras
   inspeccionadas y body textual: SQLi, XSS, path traversal, ficheros
   sensibles, NoSQL, comandos del sistema, SSRF, SSTI, CRLF, Log4Shell y
-  proto-pollución de JavaScript.
+  proto-pollución de JavaScript. La combinación opcional entre ruta/query y
+  valores textuales del body requiere `inspect_cross_carrier=True`.
 - Content sniffing y secuestro de framing (cabeceras).
 
 **Fuera de alcance** — para lo que NO sirve, dicho claro:
@@ -17,7 +18,8 @@
 - Ataques al propio servidor ASGI, a la red o a la base de datos.
 - Validación semántica de entradas (eso es de tu app).
 - Firma de peticiones, CSRF tokens, gestión de secretos.
-- Ataques repartidos entre campos o dentro de bodies multipart.
+- Ataques repartidos entre query y body cuando `inspect_cross_carrier=False`,
+  entre query y cabeceras, o dentro de bodies multipart.
 
 El desglose **familia a familia, con la frontera de falsos positivos de cada
 una**, está en [Modelo de amenazas](amenazas.md).
@@ -31,7 +33,7 @@ consultas parametrizadas y validación.
 |---|---|
 | Red/proxy | `trust_proxy` con lectura XFF de derecha a izquierda (`trusted_proxies` / `trusted_proxy_cidrs`) y `blocked_ips` (IP o CIDR) |
 | Abuso | Rate limiting por IP, memoria o Redis atómico |
-| Transporte | Límite de body (1 MiB → 413), también sin `Content-Length` |
+| Transporte | Límite de body (1 MiB → 413 si el tamaño declarado o leído lo supera) |
 | Contenido | Normalización (3 rondas, `%uXXXX`, NFKC) + reglas acotadas |
 
 ## Políticas de fallo
@@ -41,7 +43,7 @@ consultas parametrizadas y validación.
 | Redis no responde | `rate_fail_open=True` (defecto) | Se admite y se audita `rl_backend_unavailable` |
 | Redis no responde | `rate_fail_open=False` | 503, disponibilidad sacrificada |
 | Configuración inválida | Siempre | `ValueError` al arrancar, nunca protección silenciosamente ausente |
-| Body sin `Content-Length` | Siempre | 413 (no se arriesga a leer sin límite) |
+| Body sin `Content-Length` | Se lee con límite | 413 solo si el stream supera `max_body_size` |
 
 La decisión de *fail open* o *fail closed* es tuya y está en la configuración,
 no escondida en el código.

@@ -5,6 +5,7 @@ aprobar una medición que no ha cambiado y detectar una que sí. Un comparador
 que nunca señala nada es un adorno.
 """
 
+import asyncio
 import importlib.util
 import json
 import sys
@@ -32,6 +33,53 @@ def test_middleware_adds_work_but_does_not_explode():
     names = [row["scenario"] for row in data["results"]]
     assert "sin middleware (base)" in names
     assert "request atacante (bloqueado con 403)" in names
+    assert "inspección de body JSON, sin rate limit" in names
+    assert "cruce query/body opt-in (benigno)" in names
+    assert "cruce query/body atacante (403)" in names
+
+
+def test_measure_passes_the_configured_body_to_the_asgi_app():
+    received = []
+
+    async def app(scope, receive, send):
+        received.append((scope, await receive()))
+
+    latency.measure(
+        app,
+        iterations=1,
+        rounds=1,
+        method="POST",
+        body=b"benchmark body",
+    )
+    assert len(received) == 2  # una petición de calentamiento y una medida
+    for scope, message in received:
+        assert scope["method"] == "POST"
+        assert (b"content-type", b"application/json") in scope["headers"]
+        assert message["body"] == b"benchmark body"
+
+
+def test_cross_carrier_benchmark_scenarios_have_expected_http_status():
+    specs = {name: (config, kwargs) for name, config, kwargs in latency.scenarios()}
+
+    async def request_status(name):
+        config, kwargs = specs[name]
+        app = latency.make_app(config)
+        status = None
+
+        async def send(message):
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+
+        await app(
+            latency.make_scope(**kwargs),
+            latency.make_receive(kwargs.get("body", b"")),
+            send,
+        )
+        return status
+
+    assert asyncio.run(request_status("cruce query/body opt-in (benigno)")) == 200
+    assert asyncio.run(request_status("cruce query/body atacante (403)")) == 403
 
 
 # ------------------------------------------------------- percentiles
