@@ -702,8 +702,8 @@ def scan_detailed(
     # Cross-carrier query+body detection (opcional)
     if allow_cross_carrier and carriers:
         # Agrupar carriers por tipo: query vs body
-        query_parts = []
-        body_parts = []
+        query_parts: list[str] = []
+        body_parts: list[str] = []
         for c in carriers:
             cl = c.lower()
             # Señales de que es contenido de query (palabras clave SQL, operadores)
