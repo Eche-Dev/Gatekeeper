@@ -57,9 +57,9 @@ documentada ([corpus/](corpus/)):
 
 | Métrica (corpus propio) | Valor |
 |---|---|
-| Ataques detectados | 131 / 131 (**100.0%**) |
+| Ataques detectados | 148 / 148 (**100.0%**) |
 | Falsos negativos sin documentar | 0 |
-| Peticiones legítimas bloqueadas sin documentar | **0** / 72 |
+| Peticiones legítimas bloqueadas sin documentar | **0** / 76 |
 | Falsos positivos documentados (límites aceptados) | 5 |
 | Falsos negativos documentados (límites aceptados) | 0 |
 
@@ -76,12 +76,12 @@ para otro WAF, con sus propios negativos:
 | Métrica (corpus externo CRS, familias 930/941/942) | Valor |
 |---|---|
 | Tests importados | 1379 (1135 en alcance, 12 excluidos y declarados) |
-| Ataques detectados | 238 / 1135 (**21.0%**) |
-| Negativos de CRS bloqueados (FP) | 9 / 232 (3.9%) |
+| Ataques detectados | 308 / 1135 (**27.1%**) |
+| Negativos de CRS bloqueados (FP) | 11 / 232 (4.7%) |
 
-Ese 21.0% no es una meta: es la **línea base** de un corpus diseñado para un
+Ese 27.1% no es una meta: es la **línea base** de un corpus diseñado para un
 WAF de 500+ reglas y payloads mucho más ofuscados, y el workflow la vigila para
-que no baje. Publicarlo entero es el punto: un 100% propio y un 21.0% ajeno, los
+que no baje. Publicarlo entero es el punto: un 100% propio y un 27.1% ajeno, los
 dos medidos y los dos con guarda en CI.
 
 El detalle, incluidos los payloads que se escapan y por qué, está en

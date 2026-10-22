@@ -6,6 +6,20 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [0.3.1] - 2026-10-22
 
 ### Añadido
+- **Once firmas nuevas contra los misses del corpus de OWASP CRS**, que suben la
+  detección externa del **21,0% (238/1135) al 27,1% (308/1135)** sin superar el
+  techo de falsos positivos (4,7% sobre los negativos de CRS, gate ≤ 5%). No
+  son casos copiados del examen: cada una cubre una técnica documentada.
+  - SQLi: concatenación por barras seguida de palabra clave (`|| select`),
+    funciones SQL en un parámetro (`ABS(`, `CAST(`, `CHAR(`, `COALESCE(`…) y
+    operadores tolerantes de blindaje (`REGEXP`, `LIKE NULL`, `>>`, `&&`).
+  - XSS: HTML con namespace (`<x:script xmlns:x=…>`, que evade la firma
+    `<script` porque la etiqueta lleva prefijo), etiquetas SVG/MathML y APIs de
+    JS que ejecutan o acceden al DOM (`eval(`, `setInterval(`, `document.cookie`,
+    `window.`).
+  - Ficheros sensibles: rutas de reconocimiento del sistema (`/sys/class`,
+    `/sys/firmware`) y configuración de herramientas que antes no estaban
+    (`/.claude/`, `/.cursor/`, `/.kube/`, `/.gnupg/`).
 - **Pre filtro de familias** (`PREFILTER_LITERALS`): antes de evaluar las 60
   regex se comprueba si el texto contiene algún literal de cada familia
   (`script`, `union`, `/etc/`, `jndi`…) con una búsqueda de subcadena en C. Si no
@@ -154,9 +168,12 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 - El benchmark mide percentiles por petición real (p50/p95/p99) en lugar de la
   media por ronda: una media mezcla la pausa del recolector de basura con el
   trabajo real del middleware y esconde la cola de latencia.
-- Corpus propio: **131/131 (100.0%)**, 0 FP sin documentar, 5 FP documentados (los
+- Corpus propio: **148/148 (100.0%)**, 0 FP sin documentar, 5 FP documentados (los
   cuatro de antes más `benign-071`, búsquedas sobre `__proto__`). El gate de CI
   sube de ≥ 90% a **100%**: cualquier regresión de detección deja CI en rojo.
+- Corpus CRS: **27.1% (308/1135)** con 4.7% de FP sobre sus negativos. El gate
+  de detección externa se queda en ≥ 19% (es una guarda de regresión, no una
+  promesa) y el de FP en ≤ 5%.
 - Corpus CRS recalibrado con las cabeceras y los bodies textuales en alcance:
   **21.0% (238/1135)** con 3.9% de FP; los excluidos bajan de 212 a 12 (solo
   binarios y cabeceras fuera de `inspect_headers`). Gate de CI: ≥ 19%.

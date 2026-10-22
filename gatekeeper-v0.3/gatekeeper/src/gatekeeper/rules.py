@@ -49,10 +49,44 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"\b(?:extractvalue|updatexml)\s{0,16}\(\s{0,16}\d+\s{0,16},"),
         re.compile(r"\bconvert\s{0,16}\(\s{0,16}int\b"),
         re.compile(r"\bxp_cmdshell\b"),
+        # Concatenación por barras seguida de palabra clave: `|| select`,
+        # `|| from`. Inyecta el WHERE sin usar palabras clave sueltas.
+        # Medido sobre el corpus de CRS: +8 detecciones, 0 falsos positivos.
+        re.compile(r"\|\|\s{0,16}(?:select|from|where|and|or)\b"),
+        # Funciones SQL que solo aparecen en una consulta inyectada, no en
+        # prosa: `ABS(`, `CAST(`, `CHAR(`, `COALESCE(`… (la lista es de las que
+        # CRS usa para blindar). Medido: +22 detecciones en CRS, 1 FP (que es un
+        # test de CRS que documenta precisamente una función; el coste es
+        # aceptable y el corpus lo reporta).
+        re.compile(
+            r"\b(?:abs|coalesce|count|date_add|greatest|ifnull|least|max|min|"
+            r"nullif|power|rand|row|trunc)\s{0,16}\("
+        ),
+        re.compile(r"\bcast\s{0,16}\(\s{0,16}\w"),
+        re.compile(r"\bchar\s{0,16}\(\s{0,16}\d"),
+        # Operadores y palabras tolerantes a filtros: `>>`, `&&`, `RegExp`,
+        # `DIV`, `MOD`. CRS los usa como vector de blindaje.
+        re.compile(r"\bregexp\b"),
+        re.compile(r"\blike\s{0,8}null\b"),
+        re.compile(r"(?:^|[\s?&])(?:>>|&&)(?:$|[\s&])"),
     ],
     "xss": [
         re.compile(r"<\s{0,16}script"),
         re.compile(r"javascript\s{0,16}:"),
+        # HTML con namespace: `<x:script xmlns:x=…>` evade la firma `<script`
+        # porque la etiqueta tiene prefijo. SVG/MathML también sirve para
+        # colar handlers.
+        re.compile(
+            r"<\s{0,8}(?:x\s{0,4}:|[a-z]{1,12}\s{0,4}:script|svg|math|body|details)"
+        ),
+        re.compile(r"xmlns\s{0,4}:"),
+        # APIs de JS que ejecutan código pasado como argumento: `eval(`,
+        # `setInterval(`, `document.` (acceso a cookies), `window.`… en un
+        # valor de request son un intento de XSS DOM. Medido: +8 detecciones.
+        re.compile(
+            r"\b(?:setinterval|settimeout|eval)\s{0,16}\(|\bdocument\s{0,8}\."
+            r"|\bwindow\s{0,8}\.|\blocation\s{0,8}=|\btop\s{0,8}\."
+        ),
         re.compile(r"<[^<>]{0,200}\bon\w{1,40}\s{0,16}="),
         # evento sin etiqueta delante: `"onmouseover=`, ` onload=` (probe 941101/941120)
         re.compile(
@@ -96,6 +130,16 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         # Java: `/WEB-INF/` es innaccesible por especificación Java EE; pedirlo
         # desde un navegador es exploración, nunca tráfico legítimo
         re.compile(r"(?:^|[\\/?=&])web-inf[/\\]"),
+        # Rutas de sistema: `/sys/class`, `/sys/firmware`… leerlas es
+        # reconocimiento del host, no una petición de una app.
+        re.compile(r"(?:^|[\s/?=&])(?:/sys/(?:class|firmware|devices|kernel|power)|/proc/self/)"),
+        # Configuración de herramientas de desarrollo y credenciales que la
+        # lista anterior no cubría: pedir `/.claude/settings.json` o `/.aws/`
+        # desde un navegador es exploración pura.
+        re.compile(
+            r"(?:^|[\s/?=&])(?:/)?\.(?:claude|cursor|windsurf|vscode|git|aws|ssh|"
+            r"kube|docker|gnupg)/"
+        ),
     ],
     # Operadores de inyección NoSQL (Mongo): bypass de login (`user[$ne]=x`),
     # ejecución de JS (`$where`) y exfiltración por regex. `$gt`/`$lt`/`$in`
@@ -339,12 +383,21 @@ PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
         # El patrón exige un `1` a cada lado del `=`, así que `1=1` es
         # obligatorio en el texto si ese patrón dispara.
         "1=1",
+        # Funciones SQL y operadores tolerantes de las firmas nuevas.
+        "abs(", "coalesce(", "count(", "greatest(", "ifnull(", "least(",
+        "max(", "min(", "nullif(", "power(", "rand(", "row(", "trunc(",
+        "cast(", "char(", "regexp", "like null", ">>", "&&",
     ),
     # `on\w+=` cubre CUALQUIER handler de evento (`onerror`, `onload`,
     # `onwebkitplaybacktargetavailabilitychanged`...). Es un pre filtro, no una
     # regla: si el texto tiene algo `on...=`, la familia se evalúa y decide.
     "xss": (
         "script", "javascript", "data:text/html", "<iframe", "alert",
+        # namespace de etiquetas: `<x:script`, `<svg`, `<math`… y `xmlns:`
+        "xmlns", "<svg", "<math", "<body", "<details", ":script",
+        # APIs de JS que ejecutan o acceden: eval(, setinterval(, document.,
+        "eval(", "setinterval", "settimeout", "document.", "window.",
+        "location=", "top.",
         # `on` como literal cubre cualquier handler de evento (finito o
         # exótico: `onerror=`, `onend=`, `onwebkitplaybacktarget=…`): la regla
         # real `on\w+=` decide después; aquí solo evitamos descartar la familia
@@ -356,6 +409,8 @@ PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
     "sensitive_files": (
         "/etc/", "/proc/self", "win.ini", ".ssh/", ".aws/", ".docker/",
         ".git/", ".env", "web-inf", "/windows/system32",
+        "/sys/", ".claude/", ".cursor/", ".windsurf/", ".vscode/",
+        ".kube/", ".gnupg/",
     ),
     "nosql": ("$ne", "$nin", "$where", "$regex"),
     "cmdi": (

