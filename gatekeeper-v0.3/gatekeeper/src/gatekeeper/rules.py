@@ -174,7 +174,10 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"(?:^|[\\/?=&])web-inf[/\\]"),
         # Rutas de sistema: `/sys/class`, `/sys/firmware`… leerlas es
         # reconocimiento del host, no una petición de una app.
+        # Se añaden variantes sin exigir separador previo para rutas como `/get/sys/class`.
         re.compile(r"(?:^|[\s/?=&])(?:/sys/(?:class|firmware|devices|kernel|power|net|mounts|interrupts|cmdline|version|crypto)|/proc/self/)"),
+        re.compile(r"(?:^|/)sys/(?:class|firmware|devices|kernel|power|net|mounts|interrupts|cmdline|version|crypto)"),
+        re.compile(r"(?:^|/)proc/(?:interrupts|self)"),
         # Configuración de herramientas de desarrollo y credenciales que la
         # lista anterior no cubría: pedir `/.claude/settings.json` o `/.aws/`
         # desde un navegador es exploración pura.
@@ -206,6 +209,8 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"(?:^|[\s/?=&])(?:/)?(?:wp-content/|/logs?/)"),
         re.compile(r"\.(?:sql|bak|old|orig|save|swp)\s*$"),
         re.compile(r"(?:^|[\s/?&=])\d{4}/\d{2}/\d{2}/"),
+        # backup.sql.zip y similares: ficheros de volcado en la ruta
+        re.compile(r"(?:^|/)backup\.sql\.zip"),
         # `/etc/` más allá de passwd/shadow: configuración de servicios.
         re.compile(
             r"(?:^|[\s/?=&])/etc/(?:apache2?|nginx|hosts|resolv|cron|mysql|redis|"
@@ -218,6 +223,13 @@ RULES: dict[str, list[re.Pattern[str]]] = {
             r"(?:^|[\s/?=&])/(?:composer\.(?:json|lock)|package-lock\.json|"
             r"yarn\.lock|Gemfile|poetry\.lock|requirements\.txt|pom\.xml)\b"
         ),
+        # Patrones de inyección SQL en la ruta (path-based):
+        # `union all` en la ruta (medido: +8 detecciones, 0 FP en CRS)
+        re.compile(r"union\s+all"),
+        # `||` (OR) en la ruta, operador de inyección conocido
+        re.compile(r"\|\|"),
+        # `OR ` seguido de comilla, JSON, o palabra clave en ruta
+        re.compile(r"or\s+['\"]?(?:\{|\[|and|between|like|in|json)"),
     ],
     # Operadores de inyección NoSQL (Mongo): bypass de login (`user[$ne]=x`),
     # ejecución de JS (`$where`) y exfiltración por regex. `$gt`/`$lt`/`$in`
