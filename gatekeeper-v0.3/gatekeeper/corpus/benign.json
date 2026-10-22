@@ -76,6 +76,11 @@
     {"id": "benign-073", "payload": "/search?q=que+significa+ABS+en+matematicas", "note": "nombre de función SQL suelto, sin paréntesis de argumento"},
     {"id": "benign-074", "payload": "/search?q=tutorial+de+CAST+en+java", "note": "`cast` en prosa: la firma exige `cast(` con argumento"},
     {"id": "benign-075", "payload": "/search?q=xmlns+en+html+que+es", "note": "`xmlns` como término de búsqueda, sin etiqueta namespace"},
-    {"id": "benign-076", "payload": "/search?q=comparativa+frameworks+web+2026", "note": "palabra `web` y `svg` sueltos, sin sintaxis de etiqueta"}
+    {"id": "benign-076", "payload": "/search?q=comparativa+frameworks+web+2026", "note": "palabra `web` y `svg` sueltos, sin sintaxis de etiqueta"},
+    {"id": "benign-077", "payload": "/search?q=cuando+usar+is+not+en+sql", "note": "`is not` sin cierre de comilla delante: es prosa, no payload"},
+    {"id": "benign-078", "payload": "/blog/comparativa-frameworks-web", "note": "palabras sueltas, sin sintaxis"},
+    {"id": "benign-079", "payload": "/search?q=explicacion+de+not+regexp+en+sql", "note": "`not regexp` como término de búsqueda: la firma exige `regexp(` o dígito delante"},
+    {"id": "benign-080", "payload": "/docs/introduccion-al-json", "note": "json en prosa, sin el operador `::jsonb`"},
+    {"id": "benign-081", "payload": "/search?q=que+es+load+file+en+python", "note": "`load_file` con espacio, no el nombre de la función SQL"}
   ]
 }

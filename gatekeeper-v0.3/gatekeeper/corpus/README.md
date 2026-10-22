@@ -5,8 +5,8 @@ bloquean y lo que dejan pasar:
 
 | Fichero | Qué contiene |
 |---|---|
-| `attacks.json` | 148 payloads de ataque redactados para este proyecto (SQLi, XSS, path traversal, ficheros sensibles, NoSQL, comandos, SSRF, SSTI, CRLF, Log4Shell, proto-pollución), cada uno con la regla que se espera que lo detecte |
-| `benign.json` | 76 peticiones legítimas que **no** deben bloquearse, incluidos casos difíciles (texto técnico que cita un vector, SQL de tutorial, filtros Mongo legítimos, acentos, JSON normal) |
+| `attacks.json` | 159 payloads de ataque redactados para este proyecto (SQLi, XSS, path traversal, ficheros sensibles, NoSQL, comandos, SSRF, SSTI, CRLF, Log4Shell, proto-pollución), cada uno con la regla que se espera que lo detecte |
+| `benign.json` | 81 peticiones legítimas que **no** deben bloquearse, incluidos casos difíciles (texto técnico que cita un vector, SQL de tutorial, filtros Mongo legítimos, acentos, JSON normal) |
 | `crs_payloads.json` | 1379 tests extraídos del corpus **externo** de OWASP Core Rule Set (Apache-2.0): ataques con su expectativa y negativos de CRS para medir falsos positivos |
 
 Se ejecutan con:
@@ -53,7 +53,7 @@ Alcance y política de puntuación (para que el número sea defendible):
 - Los umbrales de CI sobre este corpus (`DEFAULT_MIN_CRS_DETECTION`,
   `DEFAULT_MAX_CRS_FP`) son **guardas de regresión sobre la línea base medida**,
   no una promesa de cobertura: se recalculan al reimportar. La detección sobre
-  CRS es ~27% frente a 100% del corpus propio, y es así a propósito: CRS está
+  CRS es ~35% frente a 100% del corpus propio, y es así a propósito: CRS está
   diseñado para un WAF con 500+ reglas y paga con falsos positivos que nosotros
   no aceptamos. Publicar ese número entero es el punto.
 

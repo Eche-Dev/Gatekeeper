@@ -25,7 +25,7 @@ consultas parametrizadas y validación.
 ## Familias detectadas
 
 Once familias, todas medidas contra el [corpus propio](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/README.md)
-(148/148, 0 falsos positivos sin documentar). El nombre entre paréntesis es el
+(159/159, 0 falsos positivos sin documentar). El nombre entre paréntesis es el
 valor para `disabled_rules`.
 
 | Familia | Qué detecta | Ejemplo de payload | Frontera: qué NO bloquea |

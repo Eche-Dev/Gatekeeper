@@ -39,9 +39,9 @@ Hay una **demo** con playground de payloads y GIF de una sesión real en
 
 Dos corpus, uno propio y otro externo, ambos con guarda en CI:
 
-| Métrica | Corpus propio (148 + 76) | OWASP CRS externo (1379 tests) |
+| Métrica | Corpus propio (159 + 81) | OWASP CRS externo (1379 tests) |
 |---|---|---|
-| Ataques detectados | **100.0%** (148/148) | **27.1%** (308/1135, familias 930/941/942) |
+| Ataques detectados | **100.0%** (159/159) | **34.7%** (394/1135, familias 930/941/942) |
 | Falsos positivos sin documentar | **0** | — (3.9% sobre los negativos de CRS, línea base) |
 
 El detalle y los payloads que escapan están en

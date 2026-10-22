@@ -36,15 +36,15 @@ en [Modelo de amenazas](amenazas.md).
 
 ## El corpus propio
 
-131 payloads de ataque y 72 peticiones benignas, **redactados para este proyecto**
+159 payloads de ataque y 81 peticiones benignas, **redactados para este proyecto**
 a partir de técnicas documentadas públicamente (OWASP WSTG, cheat sheets de
 PortSwigger), con procedencia en [corpus/README.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/README.md).
 
 | Métrica | Valor |
 |---|---|
-| Ataques detectados | **148 / 148 (100.0%)** |
+| Ataques detectados | **159 / 159 (100.0%)** |
 | Falsos negativos sin documentar | 0 |
-| Falsos positivos sin documentar | **0** / 76 (5 documentados) |
+| Falsos positivos sin documentar | **0** / 81 (5 documentados) |
 
 Los 5 FP documentados existen y se listan con su motivo en
 [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md):
@@ -64,12 +64,12 @@ y 942 (SQLi)** — se importan a `corpus/crs_payloads.json` con `tools/import_cr
 | Métrica (CRS) | Valor |
 |---|---|
 | Tests importados | 1379 (1135 en alcance) |
-| Ataques detectados | 308 / 1135 (**27.1%**) |
+| Ataques detectados | 394 / 1135 (**34.7%**) |
 | Negativos de CRS bloqueados | 11 / 232 (4.7%) |
 | Excluidos y declarados | 12 (cabeceras fuera de `inspect_headers` y bodies binarios) |
 
-!!! success "Por qué se publica el 27.1%"
-    Un 100% propio junto a un 27.1% ajeno es la señal de que la medición es
+!!! success "Por qué se publica el 34.7%"
+    Un 100% propio junto a un 34.7% ajeno es la señal de que la medición es
     honesta. El corpus de CRS está diseñado para un WAF de 500+ reglas que
     acepta los falsos positivos que Gatekeeper no acepta; aquí su número es una
     **línea base con guarda de regresión**, no una promesa. Y los 11 FP de CRS
