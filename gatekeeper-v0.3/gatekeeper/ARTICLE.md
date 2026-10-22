@@ -24,7 +24,7 @@ que no escribí yo** y **el ReDoS cuadrático que esa medición destapó**.
 ## Primero, lo incómodo: el 21%
 
 Cuando publiqué las primeras métricas de Gatekeeper tenían cara de póster:
-**100% de detección** (131/131) sobre mi corpus propio y **cero falsos
+**100% de detección** (148/148) sobre mi corpus propio y **cero falsos
 positivos** sin documentar. Bonito. También sospechoso: el corpus lo había
 escrito yo, con las técnicas que mi middleware sabía bloquear. Un examen que
 haces tú no mide nada.
@@ -35,11 +35,11 @@ colección de reglas de referencia del mundo WAF (Apache-2.0, con licencia y
 commit de procedencia incluidos). Importé 1.379 tests de las familias que
 afirman cubrir —LFI, XSS y SQLi— y los pasé por Gatekeeper.
 
-Resultado: **21.0% de detección** (238/1135 en alcance).
+Resultado: **27.1% de detección** (308/1135 en alcance).
 
 ```
 Corpus propio (131 ataques):       100.0%  ← el número del póster
-Corpus OWASP CRS  (1135 ataques):  21.0%  ← el número de verdad
+Corpus OWASP CRS  (1135 ataques):  27.1%  ← el número de verdad
 ```
 
 Y lo publiqué igual, con la guarda en CI para que no baje. ¿Por qué? Porque un

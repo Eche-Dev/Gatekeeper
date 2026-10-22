@@ -53,7 +53,7 @@ Python 3.10+ (el CI prueba 3.10–3.12). El proyecto vive en
 medias por ronda: la media escondía la cola, que es lo que nota un usuario. El
 mismo escenario que la media rondaba los ~90 µs tiene un p95 de 123 µs.
 
-### Cómo comparar dos versiones
+### C⁠omo comparar dos versiones
 
 ```bash
 python benchmarks/latency.py --save base.json
@@ -63,6 +63,29 @@ python benchmarks/latency.py --baseline base.json    # sale 1 si empeoró más d
 
 El margen por defecto es 25 %. Compara el **overhead** (lo que añade el
 middleware sobre la línea base de la misma corrida), no el absoluto.
+
+### El pre filtro de familias
+
+Antes de evaluar las 60 regex, Gatekeeper comprueba si el texto contiene algún
+literal de cada familia (`script`, `union`, `/etc/`…) con una búsqueda de
+subcadena. Si no, esa familia se salta entera. La normalización cuesta ~5 µs;
+el resto eran regex de Python sobre texto inocuo.
+
+Se midieron cuatro enfoques y solo uno gana, porque la diferencia entre ellos es
+de 2× a 4×:
+
+| Enfoque | Coste medido | Veredicto |
+|---|---|---|
+| 11 `search`, uno por familia | ~12 µs | se come el ahorro |
+| `finditer` con alternancia gigante | 15 µs corto, 80 µs largo | crea un objeto por coincidencia |
+| `search` con grupos por familia, en bucle | ~30 µs | el bucle se come todo |
+| **`lit in texto` (el implementado)** | **~1 µs** | `in` sobre `str` es C puro |
+
+Al añadirlo, el test que compara con y sin pre filtro sobre los dos corpus
+encontró **12 discrepancias** (literales mal escritos que habrían perdido
+detecciones). Esa es la razón de que exista `tests/test_prefilter.py`: la
+optimización solo es aceptable si se puede demostrar que no cambia el
+resultado.
 
 ### Por qué no corre en CI
 

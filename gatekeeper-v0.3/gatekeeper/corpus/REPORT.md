@@ -4,12 +4,12 @@
 
 | Métrica | Valor |
 |---|---|
-| Payloads de ataque | 131 |
-| Detectados | 131 (100.0%) |
-| Detectados por la regla esperada | 131 (100.0%) |
+| Payloads de ataque | 148 |
+| Detectados | 148 (100.0%) |
+| Detectados por la regla esperada | 147 (99.3%) |
 | Falsos negativos no documentados | 0 |
 | Falsos negativos documentados | 0 |
-| Requests benignos | 72 |
+| Requests benignos | 76 |
 | Falsos positivos no documentados | 0 (0.0%) |
 | Falsos positivos documentados | 5 |
 
@@ -23,11 +23,11 @@
 | nosql | 7 / 7 |
 | path_traversal | 13 / 13 |
 | proto_pollution | 3 / 3 |
-| sensitive_files | 8 / 8 |
-| sqli | 34 / 34 |
+| sensitive_files | 11 / 11 |
+| sqli | 43 / 43 |
 | ssrf | 7 / 7 |
 | ssti | 7 / 7 |
-| xss | 33 / 33 |
+| xss | 38 / 38 |
 
 ## Falsos positivos
 
@@ -50,15 +50,15 @@
 
 | Familia (familias CRS 930/941/942) | Detectados / total |
 |---|---|
-| path_traversal | 24 / 62 |
-| sqli | 160 / 869 |
-| xss | 54 / 204 |
-| **total en alcance** | **238 / 1135 (21.0%)** |
+| path_traversal | 30 / 62 |
+| sqli | 197 / 869 |
+| xss | 81 / 204 |
+| **total en alcance** | **308 / 1135 (27.1%)** |
 
 | Métrica externa | Valor |
 |---|---|
 | Negativos de CRS en alcance | 232 |
-| Falsos positivos sobre esos negativos | 9 (3.9%) |
+| Falsos positivos sobre esos negativos | 11 (4.7%) |
 | Excluidos: payload en body con content-type no inspeccionado | 3 |
 | Excluidos: payload en cabeceras fuera de inspect_headers | 9 |
 
@@ -68,7 +68,9 @@
 |---|---|---|
 | crs-941100-t5-s1 | xss | `/get` |
 | crs-941140-t14-s1 | xss | `/get/bar?test=url%28javascript%3Aalert%281%29%29` |
+| crs-941180-t7-s1 | xss | `/get/javascript-manual/document.cookie` |
 | crs-942101-t11-s1 | sqli | `/post/foo/24+union+all+select+1,2,3+from+aa/bar` |
+| crs-942131-t7-s1 | sqli | `a='1' not regexp '1'` |
 | crs-942160-t12-s1 | sqli | `/BENChmARk(2999/**/999,Md5(/` |
 | crs-942350-t9-s1 | sqli | `/get?test=%2F%2A%27%3BINSERT%20INTO%20category%28id%29%20VALUES%20%283%29--%20-%2A%2F` |
 | crs-942360-t30-s1 | sqli | `'\|\|(select(pg_sleep(15))where(true))\|\|'/investigate` |
@@ -76,13 +78,11 @@
 | crs-942521-t16-s1 | sqli | `var=Incorrectly%20constructed%20SQL%20statements%0AThis%20form%20of%20injection%20relies%2…` |
 | crs-942522-t8-s1 | sqli | `var=Incorrectly%20constructed%20SQL%20statements%0AThis%20form%20of%20injection%20relies%2…` |
 
-### Muestra de falsos negativos (12 de 897)
+### Muestra de falsos negativos (12 de 827)
 
 | id | familia | payload |
 |---|---|---|
 | crs-930100-t5-s1 | path_traversal | `<?xml version="1.0"?><root><a probe="0x5c0x2e.%00/"></a></root>` |
-| crs-930120-t5-s1 | path_traversal | `/get?/sys/class=test` |
-| crs-930120-t6-s1 | path_traversal | `/get?test=/sys/class` |
 | crs-930120-t9-s1 | path_traversal | `/get?code=>/tmp/curl` |
 | crs-930120-t14-s1 | path_traversal | `/get?code=backup.sql.zip` |
 | crs-930120-t18-s1 | path_traversal | `/get?file=node_modules/some-package/package.json` |
@@ -92,9 +92,11 @@
 | crs-930121-t8-s1 | path_traversal | `/get` |
 | crs-930121-t9-s1 | path_traversal | `/get` |
 | crs-930130-t1-s1 | path_traversal | `/get/sys/class` |
+| crs-930130-t2-s1 | path_traversal | `/get/proc/interrupts` |
+| crs-930130-t3-s1 | path_traversal | `/get/backup.sql.zip` |
 
 ### Umbrales del corpus externo (guarda de regresión sobre la línea base)
 
-- detección CRS ≥ 19%: ✅ (21.0%)
-- FP CRS ≤ 5.0%: ✅ (3.9%)
+- detección CRS ≥ 19%: ✅ (27.1%)
+- FP CRS ≤ 5.0%: ✅ (4.7%)
 

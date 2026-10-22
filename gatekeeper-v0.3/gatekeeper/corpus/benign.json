@@ -72,6 +72,10 @@
     {"id": "benign-069", "payload": "/api/list?sort=asc;type=json", "note": "`;` como separador de parámetros, no como separador de comandos"},
     {"id": "benign-070", "payload": "/search?q=java+script:+los+dos+palabras", "note": "espacio en medio del esquema: el navegador no lo descarta, no es XSS"},
     {"id": "benign-071", "payload": "/search?q=que+es+__proto__+en+javascript", "note": "documentación: la clave dunder coincide con la firma", "known_fp": "búsquedas legítimas sobre proto-pollution: `__proto__` literal en el valor"},
-    {"id": "benign-072", "payload": "/search?q=constructor+of+class+in+python", "note": "`constructor` solo no es pollution: hace falta `.prototype`"}
+    {"id": "benign-072", "payload": "/search?q=constructor+of+class+in+python", "note": "`constructor` solo no es pollution: hace falta `.prototype`"},
+    {"id": "benign-073", "payload": "/search?q=que+significa+ABS+en+matematicas", "note": "nombre de función SQL suelto, sin paréntesis de argumento"},
+    {"id": "benign-074", "payload": "/search?q=tutorial+de+CAST+en+java", "note": "`cast` en prosa: la firma exige `cast(` con argumento"},
+    {"id": "benign-075", "payload": "/search?q=xmlns+en+html+que+es", "note": "`xmlns` como término de búsqueda, sin etiqueta namespace"},
+    {"id": "benign-076", "payload": "/search?q=comparativa+frameworks+web+2026", "note": "palabra `web` y `svg` sueltos, sin sintaxis de etiqueta"}
   ]
 }

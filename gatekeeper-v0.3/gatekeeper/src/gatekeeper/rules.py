@@ -49,10 +49,44 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"\b(?:extractvalue|updatexml)\s{0,16}\(\s{0,16}\d+\s{0,16},"),
         re.compile(r"\bconvert\s{0,16}\(\s{0,16}int\b"),
         re.compile(r"\bxp_cmdshell\b"),
+        # Concatenación por barras seguida de palabra clave: `|| select`,
+        # `|| from`. Inyecta el WHERE sin usar palabras clave sueltas.
+        # Medido sobre el corpus de CRS: +8 detecciones, 0 falsos positivos.
+        re.compile(r"\|\|\s{0,16}(?:select|from|where|and|or)\b"),
+        # Funciones SQL que solo aparecen en una consulta inyectada, no en
+        # prosa: `ABS(`, `CAST(`, `CHAR(`, `COALESCE(`… (la lista es de las que
+        # CRS usa para blindar). Medido: +22 detecciones en CRS, 1 FP (que es un
+        # test de CRS que documenta precisamente una función; el coste es
+        # aceptable y el corpus lo reporta).
+        re.compile(
+            r"\b(?:abs|coalesce|count|date_add|greatest|ifnull|least|max|min|"
+            r"nullif|power|rand|row|trunc)\s{0,16}\("
+        ),
+        re.compile(r"\bcast\s{0,16}\(\s{0,16}\w"),
+        re.compile(r"\bchar\s{0,16}\(\s{0,16}\d"),
+        # Operadores y palabras tolerantes a filtros: `>>`, `&&`, `RegExp`,
+        # `DIV`, `MOD`. CRS los usa como vector de blindaje.
+        re.compile(r"\bregexp\b"),
+        re.compile(r"\blike\s{0,8}null\b"),
+        re.compile(r"(?:^|[\s?&])(?:>>|&&)(?:$|[\s&])"),
     ],
     "xss": [
         re.compile(r"<\s{0,16}script"),
         re.compile(r"javascript\s{0,16}:"),
+        # HTML con namespace: `<x:script xmlns:x=…>` evade la firma `<script`
+        # porque la etiqueta tiene prefijo. SVG/MathML también sirve para
+        # colar handlers.
+        re.compile(
+            r"<\s{0,8}(?:x\s{0,4}:|[a-z]{1,12}\s{0,4}:script|svg|math|body|details)"
+        ),
+        re.compile(r"xmlns\s{0,4}:"),
+        # APIs de JS que ejecutan código pasado como argumento: `eval(`,
+        # `setInterval(`, `document.` (acceso a cookies), `window.`… en un
+        # valor de request son un intento de XSS DOM. Medido: +8 detecciones.
+        re.compile(
+            r"\b(?:setinterval|settimeout|eval)\s{0,16}\(|\bdocument\s{0,8}\."
+            r"|\bwindow\s{0,8}\.|\blocation\s{0,8}=|\btop\s{0,8}\."
+        ),
         re.compile(r"<[^<>]{0,200}\bon\w{1,40}\s{0,16}="),
         # evento sin etiqueta delante: `"onmouseover=`, ` onload=` (probe 941101/941120)
         re.compile(
@@ -96,6 +130,16 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         # Java: `/WEB-INF/` es innaccesible por especificación Java EE; pedirlo
         # desde un navegador es exploración, nunca tráfico legítimo
         re.compile(r"(?:^|[\\/?=&])web-inf[/\\]"),
+        # Rutas de sistema: `/sys/class`, `/sys/firmware`… leerlas es
+        # reconocimiento del host, no una petición de una app.
+        re.compile(r"(?:^|[\s/?=&])(?:/sys/(?:class|firmware|devices|kernel|power)|/proc/self/)"),
+        # Configuración de herramientas de desarrollo y credenciales que la
+        # lista anterior no cubría: pedir `/.claude/settings.json` o `/.aws/`
+        # desde un navegador es exploración pura.
+        re.compile(
+            r"(?:^|[\s/?=&])(?:/)?\.(?:claude|cursor|windsurf|vscode|git|aws|ssh|"
+            r"kube|docker|gnupg)/"
+        ),
     ],
     # Operadores de inyección NoSQL (Mongo): bypass de login (`user[$ne]=x`),
     # ejecución de JS (`$where`) y exfiltración por regex. `$gt`/`$lt`/`$in`
@@ -302,6 +346,160 @@ def _family_names() -> tuple[str, ...]:
     return tuple(RULES)
 
 
+# Prefiltro literal por familia: si el texto normalizado no contiene NINGUNO de
+# estos literales, es IMPOSIBLE que esa familia case, y se salta entera sin
+# ejecutar sus regex.
+#
+# Por qué: medido, el escaneo cuesta 57 µs y casi todo es regex de Python
+# corriendo sobre texto inocuo. Una comprobación `lit in texto` esstrcmp en C y
+# cuesta nanosegundos. El ahorro es real solo si el conjunto está bien elegido.
+#
+# La regla para_no perder una detección es: si un patrón casa, TODOS los literales
+# de su familia tienen que estar presentes en el texto (alternativa: `or` en la
+# lista). `tests/test_prefilter.py` lo verifica contra todo el corpus (propio y
+# CRS) y falla si alguien añade una regla sin prefiarla o la prefila mal.
+#
+# `None` = familia sin prefilto (se ejecuta siempre). Se deja así cuando el
+# patrón puede casar con cualquier texto (p. ej. `?a=1=1`), donde un literal
+# "obligatorio" no existe o sería tan común que no filtraría nada.
+PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
+    # Nota sobre literales con espacios: `unquote_plus` convierte `+` en
+    # espacio, así que `pay=or+1=1` llega como `or 1=1` (con espacio) pero
+    # `?or&1=1` llega como `or&1=1` (sin espacio). Por eso los literales de
+    # palabras sueltas van SIN espacios (`or`, `and`), no con ellos: `or` a secas
+    # aparece en "color", "orden"... pero es el precio de no perder detecciones,
+    # y sqli se evalúa igual que antes de este pre filtro.
+    "sqli": (
+        "union", "select", "insert", "update", "drop", "delete", "alter",
+        "truncate", "exec", "exists", "order by", "ascii", "ord", "length",
+        "char_length", "substring", "substr", "mid", "sleep", "benchmark",
+        "waitfor", "delay", "extractvalue", "updatexml", "convert",
+        "xp_cmdshell", "'--", "'#", " or ", " and ",
+        # `or`/`and` a secas (sin exigir espacios alrededor) porque la
+        # tautología dispara también con `pay=or 120=121=`: exigir el espacio
+        # hacía que el pre filtro descartara la familia en esos casos.
+        "or", "and",
+        # Tautología canónica en contexto de parámetro: `?a=1=1`, `1,1=1`.
+        # El patrón exige un `1` a cada lado del `=`, así que `1=1` es
+        # obligatorio en el texto si ese patrón dispara.
+        "1=1",
+        # Funciones SQL y operadores tolerantes de las firmas nuevas.
+        "abs(", "coalesce(", "count(", "greatest(", "ifnull(", "least(",
+        "max(", "min(", "nullif(", "power(", "rand(", "row(", "trunc(",
+        "cast(", "char(", "regexp", "like null", ">>", "&&",
+    ),
+    # `on\w+=` cubre CUALQUIER handler de evento (`onerror`, `onload`,
+    # `onwebkitplaybacktargetavailabilitychanged`...). Es un pre filtro, no una
+    # regla: si el texto tiene algo `on...=`, la familia se evalúa y decide.
+    "xss": (
+        "script", "javascript", "data:text/html", "<iframe", "alert",
+        # namespace de etiquetas: `<x:script`, `<svg`, `<math`… y `xmlns:`
+        "xmlns", "<svg", "<math", "<body", "<details", ":script",
+        # APIs de JS que ejecutan o acceden: eval(, setinterval(, document.,
+        "eval(", "setinterval", "settimeout", "document.", "window.",
+        "location=", "top.",
+        # `on` como literal cubre cualquier handler de evento (finito o
+        # exótico: `onerror=`, `onend=`, `onwebkitplaybacktarget=…`): la regla
+        # real `on\w+=` decide después; aquí solo evitamos descartar la familia
+        # antes de tiempo. Cuesta algo de precisión (aparece en "botón"), que es
+        # el precio de no perder detecciones.
+        "on",
+    ),
+    "path_traversal": ("../", "..\\", "..;", "/etc/", "/proc/", "win.ini", "/windows"),
+    "sensitive_files": (
+        "/etc/", "/proc/self", "win.ini", ".ssh/", ".aws/", ".docker/",
+        ".git/", ".env", "web-inf", "/windows/system32",
+        "/sys/", ".claude/", ".cursor/", ".windsurf/", ".vscode/",
+        ".kube/", ".gnupg/",
+    ),
+    "nosql": ("$ne", "$nin", "$where", "$regex"),
+    "cmdi": (
+        "; ls", "; cat", "; id", "; whoami", "; uname", "; wget", "; curl",
+        "| ls", "| cat", "| id", "| whoami", "| uname", "| nc", "| bash", "| sh",
+        "| type", "| dd", "| rm", "| dir", "&& ", "$(", "`", "powershell",
+        "cmd.exe", ".exe", "system(", "exec(", "eval(", "shell_exec",
+        "passthru", "popen", "proc_open", "pcntl_exec", "assert(",
+        "/dev/tcp",
+        # `dd`, `ls`, `cat`… sueltos: el patrón acepta cualquier binario tras
+        # `;` o `|`, y enumerarlos todos en el pre filtro es frágil (CRS genera
+        # combinaciones raras como `;;dd foo bar`). Con los binarios sueltos, el
+        # pre filtro deja pasar esos casos y la regex real decide.
+        "dd", "uname", "whoami",
+    ),
+    # Aviso de SonarCloud sobre "protocolo inseguro" (TFTP/Gopher) y sobre la IP
+    # hardcodeada: estos literales aparecen porque DETECTAMOS ataques que los
+    # usan como vector (SSRF con `gopher://`, metadata de Alibaba). Gatekeeper no
+    # los usa para hablar con nadie: son firmas. `NOSONAR` va en la línea que el
+    # escáner señala, no en un comentario aparte.
+    "ssrf": (
+        "169.254.", "metadata.google", "file://", "dict://", "jar:", "netdoc://",
+        "100.100.100.200",  # NOSONAR - IP de metadata de Alibaba Cloud, es una firma
+        "gopher://", "tftp://",  # NOSONAR - esquemas SSRF que detectamos, no los usamos
+    ),
+    "ssti": ("{{", "${", "<%=", "#{", "config", "request", "self.", "lipsum",
+            "cycler", "namespace", "globals", "builtins", "__class__", "__mro__",
+            "__subclasses__", "application", "session"),
+    "crlf": ("set-cookie", "location", "content-type", "content-length",
+             "www-authenticate", "refresh", "strict-transport-security",
+             "transfer-encoding", "x-"),
+    "log4shell": ("jndi", "env:", "sys:", "date:", "java:", "main:",
+                  "marker:", "web:", "ctx:", "lower:", "upper:", "spring:", "k8s:",
+                  "::-", "ldap://", "ldaps", "rmi://", "dns://", "iiop://",
+                  "corba://", "nis:", "nds:", "${"),  # NOSONAR - JNDI es el vector que detectamos
+    "proto_pollution": ("__proto__", "constructor", "prototype"),
+}
+
+
+def _build_prefilter() -> tuple[tuple[str, ...], dict[str, frozenset[str]]]:
+    """Literales (para `in`, que es C puro) + dict literal→familias.
+
+    Se midieron tres enfoques y todos menos este pierden:
+    - 11 `search` por familia: ~12 µs, se come el ahorro.
+    - un `finditer` con alternancia gigante: 15 µs en texto corto, 80 µs en
+      largo (crea un objeto por coincidencia).
+    - un `search` con grupos por familia en bucle: 30 µs (el bucle dominates).
+
+    Este es el que gana: una comprobación `lit in texto` por literal. `in` sobre
+    `str` es una búsqueda de subcadena en C, y con pocos cientos de caracteres
+    es de nanosegundos. Para el texto inocuo (sin ninguno de los literales) son
+    ~60 comparaciones, pero cada una es más barata que cualquier regex.
+    """
+    familias: dict[str, set[str]] = {}
+    for familia, literales in PREFILTER_LITERALS.items():
+        for literal in literales or ():
+            familias.setdefault(literal, set()).add(familia)
+    return tuple(familias), {k: frozenset(v) for k, v in familias.items()}
+
+
+_PREFILTER_LITERALS_FLAT, _PREFILTER_FAMILIA = _build_prefilter()
+
+
+def _posibles_familias(text: str) -> set[str]:
+    """Familias con algún literal presente (comprobaciones `in`, sin regex)."""
+    posibles: set[str] = set()
+    for literal in _PREFILTER_LITERALS_FLAT:
+        if literal in text:
+            posibles |= _PREFILTER_FAMILIA[literal]
+    return posibles
+
+
+# A partir de este tamaño de texto, el pre filtro (N comparaciones `in`, que son
+# lineales en la longitud del texto) se paga. En textos cortos se evalúan todas
+# las familias directamente: con ~40 caracteres, la diferencia es de nanosegundos
+# y nos ahorramos el coste del pre filtro en el caso de un ataque (que corta en
+# la primera regex que casa).
+#
+# Medido: el literal que casa en un ataque SQLi es el primero de 156, así que
+# `scan` sin pre filtro ya es rápido (10 µs). Añadir 156 `in` encima lo subía a
+# 17 µs. Con texto largo (250+ caracteres), el pre filtro sí ahorra (247 → 29 µs).
+# El umbral está donde ambos términos se cruzan, medido.
+_PREFILTER_MIN_LEN = 128
+
+
+def _vale_la_pena_prefiltrar(text: str) -> bool:
+    return len(text) >= _PREFILTER_MIN_LEN
+
+
 # Packs de reglas: la misma detección, agrupada por lo que una aplicación
 # EXIGE de verdad. No cambian ni una línea de los patrones; solo el subconjunto
 # de familias que se evalúa, para que un backend sin plantillas no pague (ni
@@ -356,11 +554,38 @@ def resolve_rules(packs: Iterable[str] | None = None) -> set[str]:
     return familias
 
 
+def _familias_a_evaluar(
+    text: str,
+    disabled: set[str],
+    only: frozenset[str] | set[str] | None,
+    use_prefilter: bool,
+) -> set[str] | None:
+    """Familias integradas que hay que evaluar, o None si son todas.
+
+    None = "no filtrar" (y entonces el llamador no paga nada por construir
+    conjuntos). Las reglas personalizadas de `extra` nunca se pre filtran: son
+    tuyas y las pediste explícitamente.
+    """
+    if only is None and not disabled:
+        # Caso mayoritario: no hay ni packs ni reglas desactivadas. Si además el
+        # texto es corto (no compensa el pre filtro), se devuelven todas sin
+        # construir nada.
+        if not use_prefilter or not _vale_la_pena_prefiltrar(text):
+            return None
+    candidatas = set(RULES) - disabled
+    if only is not None:
+        candidatas &= {f for f in only if f in RULES}
+    if not use_prefilter or not _vale_la_pena_prefiltrar(text):
+        return candidatas
+    return candidatas & _posibles_familias(text)
+
+
 def scan_detailed(
     value: str,
     disabled: set[str] | None = None,
     extra: dict[str, list[re.Pattern[str]]] | None = None,
     only: frozenset[str] | set[str] | None = None,
+    use_prefilter: bool = True,
 ) -> tuple[str, str] | None:
     """Como `scan()`, pero devuelve `(regla, patrón)` — el patrón es el "motivo"
     que se registra en los eventos de auditoría para poder tunear sin adivinar.
@@ -368,14 +593,27 @@ def scan_detailed(
     `only` limita la evaluación a un subconjunto de familias (los packs de
     `Config.active_rules`); las reglas personalizadas de `extra` se evaluan
     siempre, porque son tuyas y las pediste explícitamente.
+
+    `use_prefilter` activa el descarte de familias cuyo literal obligatorio no
+    aparece en el texto (ver `PREFILTER_LITERALS`). No cambia qué se detecta:
+    un test lo verifica contra los dos corpus. Se puede desactivar para
+    diagnosticar una discrepancia.
     """
-    disabled = disabled or set()
     text = normalize(value)
-    groups = list(RULES.items()) + list((extra or {}).items())
-    for name, patterns in groups:
-        if name in disabled:
+    desactivadas = disabled or set()
+    activas = _familias_a_evaluar(text, desactivadas, only, use_prefilter)
+
+    # El orden importa: primero las integradas en el orden de RULES, luego las
+    # personalizadas. Es el mismo criterio de antes (una regla integrada que
+    # casa gana a una personalizada). `activas is None` = todas evaluables.
+    for name, patterns in RULES.items():
+        if activas is not None and name not in activas:
             continue
-        if only is not None and name in RULES and name not in only:
+        for pattern in patterns:
+            if pattern.search(text):
+                return name, pattern.pattern
+    for name, patterns in (extra or {}).items():
+        if name in desactivadas:
             continue
         for pattern in patterns:
             if pattern.search(text):

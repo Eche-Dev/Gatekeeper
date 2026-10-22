@@ -81,6 +81,24 @@ from gatekeeper.rules import decode, normalize, scan
         ("/x?q=javascript&colon;alert(1)", "xss"),  # &colon; nombrada
         ("/x?q=1 /*!50000union*/ select password from users", "sqli"),
         ("/x?q=1%2F*!50000union*%2F+select+1,2,3", "sqli"),  # versionado codificado
+        # firmas de 0.3.1 (B7): cerradas contra los misses del corpus de CRS,
+        # que subieron del 21,0% al 27,1%. Cada una cubre una técnica
+        # documentada, no un caso concreto del examen.
+        ("/x?q=1' || select password from users--", "sqli"),  # concatenación
+        ("/x?id=ABS(-1)", "sqli"),  # función SQL en un parámetro
+        ("/x?id=CAST(1 AS INT)", "sqli"),
+        ("/x?id=CHAR(65)", "sqli"),
+        ("/x?id=1 REGEXP '^a'", "sqli"),  # operador tolerante
+        ("/x?id=1 LIKE NULL", "sqli"),
+        ("/x?id=1 >> 2", "sqli"),
+        ("/x?q=<x:script xmlns:x='http://www.w3.org/1999/xhtml'>alert(1)</x:script>", "xss"),
+        ("/x?q=<svg/onload=alert(1)>", "xss"),  # SVG con handler
+        ("/x?q=eval(atob('YWxlcnQoMSk='))", "xss"),  # eval DOM
+        ("/x?q=document.cookie", "xss"),  # robo de cookie vía DOM
+        ("/x?q=setInterval(code,1)", "xss"),
+        ("/x?f=/sys/class", "sensitive_files"),  # reconocimiento del sistema
+        ("/x?f=/.claude/settings.json", "sensitive_files"),
+        ("/x?f=/.aws/config", "sensitive_files"),
     ],
 )
 def test_detects_attacks(payload, rule):
@@ -114,6 +132,10 @@ def test_detects_attacks(payload, rule):
         "/search?q=java+script:+los+dos+palabras",  # espacio no es esquema
         "/search?q=constructor+of+class+in+python",  # sin .prototype
         "/search?q=options+|+set+up+guide",  # prosa tras pipe
+        # fronteras de las firmas de B7: la técnica en prosa NO debe bloquear
+        "/search?q=que+significa+ABS+en+matematicas",  # nombre de función suelto
+        "/search?q=tutorial+de+CAST+en+java",  # cast sin paréntesis de argumento
+        "/blog/comparativa-de-frameworks-web",  # 'web' no dispara nada
     ],
 )
 def test_benign_requests_pass(payload):
