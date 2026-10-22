@@ -33,6 +33,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from gatekeeper.body import content_type_of, extract_strings, is_inspectable
+from gatekeeper.config import DEFAULT_INSPECT_HEADERS
 from gatekeeper.rules import scan
 
 CORPUS_DIR = ROOT / "corpus"
@@ -40,9 +41,9 @@ CRS_FILE = CORPUS_DIR / "crs_payloads.json"
 DEFAULT_MIN_DETECTION = 1.00  # el corpus propio es la promesa pública: 100% o CI en rojo
 DEFAULT_MAX_FP = 0.0  # umbral de CI sobre falsos positivos NO documentados
 # Umbrales sobre el corpus externo de CRS: guardas de regresión sobre la línea
-# base medida (185/982 = 18.8% de detección, 8/185 = 4.3% de FP), redondeada al
+# base medida (219/1135 = 19.3% de detección, 9/232 = 3.9% de FP), redondeada al
 # entero por debajo (detección) y por encima (FP). Se recalculan al reimportar.
-DEFAULT_MIN_CRS_DETECTION = 0.18
+DEFAULT_MIN_CRS_DETECTION = 0.19  # con cabeceras y bodies textuales en alcance
 DEFAULT_MAX_CRS_FP = 0.05
 
 
@@ -144,11 +145,19 @@ class CrsReport:
 def _crs_carriers(item: dict) -> tuple[list[str], bool]:
     """Strings que el middleware inspeccionaría en esa petición CRS y si el body es inspeccionable.
 
-    El middleware inspecciona ruta+query siempre; el body solo con content-type
-    JSON/form (los tests de CRS sin content-type se asumen formularios).
+    El middleware inspecciona ruta+query siempre; el body con cualquier
+    content-type textual (los tests de CRS sin content-type se asumen
+    formularios); las cabeceras configuradas en `inspect_headers`.
     """
     uri = item.get("uri") or ""
     carriers = [uri] if uri else []
+    # Cabeceras del conjunto por defecto: lo que el middleware inspecciona sin
+    # configurar nada (Config().inspect_headers)
+    carriers.extend(
+        value
+        for name, value in (item.get("headers") or {}).items()
+        if name in DEFAULT_INSPECT_HEADERS
+    )
     data = item.get("data")
     raw = item.get("content_type")
     # sin content-type se asume formulario (el navegador lo hace por defecto);
@@ -156,18 +165,18 @@ def _crs_carriers(item: dict) -> tuple[list[str], bool]:
     content_type = content_type_of(raw) if raw else "application/x-www-form-urlencoded"
     inspectable = is_inspectable(content_type)
     if data and inspectable:
-        carriers.extend(extract_strings(content_type, data.encode("utf-8", "replace")))
+        carriers.extend(value for _, value in extract_strings(content_type, data.encode("utf-8", "replace")))
     return carriers, inspectable
 
 
 def _crs_in_scope(item: dict, inspectable: bool) -> bool:
-    """Fuera de alcance: payload en cabeceras o en body con content-type no inspeccionado.
+    """Fuera de alcance: cabeceras fuera de `inspect_headers` o body no textual.
 
     Son límites documentados de Gatekeeper (ver SECURITY.md), no fallos: se
     excluyen del denominador y se contabilizan en el informe.
     """
     if item.get("carrier") == "headers":
-        return False
+        return any(name in DEFAULT_INSPECT_HEADERS for name in (item.get("headers") or {}))
     if item.get("carrier") == "body" and not inspectable:
         return False
     return True
@@ -199,13 +208,13 @@ def evaluate_crs() -> CrsReport:
                 if len(report.misses) < 12:
                     report.misses.append(item)
             else:
-                reason = ("payload solo en cabeceras (no inspeccionadas)"
+                reason = ("payload en cabeceras fuera de inspect_headers"
                           if item.get("carrier") == "headers"
                           else "payload en body con content-type no inspeccionado")
                 report.excluded[reason] = report.excluded.get(reason, 0) + 1
         else:  # benign: negativos de CRS
             if not in_scope:
-                reason = ("payload solo en cabeceras (no inspeccionadas)"
+                reason = ("payload en cabeceras fuera de inspect_headers"
                           if item.get("carrier") == "headers"
                           else "payload en body con content-type no inspeccionado")
                 report.excluded[reason] = report.excluded.get(reason, 0) + 1

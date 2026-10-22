@@ -74,10 +74,12 @@ def test_oversize_streamed_without_content_length_is_413():
     assert r.status_code == 413
 
 
-def test_text_plain_is_not_inspected():
+def test_text_plain_attack_is_blocked():
+    # Regresión del bypass por content-type: request.json() parsea un text/plain
+    # igual que el atacante sabe, así que el middleware también lo inspecciona.
     r = make_client().post("/echo", content="<script>x</script>",
                            headers={"content-type": "text/plain"})
-    assert r.status_code == 200
+    assert r.status_code == 403
 
 
 def test_multipart_is_passed_through():

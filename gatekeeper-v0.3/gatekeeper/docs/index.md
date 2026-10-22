@@ -1,8 +1,8 @@
 # Gatekeeper
 
 **Middleware ASGI de seguridad para FastAPI y Starlette.** Rate limiting,
-cabeceras seguras, detección de patrones de ataque en query y body, reglas
-propias por YAML y auditoría en JSON: una capa adicional delante de tu app.
+cabeceras seguras, detección de patrones de ataque en query, cabeceras y body,
+reglas propias por YAML y auditoría en JSON: una capa adicional delante de tu app.
 
 !!! warning "Qué es y qué no es"
     Gatekeeper es una **defensa en profundidad**, no un WAF. Una regex no
@@ -23,7 +23,8 @@ app.add_middleware(
 ```
 
 Eso ya te da rate limiting por IP, cabeceras de seguridad, bloqueo de SQLi/XSS/
-path traversal en query y body, y eventos de auditoría en el logger `gatekeeper`.
+path traversal en query, cabeceras y body, y eventos de auditoría en el logger
+`gatekeeper`.
 
 ## Qué mide (no qué promete)
 
@@ -31,11 +32,11 @@ Dos corpus con guarda en CI — uno propio, otro escrito por gente distinta:
 
 | Métrica | Corpus propio (83 ataques / 62 benignos) | OWASP CRS externo (1379 tests) |
 |---|---|---|
-| Ataques detectados | **100.0%** (83/83) | **18.8%** (185/982) |
-| Falsos positivos sin documentar | **0** | 4.3% sobre los negativos de CRS (línea base) |
+| Ataques detectados | **100.0%** (83/83) | **19.3%** (219/1135) |
+| Falsos positivos sin documentar | **0** | 3.9% sobre los negativos de CRS (línea base) |
 | Falsos negativos sin documentar | 0 (5 documentados y aceptados) | — (muestra en el informe) |
 
-El 18.8% del corpus externo no es una meta: es la **línea base** de un corpus
+El 19.3% del corpus externo no es una meta: es la **línea base** de un corpus
 diseñado para un WAF de 500+ reglas y mucho más ofuscado, y el workflow la
 vigila para que no baje. Ver [Detección y medición](deteccion.md) y
 [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md).

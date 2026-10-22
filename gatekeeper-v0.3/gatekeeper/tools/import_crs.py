@@ -17,7 +17,8 @@ Alcance y metodología:
   como tráfico negativo para medir falsos positivos.
 - `carrier` registra dónde vive el payload (body/query/path/headers) para que
   el evaluador excluya con transparencia lo que Gatekeeper no inspecciona
-  (cabeceras y bodies con content-type no inspeccionable).
+  (cabeceras fuera de `inspect_headers` y bodies con content-type no
+  inspeccionable). Las cabeceras con payload se guardan en `headers`.
 
 Licencia: OWASP CRS es Apache-2.0. Se conserva corpus/LICENSE-APACHE-2.0.txt y
 la atribución en corpus/README.md. No edites el JSON a mano: reimporta.
@@ -109,6 +110,15 @@ def extract(crs_dir: Path) -> tuple[list[dict], Counter]:
                     raw_data = inp.get("data")
                     data = str(raw_data) if raw_data is not None else None
                     carrier = classify_carrier(uri, data, headers)
+                    # Cabeceras que llevan payload (fuera de las estructurales de
+                    # plantilla): el middleware las inspecciona si están en
+                    # inspect_headers y el evaluador las simula igual.
+                    payload_headers = {
+                        k.lower(): str(v)
+                        for k, v in headers.items()
+                        if k.lower() not in STRUCTURAL_HEADERS
+                        and not (k.lower() == "user-agent" and str(v) == TEMPLATE_UA)
+                    }
                     entries.append({
                         "id": f"crs-{path.stem}-t{test_id}-s{stage_idx}",
                         "crs_rule": crs_rule,
@@ -119,6 +129,7 @@ def extract(crs_dir: Path) -> tuple[list[dict], Counter]:
                         "data": data,
                         "content_type": content_type,
                         "desc": desc,
+                        "headers": payload_headers,
                     })
                     stats[f"{expect}:{carrier}"] += 1
     return entries, stats

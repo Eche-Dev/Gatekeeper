@@ -63,13 +63,13 @@ para otro WAF, con sus propios negativos:
 
 | Métrica (corpus externo CRS, familias 930/941/942) | Valor |
 |---|---|
-| Tests importados | 1379 (982 en alcance, 212 excluidos y declarados) |
-| Ataques detectados | 185 / 982 (**18.8%**) |
-| Negativos de CRS bloqueados (FP) | 8 / 185 (4.3%) |
+| Tests importados | 1379 (1135 en alcance, 12 excluidos y declarados) |
+| Ataques detectados | 219 / 1135 (**19.3%**) |
+| Negativos de CRS bloqueados (FP) | 9 / 232 (3.9%) |
 
-Ese 18.8% no es una meta: es la **línea base** de un corpus diseñado para un
+Ese 19.3% no es una meta: es la **línea base** de un corpus diseñado para un
 WAF de 500+ reglas y payloads mucho más ofuscados, y el workflow la vigila para
-que no baje. Publicarlo entero es el punto: un 94% propio y un 18.8% ajeno, los
+que no baje. Publicarlo entero es el punto: un 100% propio y un 19.3% ajeno, los
 dos medidos y los dos con guarda en CI.
 
 El detalle, incluidos los payloads que se escapan y por qué, está en
@@ -80,7 +80,7 @@ empeora esas cifras (`python tools/evaluate.py --check`).
 
 Una sesión real contra [`demo/app.py`](demo/) (uvicorn + curl, sin trucos):
 tráfico normal pasa, los payloads reciben 403 y la auditoría registra la
-regla que saltó — nunca el contenido.
+regla, el campo y el patrón que saltó — nunca el contenido.
 
 ![Demo de Gatekeeper](docs/assets/demo.gif)
 
@@ -94,12 +94,12 @@ para Vercel (`vercel --prod`) y Docker: [`demo/`](demo/).
 
 | Escenario | µs/petición | µs añadidos |
 |---|---|---|
-| sin middleware (base) | 12.46 | — |
-| solo cabeceras | 24.41 | +11.95 |
-| inspección (query + body) | 49.01 | +36.55 |
-| rate limit solo | 26.02 | +13.56 |
-| completo (inspección + rate limit) | 50.76 | +38.30 |
-| request atacante (403 temprano) | 22.88 | +10.42 |
+| sin middleware (base) | 12.56 | — |
+| solo cabeceras | 29.89 | +17.32 |
+| inspección (query + cabeceras + body) | 70.59 | +58.03 |
+| rate limit solo | 31.62 | +19.06 |
+| completo (inspección + rate limit) | 71.10 | +58.54 |
+| request atacante (403 temprano) | 48.63 | +36.07 |
 
 ## Documentación
 
@@ -120,12 +120,12 @@ escenarios y detectar regresiones.
 
 - La detección por regex tiene falsos positivos y falsos negativos: **no sustituye**
   a consultas parametrizadas, a validación de entradas ni a un WAF.
-- `multipart/form-data` no se inspecciona (las subidas de archivos pasan intactas).
+- `multipart/form-data` y bodies binarios no se inspeccionan (las subidas de archivos pasan intactas; parser en v0.4).
 - Cada valor del body se analiza por separado: un ataque repartido en varios campos no se detecta.
-- No decodifica entidades HTML (`&#60;script&#62;`) ni UTF-8 sobre-long (`%c0%af`).
+- Entidades HTML **nombradas** (`&lt;script`): pendientes de medición.
 - Con `rate_backend="memory"` y varios workers, el límite efectivo se multiplica: usa Redis.
 - Si Redis no responde, `rate_fail_open=True` (por defecto) sigue admitiendo peticiones; ponlo a `False` si prefieres 503.
-- `trust_proxy=False` por defecto; actívalo solo detrás de un proxy de confianza.
+- `trust_proxy=False` por defecto; actívalo solo detrás de un proxy de confianza. Con `trust_proxy=True` el XFF se lee de derecha a izquierda (`ips[-trusted_proxies]`); añade `trusted_proxy_cidrs` si la app es alcanzable por otro camino.
 - Un body JSON/form mayor que `max_body_size` se rechaza: súbelo o usa `inspect_body=False`.
 - `allow_paths` exime de inspección, no de rate limit ni de bloqueo de IP.
 
@@ -143,7 +143,9 @@ escenarios y detectar regresiones.
 | `custom_rules` | `∅` | `{nombre: regex}` o lista `{name, pattern}` |
 | `max_body_size` | `1 MiB` | límite del body inspeccionado |
 | `allow_paths` | `[]` | globs exentos de inspección |
-| `blocked_ips` / `trust_proxy` | `∅` / `False` | bloqueo directo y uso de `X-Forwarded-For` |
+| `inspect_headers` | `user-agent, referer, cookie, x-forwarded-for` | cabeceras inspeccionadas (`∅` desactiva) |
+| `blocked_ips` / `trust_proxy` | `∅` / `False` | bloqueo por IP o CIDR y uso de `X-Forwarded-For` |
+| `trusted_proxies` / `trusted_proxy_cidrs` | `1` / `∅` | hops de proxy a saltar en el XFF y redes de las que se cree |
 | `security_headers` | ver fuente | `None` = cabeceras por defecto |
 
 `Config` falla al arrancar, no en producción: claves desconocidas (un typo como

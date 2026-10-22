@@ -49,6 +49,7 @@ Dataclass con validación en `__post_init__`. Un valor inválido lanza
 | Campo | Tipo | Defecto |
 |---|---|---|
 | `inspect_requests` | `bool` | `True` |
+| `inspect_headers` | `set[str]` | `{"user-agent", "referer", "cookie", "x-forwarded-for"}` (vacío = desactivado) |
 | `monitor_only` | `bool` | `False` (solo registra) |
 | `disabled_rules` | `set[str]` | `set()` — nombres de `sqli`, `xss`, `path_traversal`, `sensitive_files` |
 | `custom_rules` | `dict[str, str]` o `list[dict]` | `dict()` |
@@ -65,8 +66,10 @@ Dataclass con validación en `__post_init__`. Un valor inválido lanza
 
 | Campo | Tipo | Defecto |
 |---|---|---|
-| `blocked_ips` | `set[str]` | `set()` |
+| `blocked_ips` | `set[str]` | `set()` — IP exacta, CIDR (`10.0.0.0/8`, IPv6) o identificador literal del peer |
 | `trust_proxy` | `bool` | `False` (ponlo `True` solo detrás de un proxy de confianza) |
+| `trusted_proxies` | `int` | `1` — hops tuyos en la cadena; el cliente es `ips[-trusted_proxies]` |
+| `trusted_proxy_cidrs` | `set[str]` | `set()` — si se define, el XFF solo se cree si el peer pertenece a estas redes |
 | `security_headers` | `dict[str, str]` \| `None` | `None` = cabeceras por defecto |
 
 ### Métodos

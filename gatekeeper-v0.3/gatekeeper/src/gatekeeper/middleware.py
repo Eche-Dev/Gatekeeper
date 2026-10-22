@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from urllib.parse import parse_qsl
 
 from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
@@ -12,7 +13,7 @@ from .body import content_type_of, extract_strings, is_inspectable, read_body, r
 from .config import Config
 from .paths import is_path_allowed
 from .ratelimit import BackendUnavailable, MemoryBackend, RateLimitBackend, RedisBackend
-from .rules import scan, scan_all
+from .rules import scan_detailed
 
 logger = logging.getLogger("gatekeeper")
 
@@ -51,13 +52,28 @@ def _header(scope: Scope, name: bytes) -> str | None:
     return None
 
 
-def _client_ip(scope: Scope, trust_proxy: bool) -> str:
-    if trust_proxy:
-        forwarded = _header(scope, b"x-forwarded-for")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+def _client_ip(scope: Scope, cfg: Config) -> str:
+    """IP del cliente para rate limiting y bloqueo.
+
+    Con `trust_proxy`, X-Forwarded-For se lee de DERECHA a IZQUIERDA: cada
+    proxy tuyo añade una entrada al final, así que el cliente real es
+    `ips[-trusted_proxies]`. La PRIMERA entrada la escribe el cliente — leerla
+    (el bug original) permitía rotarla y saltarse el rate limit y `blocked_ips`.
+    Si hay `trusted_proxy_cidrs` y el peer no pertenece a ellas, el XFF se
+    ignora por completo (nadie cree XFF llegando directo a la app).
+    """
     client = scope.get("client")
-    return client[0] if client else "unknown"
+    peer = client[0] if client else "unknown"
+    if not cfg.trust_proxy or not cfg.trusted_peer(peer):
+        return peer
+    forwarded = _header(scope, b"x-forwarded-for")
+    if not forwarded:
+        return peer
+    hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
+    if len(hops) < cfg.trusted_proxies:
+        # Cadena inconsistente: alguien saltó el proxy o borró entradas.
+        return peer
+    return hops[-cfg.trusted_proxies]
 
 
 def _content_length(scope: Scope) -> int | None:
@@ -68,6 +84,19 @@ def _content_length(scope: Scope) -> int | None:
         return None
 
 
+def _query_field(path: str, query: str, cfg: Config) -> str | None:
+    """Atribución del campo: el parámetro cuyo nombre/valor coincide, `path`,
+    o None si el payload cruza parámetros (la detección es sobre el conjunto)."""
+    for key, value in parse_qsl(query, keep_blank_values=True):
+        if scan_detailed(key, cfg.disabled_rules, cfg.compiled_custom):
+            return key
+        if scan_detailed(value, cfg.disabled_rules, cfg.compiled_custom):
+            return key
+    if scan_detailed(path, cfg.disabled_rules, cfg.compiled_custom):
+        return "path"
+    return None
+
+
 class GatekeeperMiddleware:
     def __init__(self, app: ASGIApp, config: Config | None = None) -> None:
         self.app = app
@@ -75,7 +104,8 @@ class GatekeeperMiddleware:
         self.limiter: RateLimitBackend | None = build_limiter(self.config)
 
     def _audit(self, event: str, ip: str, scope: Scope, **extra: object) -> None:
-        # Nunca se registra el contenido del payload, solo la regla y el origen.
+        # Nunca se registra el contenido del payload: sí la regla, el campo y
+        # el patrón que lo disparó, que es lo que hace falta para tunear FP.
         logger.warning(
             json.dumps(
                 {
@@ -101,10 +131,11 @@ class GatekeeperMiddleware:
             return
 
         cfg = self.config
-        ip = _client_ip(scope, cfg.trust_proxy)
+        ip = _client_ip(scope, cfg)
 
-        if ip in cfg.blocked_ips:
-            self._audit("blocked_ip", ip, scope)
+        blocked_entry = cfg.blocked_match(ip)
+        if blocked_entry is not None:
+            self._audit("blocked_ip", ip, scope, entry=blocked_entry)
             await self._reject(403, "Forbidden", scope, receive, send)
             return
 
@@ -132,17 +163,38 @@ class GatekeeperMiddleware:
 
         path = scope.get("path", "")
         if cfg.inspect_requests and not is_path_allowed(path, cfg.allow_paths):
-            # 1) ruta + query string
-            target = path + "?" + scope.get("query_string", b"").decode("latin-1")
-            rule = scan(target, cfg.disabled_rules, cfg.compiled_custom)
-            if rule:
+            query = scope.get("query_string", b"").decode("latin-1")
+
+            # 1) ruta + query string: la detección va sobre el objetivo completo
+            #    (un payload puede cruzar parámetros); el campo es atribución.
+            hit = scan_detailed(path + "?" + query, cfg.disabled_rules, cfg.compiled_custom)
+            if hit:
+                rule, pattern = hit
                 self._audit("attack_detected", ip, scope, rule=rule, source="query",
+                            field=_query_field(path, query, cfg), pattern=pattern[:160],
                             blocked=not cfg.monitor_only)
                 if not cfg.monitor_only:
                     await self._reject(403, "Forbidden", scope, receive, send)
                     return
 
-            # 2) body (solo JSON y formularios urlencoded)
+            # 2) cabeceras inspeccionables: ahí viven los scanners y los
+            #    payloads tipo Log4Shell (User-Agent, Referer, Cookie...)
+            for header_name in sorted(cfg.inspect_headers):
+                raw_header = _header(scope, header_name.encode("latin-1"))
+                if not raw_header:
+                    continue
+                hit = scan_detailed(raw_header, cfg.disabled_rules, cfg.compiled_custom)
+                if hit:
+                    rule, pattern = hit
+                    self._audit("attack_detected", ip, scope, rule=rule, source="header",
+                                field=header_name, pattern=pattern[:160],
+                                blocked=not cfg.monitor_only)
+                    if not cfg.monitor_only:
+                        await self._reject(403, "Forbidden", scope, receive, send)
+                        return
+
+            # 3) body: cualquier content-type textual (JSON, form, text/plain,
+            #    XML o incluso sin content-type); los binarios y multipart no.
             ctype = content_type_of(_header(scope, b"content-type"))
             if (
                 cfg.inspect_body
@@ -162,15 +214,18 @@ class GatekeeperMiddleware:
                     return
                 receive = replay(messages, receive)
 
-                rule = scan_all(
-                    extract_strings(ctype, body), cfg.disabled_rules, cfg.compiled_custom
-                )
-                if rule:
+                for pointer, value in extract_strings(ctype, body):
+                    hit = scan_detailed(value, cfg.disabled_rules, cfg.compiled_custom)
+                    if not hit:
+                        continue
+                    rule, pattern = hit
                     self._audit("attack_detected", ip, scope, rule=rule, source="body",
+                                field=pointer, pattern=pattern[:160],
                                 blocked=not cfg.monitor_only)
                     if not cfg.monitor_only:
                         await self._reject(403, "Forbidden", scope, receive, send)
                         return
+                    break  # monitor_only: un evento basta; seguimos hacia la app
 
         headers = cfg.headers()
 

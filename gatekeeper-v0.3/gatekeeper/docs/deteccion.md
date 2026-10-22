@@ -25,7 +25,7 @@ dos `\s*` adyacentes son O(n²) — en v0.3 eso se midió (118 s de CPU con
 | XSS con etiqueta, handler, esquema o entidad numérica | Entidades nombradas (`&lt;script`): pendiente de medición |
 | Traversal `../` en frontera de segmento (incl. sobre-long `%c0%af`) | Truncación por `%00`: no aplica en Python 3 (lanza error) |
 | Ficheros sensibles con separador de ruta | Enumeración passiva (`?id=7`) |
-| JSON y form bodies | Cabeceras, cookies, XML, multipart |
+| Cualquier body textual (JSON, form, `text/plain`, XML o sin `content-type`) y cabeceras `User-Agent`/`Referer`/`Cookie` | Bodies binarios y `multipart/form-data`: sin parser propio hasta v0.4 |
 | — | Ataques a la lógica, authn/authz, CSRF, rate abuse por usuario |
 
 ## El corpus propio
@@ -57,17 +57,18 @@ y 942 (SQLi)** — se importan a `corpus/crs_payloads.json` con `tools/import_cr
 
 | Métrica (CRS) | Valor |
 |---|---|
-| Tests importados | 1379 (982 en alcance) |
-| Ataques detectados | 185 / 982 (**18.8%**) |
-| Negativos de CRS bloqueados | 8 / 185 (4.3%) |
-| Excluidos y declarados | 212 (cabeceras y content-types no inspeccionados) |
+| Tests importados | 1379 (1135 en alcance) |
+| Ataques detectados | 219 / 1135 (**19.3%**) |
+| Negativos de CRS bloqueados | 9 / 232 (3.9%) |
+| Excluidos y declarados | 12 (cabeceras fuera de `inspect_headers` y bodies binarios) |
 
-!!! success "Por qué se publica el 18.8%"
-    Un 100% propio junto a un 18.8% ajeno es la señal de que la medición es
+!!! success "Por qué se publica el 19.3%"
+    Un 100% propio junto a un 19.3% ajeno es la señal de que la medición es
     honesta. El corpus de CRS está diseñado para un WAF de 500+ reglas que
     acepta los falsos positivos que Gatekeeper no acepta; aquí su número es una
-    **línea base con guarda de regresión**, no una promesa. Y los 8 FP de CRS
-    son, uno a uno, texto legítimo que cita vectores de inyección.
+    **línea base con guarda de regresión**, no una promesa. Y los 9 FP de CRS
+    son, uno a uno, tráfico que cita o imita vectores de inyección (texto de
+    documentación, benchmarks y paths de test).
 
 ## Cómo se mide
 
@@ -80,7 +81,7 @@ python tools/import_crs.py --check     # procedencia del corpus externo
 ```
 
 Umbrales actuales en CI: detección **100%** y 0 FP sin documentados (el corpus
-propio es la promesa pública); ≥ 18% de detección y ≤ 5% de FP sobre CRS
+propio es la promesa pública); ≥ 19% de detección y ≤ 5% de FP sobre CRS
 (guarda de línea base).
 
 ## Cómo se añade una regla (resumen)
