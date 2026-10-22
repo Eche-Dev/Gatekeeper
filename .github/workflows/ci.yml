@@ -25,6 +25,24 @@ jobs:
       - name: Procedencia del corpus externo de CRS
         run: python tools/import_crs.py --check
 
+  latency:
+    # Guarda de regresión de latencia (B5). NO es un contrato de rendimiento:
+    # los runners de CI comparten CPU, así que el presupuesto tiene margen y el
+    # veredicto usa el MEJOR p95 de varias rondas (el ruido del sistema solo
+    # sube el percentil, nunca lo baja). Lo que busca es que una regresión
+    # grande —reglas caras, un path caliente nuevo— no entre sin que nadie lo note.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Informe de latencia (p50/p95/p99)
+        run: python benchmarks/latency.py --iterations 600 --rounds 3
+      - name: Guard de regresión
+        run: python benchmarks/latency.py --check --iterations 600 --rounds 3
+
   package:
     # El paquete se construye, se valida y se instala en un entorno limpio:
     # así un fallo de empaquetado (falta py.typed, metadata rota) no llega a PyPI.

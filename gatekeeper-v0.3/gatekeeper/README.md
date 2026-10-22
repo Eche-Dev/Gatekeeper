@@ -104,20 +104,35 @@ para Vercel (`vercel --prod`) y Docker: [`demo/`](demo/).
 `python benchmarks/latency.py` mide el coste por petición en tu máquina
 (Python 3.14, portátil, sin red):
 
-| Escenario | µs/petición | µs añadidos |
-|---|---|---|
-| sin middleware (base) | 12.87 | — |
-| solo cabeceras | 32.06 | +19.19 |
-| inspección (query + cabeceras + body) | 89.92 | +77.05 |
-| rate limit solo | 35.09 | +22.22 |
-| completo (inspección + rate limit) | 93.00 | +80.13 |
-| request atacante (403 temprano) | 58.18 | +45.31 |
+| Escenario | p50 | p95 | p99 | +p50 vs base |
+|---|---|---|---|---|
+| sin middleware (base) | 12.30 | 19.60 | 27.50 | — |
+| solo cabeceras | 29.30 | 46.70 | 65.90 | +17.00 |
+| inspección (query + cabeceras + body) | 85.70 | 117.60 | 185.90 | +73.40 |
+| rate limit solo | 30.60 | 37.80 | 54.40 | +18.30 |
+| completo (inspección + rate limit) | 88.30 | 123.20 | 149.20 | +76.00 |
+| request atacante (403 temprano) | 62.70 | 88.10 | 115.40 | +50.40 |
 
-Las once familias de 0.3.1 (NoSQL, comandos, SSRF, SSTI, CRLF, Log4Shell y
-proto-pollución además de las cuatro anteriores) cuestan ~21 µs más por
-petición que la tabla de v0.3.0: son 31 regex más que evaluar, y es el precio de
-cubrir esas familias sin WAF externo. Microsegundos absolutos: lo que importa es
-que la comparación entre escenarios siga siendo reproducible.
+**Por qué p95 y no la media.** Hasta 0.3.1 el benchmark publicaba la media por
+ronda, y esa cifra escondía justo lo que un usuario nota: la cola. El mismo
+escenario «completo» que la media rondaba los ~90 µs tiene un **p95 de 123 µs y
+un p99 de 149 µs**; una pausa puntual del recolector de basura puede llevar una
+petición aislada a 500–1500 µs, y con 7500 muestras esa cola existe. Medir el
+percentil 95 de la distribución real es lo que permite poner una guardia útil.
+
+`python benchmarks/latency.py --check` es la **guarda de regresión** que corre en
+CI: si algún escenario con presupuesto se pasa del umbral, el pipeline falla.
+Usa el **mejor p95 de tres rondas** a propósito — el ruido del sistema solo sube
+el percentil, así que el mínimo es la estimación más cercana al coste real
+del código y evita falsos positivos por una pausa del garbage collector (que sí
+los producía: con una sola ronda el guard fallaba de forma intermitente). Los
+umbrales viven en `CHECK_BUDGET_US` con su margen justificado; subirlos es una
+decisión que se documenta en el PR, no un número que sube en silencio.
+
+Las cifras de la tabla son de **una** ejecución en una máquina concreta
+(portátil, sin red, Python 3.14). Entre ejecuciones varían — razón por la que
+el guard no las compara con un valor fijo, sino con un presupuesto con margen.
+Lo reproducible es la comparación entre escenarios de una misma corrida.
 
 ## Documentación
 
@@ -130,9 +145,6 @@ referencia de API y desarrollo. En local: `mkdocs serve`. Se publica en
 Contribuir: [CONTRIBUTING.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/CONTRIBUTING.md)
 · [Código de conducta](https://github.com/Eche-Dev/Gatekeeper/blob/main/CODE_OF_CONDUCT.md)
 · Plantillas de issues y PR en la raíz del repo.
-
-Son microsegundos relativos, no una promesa de latencia: sirve para comparar
-escenarios y detectar regresiones.
 
 ## Qué NO cubre
 

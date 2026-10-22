@@ -6,6 +6,13 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [0.3.1] - 2026-10-22
 
 ### Añadido
+- **Guarda de regresión de latencia en CI** (`python benchmarks/latency.py
+  --check`): mide p50/p95/p99 por petición real en vez de la media por ronda, y
+  falla el pipeline si un escenario se pasa de su presupuesto. Usa el mejor p95
+  de tres rondas porque el ruido del sistema solo sube el percentil; los
+  presupuesto viven en `CHECK_BUDGET_US` y subirlos es una decisión que se
+  documenta. Detecta regresiones reales (medido: 200 firmas nuevas llevan el p95
+  del escenario completo de ~120 a ~195 µs y el guard lo ve).
 - **Packs de reglas opt-in** (`rule_packs`): `minimal`, `api`, `web`,
   `infrastructure` y `strict` agrupan las familias por la superficie que la
   app expone. Sin configurar nada se siguen evaluando las once (los packs no

@@ -21,14 +21,15 @@ Python 3.10+ (el CI prueba 3.10–3.12). El proyecto vive en
 | `pytest --cov=gatekeeper` | Tests + fuzzing, cobertura ≥ 90% |
 | `python tools/evaluate.py --check` | Tasas de detección y FP (corpus propio + CRS) |
 | `python tools/import_crs.py --check` | Procedencia del corpus externo |
-| `python benchmarks/latency.py` | Latencia por petición por escenario |
+| `python benchmarks/latency.py` | Latencia p50/p95/p99 por petición y escenario |
+| `python benchmarks/latency.py --check` | Guarda de regresión de latencia (lo que corre CI) |
 | `python -m build && twine check dist/*` | Empaquetado |
 
 ## Estructura
 
 | Carpeta | Contenido |
 |---|---|
-| `src/gatekeeper/` | El middleware: `middleware`, `config`, `rules`, `body`, `paths`, `ratelimit` |
+| `src/gatekeeper/` | El middleware: `middleware`, `config`, `rules`, `body`, `paths`, `ratelimit`, `cli` |
 | `tests/` | Unitarios, `test_corpus.py`, `test_crs_corpus.py`, `test_fuzz.py` |
 | `corpus/` | `attacks.json`, `benign.json`, `crs_payloads.json` (CRS, Apache-2.0) e informes |
 | `tools/` | `evaluate.py` (medición) e `import_crs.py` (importador de CRS) |
@@ -45,6 +46,28 @@ Python 3.10+ (el CI prueba 3.10–3.12). El proyecto vive en
    (unicode, percent-encoding, bytes) sobre `scan`, `normalize`,
    `extract_strings`, `Config` y `allow_paths`. Invariantes: nada revienta,
    `normalize` es idempotente, y una ruta con `..` **nunca** se exime.
+
+## La guarda de latencia
+
+`benchmarks/latency.py` mide **percentiles por petición real** (p50/p95/p99),
+no medias por ronda: la media esconde la cola, que es lo que nota un usuario.
+Con `--check` se convierte en un guard de regresión que corre en CI.
+
+Dos decisiones que hay que entender antes de tocar `CHECK_BUDGET_US`:
+
+- **El veredicto usa el mejor p95 de tres rondas.** El ruido del sistema (GC,
+  CPU compartida de los runners) solo *sube* el percentil; el mínimo de varias
+  mediciones es la estimación más cercana al coste real del código. Con una
+  sola ronda, una pausa del recolector cae dentro del 5 % más lento y declara
+  una regresión donde no la hay — un guard que da falsos positivos es peor que
+  no tener guard.
+- **Los presupuestos son de regresión, no de rendimiento.** No son un SLA ni un
+  número para comparar entre máquinas. Subirlos es una decisión deliberada: si
+  un cambio legítimo (más familias, más campos) empuja el p95 por encima,
+  actualiza el umbral **explicando el motivo en el PR**, no en silencio.
+
+La batería incluye un test que verifica que el guard **falla** ante un
+presupuesto imposible: un guard que nunca rompe nada es un adorno.
 
 ## Documentación
 
