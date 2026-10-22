@@ -174,13 +174,49 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"(?:^|[\\/?=&])web-inf[/\\]"),
         # Rutas de sistema: `/sys/class`, `/sys/firmware`… leerlas es
         # reconocimiento del host, no una petición de una app.
-        re.compile(r"(?:^|[\s/?=&])(?:/sys/(?:class|firmware|devices|kernel|power)|/proc/self/)"),
+        re.compile(r"(?:^|[\s/?=&])(?:/sys/(?:class|firmware|devices|kernel|power|net|mounts|interrupts|cmdline|version|crypto)|/proc/self/)"),
         # Configuración de herramientas de desarrollo y credenciales que la
         # lista anterior no cubría: pedir `/.claude/settings.json` o `/.aws/`
         # desde un navegador es exploración pura.
         re.compile(
             r"(?:^|[\s/?=&])(?:/)?\.(?:claude|cursor|windsurf|vscode|git|aws|ssh|"
             r"kube|docker|gnupg)/"
+        ),
+        # Otras herramientas de IA y agentes: `.n8n`, `.aider`, `.zed`, `.roo`,
+        # `.cline`, `.continue`, `.codex`, `.opencode`, `.kiro`, `.roo`, `.zed`…
+        # Pedir su config por HTTP es reconocimiento, igual que los de arriba.
+        re.compile(
+            r"(?:^|[\s/?=&])/\.(?:n8n|aider|zed|roo|cline|continue|codex|"
+            r"opencode|kiro|augment|devin|tabnine|cody|gemini|junie|qwizard|"
+            r"trae|sourcegraph|fabric|plandex|a0proj|rovodev|cursorignore|"
+            r"aiignore|cursorrules)\b"
+        ),
+        # Configuración de herramientas de IA y agentes (codex, cline, aider,
+        # roo, zed…). Ninguna app web sirve estos ficheros: pedirlos es
+        # reconocimiento. Medido contra el corpus de CRS.
+        re.compile(
+            r"(?:^|[\s/?=&])/\.(?:codex|cursor|copilot|cline|continue|aider|roo|"
+            r"zed|kiro|windsurf|claude|opencode|rovodev|plandex|fabric|a0proj|"
+            r"gemini|cody|tabnine|devin|sourcegraph|junie|qwizard|trae|augment)/"
+        ),
+        # Ficheros de "ignorar" de las herramientas: no se sirven nunca.
+        re.compile(r"(?:^|[\s/?=&])/\.[a-z0-9_]{2,12}ignore\b"),
+        # Logs y volcados: `/wp-content/debug.log`, `backup.sql.zip`,
+        # `2024/01/15/…` (una fecha en la ruta es un volcado).
+        re.compile(r"(?:^|[\s/?=&])(?:/)?(?:wp-content/|/logs?/)"),
+        re.compile(r"\.(?:sql|bak|old|orig|save|swp)\s*$"),
+        re.compile(r"(?:^|[\s/?&=])\d{4}/\d{2}/\d{2}/"),
+        # `/etc/` más allá de passwd/shadow: configuración de servicios.
+        re.compile(
+            r"(?:^|[\s/?=&])/etc/(?:apache2?|nginx|hosts|resolv|cron|mysql|redis|"
+            r"postgresql|ssh|passwd-|group-|shadow-)"
+        ),
+        # Árboles de dependencias: `node_modules` NO se bloquea (aparece en rutas
+        # legítimas de sitios estáticos); solo los manifiestos sueltos, que no
+        # se sirven desde una app.
+        re.compile(
+            r"(?:^|[\s/?=&])/(?:composer\.(?:json|lock)|package-lock\.json|"
+            r"yarn\.lock|Gemfile|poetry\.lock|requirements\.txt|pom\.xml)\b"
         ),
     ],
     # Operadores de inyección NoSQL (Mongo): bypass de login (`user[$ne]=x`),
@@ -380,7 +416,14 @@ def normalize(value: str, max_rounds: int = 3) -> str:
     """
     text = unicodedata.normalize("NFKC", decode(value, max_rounds))
     text = unicodedata.normalize("NFKC", decode(text, max_rounds))
+    text = unicodedata.normalize("NFKC", decode(text, max_rounds))
+    # Comentarios SQL versionados: MySQL los EJECUTA, así que se desenvuelven a
+    # su contenido en vez de borrarlos (borrarlos los volvía invisibles).
     text = _VERSIONED_COMMENT.sub(r" \1 ", text)
+    # Comentarios SQL genéricos (`/* foo */`) se tratan como espacio en blanco,
+    # que es lo que MySQL hace. Medido: cierra 4 misses de CRS (el comentario
+    # ocultaba el payload) y no introduce ningún FP sobre los negativos.
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.DOTALL)
     return text.replace("/**/", " ").lower()
 
 

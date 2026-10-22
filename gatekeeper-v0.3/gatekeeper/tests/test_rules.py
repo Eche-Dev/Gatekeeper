@@ -41,7 +41,7 @@ from gatekeeper.rules import decode, normalize, scan
         ("/x?q=name[$regex]=^adm", "nosql"),  # exfiltración por regex
         ("/x?q=user[%24ne]=x", "nosql"),  # operador codificado
         ("/x?q=; ls -la /tmp", "cmdi"),  # separador ;
-        ("/x?q=| cat /var/log/syslog", "cmdi"),  # pipe
+        ("/x?q=| cat /var/log/secure", "cmdi"),  # pipe
         ("/x?q=&& whoami", "cmdi"),  # cadena &&
         ("/x?q=$(id)", "cmdi"),  # sustitución $( )
         ("/x?q=`uname -a`", "cmdi"),  # backticks
