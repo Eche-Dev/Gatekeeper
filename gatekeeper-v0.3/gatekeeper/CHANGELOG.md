@@ -3,6 +3,25 @@
 Todo lo notable de Gatekeeper. El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/)
 y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-10-22
+
+### Añadido
+- Detección de **entidades HTML numéricas** en `decode()`: `&#60;script&#62;`
+  y `&#106;avascript:` ya no pasan intactos; rango acotado para que `&#99999999;`
+  no reviente (protegido por test).
+- Normalización de **UTF-8 sobre-long**: `%c0%af` → `/` y `%c0%ae` → `.` en sus
+  formas porcentual (sustituida antes de decodificar) y de caracteres
+  (`%u00c0%u00af`).
+- Firma de SQLi **blind boolean**: `ASCII(SUBSTRING(nombre,1,1))>64`.
+- `/WEB-INF/` como ruta sensible (por especificación Java EE es innaccesible
+  desde un navegador; pedirla es exploración).
+
+### Cambiado
+- Corpus propio: **83/83 (100.0%)**, 0 FP sin documentar. El gate de CI sube
+  de ≥ 90% a **100%**: cualquier regresión de detección deja CI en rojo.
+- Corpus CRS sin cambios (18.8% / FP 4.3%): las mejoras son de normalización
+  propia, no de sobreajuste al examen externo.
+
 ## [0.3.0] - 2026-10-21
 
 ### Añadido

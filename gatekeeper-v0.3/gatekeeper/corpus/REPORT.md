@@ -5,10 +5,10 @@
 | Métrica | Valor |
 |---|---|
 | Payloads de ataque | 83 |
-| Detectados | 78 (94.0%) |
-| Detectados por la regla esperada | 78 (94.0%) |
+| Detectados | 83 (100.0%) |
+| Detectados por la regla esperada | 83 (100.0%) |
 | Falsos negativos no documentados | 0 |
-| Falsos negativos documentados | 5 |
+| Falsos negativos documentados | 0 |
 | Requests benignos | 62 |
 | Falsos positivos no documentados | 0 (0.0%) |
 | Falsos positivos documentados | 4 |
@@ -17,20 +17,10 @@
 
 | Regla | Detectados / total |
 |---|---|
-| path_traversal | 12 / 13 |
-| sensitive_files | 7 / 8 |
-| sqli | 31 / 32 |
-| xss | 28 / 30 |
-
-## Falsos negativos documentados (límites conocidos)
-
-| id | por qué se escapa | payload |
-|---|---|---|
-| sqli-032 | blind boolean carácter a carácter | `1' AND ASCII(SUBSTRING(nombre,1,1))>64--` |
-| xss-029 | entidades HTML | `&#60;script&#62;alert(1)&#60;/script&#62;` |
-| xss-030 | entidad en javascript: | `<a href=&#106;avascript:alert(1)>x</a>` |
-| trav-013 | UTF-8 sobre-long | `..%c0%af..%c0%afetc/passwd` |
-| files-008 | configuración Java | `web-inf/web.xml` |
+| path_traversal | 13 / 13 |
+| sensitive_files | 8 / 8 |
+| sqli | 32 / 32 |
+| xss | 30 / 30 |
 
 ## Falsos positivos
 
@@ -43,7 +33,7 @@
 
 ## Umbrales de CI
 
-- detección ≥ 90%: ✅ (94.0%)
+- detección ≥ 100%: ✅ (100.0%)
 - falsos positivos no documentados ≤ 0%: ✅ (0.0%)
 
 ## Corpus externo: OWASP Core Rule Set

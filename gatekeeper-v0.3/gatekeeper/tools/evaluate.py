@@ -37,7 +37,7 @@ from gatekeeper.rules import scan
 
 CORPUS_DIR = ROOT / "corpus"
 CRS_FILE = CORPUS_DIR / "crs_payloads.json"
-DEFAULT_MIN_DETECTION = 0.90  # umbral de CI sobre la tasa de detección en crudo
+DEFAULT_MIN_DETECTION = 1.00  # el corpus propio es la promesa pública: 100% o CI en rojo
 DEFAULT_MAX_FP = 0.0  # umbral de CI sobre falsos positivos NO documentados
 # Umbrales sobre el corpus externo de CRS: guardas de regresión sobre la línea
 # base medida (185/982 = 18.8% de detección, 8/185 = 4.3% de FP), redondeada al

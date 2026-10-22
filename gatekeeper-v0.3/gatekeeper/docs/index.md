@@ -31,7 +31,7 @@ Dos corpus con guarda en CI — uno propio, otro escrito por gente distinta:
 
 | Métrica | Corpus propio (83 ataques / 62 benignos) | OWASP CRS externo (1379 tests) |
 |---|---|---|
-| Ataques detectados | **94.0%** (78/83) | **18.8%** (185/982) |
+| Ataques detectados | **100.0%** (83/83) | **18.8%** (185/982) |
 | Falsos positivos sin documentar | **0** | 4.3% sobre los negativos de CRS (línea base) |
 | Falsos negativos sin documentar | 0 (5 documentados y aceptados) | — (muestra en el informe) |
 

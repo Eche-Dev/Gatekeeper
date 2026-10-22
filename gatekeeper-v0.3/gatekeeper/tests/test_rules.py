@@ -1,6 +1,6 @@
 import pytest
 
-from gatekeeper.rules import normalize, scan
+from gatekeeper.rules import decode, normalize, scan
 
 
 @pytest.mark.parametrize(
@@ -27,6 +27,12 @@ from gatekeeper.rules import normalize, scan
         ("/x?q=/etc/shadow", "sensitive_files"),
         ("/x?q=/home/user/.ssh/id_rsa", "sensitive_files"),
         ("/x?q=/var/www/app/.env", "sensitive_files"),
+        # firmas de 0.3.1: cerraron los últimos fallos del corpus (83/83)
+        ("/x?q=&#60;script&#62;alert(1)&#60;/script&#62;", "xss"),  # entidad numérica
+        ("/x?q=<a href=&#106;avascript:alert(1)>x</a>", "xss"),  # entidad en el esquema
+        ("/x?f=..%c0%af..%c0%afetc/passwd", "path_traversal"),  # UTF-8 sobre-long
+        ("/x?q=1' AND ASCII(SUBSTRING(nombre,1,1))>64--", "sqli"),  # blind boolean
+        ("/x?q=web-inf/web.xml", "sensitive_files"),  # Java WEB-INF
     ],
 )
 def test_detects_attacks(payload, rule):
@@ -56,6 +62,13 @@ def test_benign_requests_pass(payload):
 
 def test_disabled_rule_is_skipped():
     assert scan("/x?id=1 OR 1=1", disabled={"sqli"}) is None
+
+
+def test_entity_and_overlong_decoding():
+    assert decode("&#99999999;") == "&#99999999;"  # fuera de rango: sin cambios
+    assert decode("&#38;#60;") == "<"  # entidad doble, resuelta en dos rondas
+    assert decode("%u00c0%u00af") == "/"  # %u → caracteres → sobre-long
+    assert normalize("q=&#106;avascript:alert(1)") == "q=javascript:alert(1)"
 
 
 def test_normalize_handles_double_encoding():

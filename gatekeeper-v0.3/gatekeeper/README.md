@@ -50,7 +50,7 @@ documentada ([corpus/](corpus/)):
 
 | Métrica (corpus propio) | Valor |
 |---|---|
-| Ataques detectados | 78 / 83 (**94.0%**) |
+| Ataques detectados | 83 / 83 (**100.0%**) |
 | Falsos negativos sin documentar | 0 |
 | Peticiones legítimas bloqueadas sin documentar | **0** / 62 |
 | Falsos positivos documentados (límites aceptados) | 4 |

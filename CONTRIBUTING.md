@@ -51,7 +51,7 @@ o modifies una regla:
 1. **Firma genérica, no caso concreto.** `union\s{1,32}select` es genérica;
    `24 union all select from aa` es sobreajustar al examen.
 2. **Mide antes y después.** `python tools/evaluate.py` tiene que seguir en verde:
-   detección ≥ 90% en el corpus propio, **cero** FP sin documentar, y la guarda
+   detección del 100% en el corpus propio, **cero** FP sin documentar, y la guarda
    del corpus externo de CRS sin bajar.
 3. **Cuantificadores acotados.** Nunca dos `\s*` adyacentes: en v0.3 eso produjo
    un ReDoS cuadrático real (118 s de CPU con 80.000 espacios). Usa `\s{0,16}`.
