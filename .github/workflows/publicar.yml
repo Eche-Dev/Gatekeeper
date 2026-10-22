@@ -1,0 +1,82 @@
+name: Publicar en PyPI
+# Publica el paquete en PyPI cuando se publica una release.
+#
+# Trusted Publishing (OIDC): NO hay token de PyPI en ningún secreto del repo.
+# GitHub le dice a PyPI "este workflow viene de este repo y este workflow", y
+# PyPI concede un token de publicación de un solo uso. Lo único que puede
+# publicar en tu nombre es quien pueda modificar el repo, y con eso ya podría
+# hacer bastante más daño.
+#
+# Requisitos (una sola vez, los hace el mantenedor a mano):
+#   1. En PyPI: crear el proyecto `gatekeeper-asgi` y añadir un publisher
+#      "GitHub Actions" con repositorio `Eche-Dev/Gatekeeper` y workflow
+#      `publicar.yml`.
+#   2. La primera versión hay que subirla a mano con un token de API: OIDC no
+#      puede crear el proyecto en PyPI, solo publicar en uno que ya existe.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Construye y valida, pero no publica"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  construir:
+    name: Construir y validar
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gatekeeper-v0.3/gatekeeper
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - name: Verifica que la versión del tag coincide con la del paquete
+        if: github.event_name == 'release'
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VER=$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          if [ "$TAG" != "$VER" ]; then
+            echo "El tag dice $TAG pero pyproject.toml dice $VER"
+            exit 1
+          fi
+      - run: python -m build
+      - run: twine check dist/*
+      - name: El paquete importa y la CLI responde
+        run: |
+          python -m venv /tmp/venv
+          /tmp/venv/bin/pip install -q dist/*.whl
+          /tmp/venv/bin/python -c "import gatekeeper; print(gatekeeper.__version__)"
+          /tmp/venv/bin/gatekeeper --help > /dev/null
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: gatekeeper-v0.3/gatekeeper/dist/
+
+  publicar:
+    # Solo si la construcción pasó. `environment` es el nombre que PyPI exige
+    # como publisher en Trusted Publishing.
+    name: Publicar
+    needs: construir
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/gatekeeper-asgi/
+    permissions:
+      # OIDC: el token lo emite PyPI a partir de la identidad de este job.
+      id-token: write
+    if: github.event_name == 'release' || inputs.dry_run == false
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1

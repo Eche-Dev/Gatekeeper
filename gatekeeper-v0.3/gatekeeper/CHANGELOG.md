@@ -6,6 +6,22 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [0.3.1] - 2026-10-22
 
 ### Añadido
+- **Workflow de publicación en PyPI con Trusted Publishing**
+  (`.github/workflows/publicar.yml`): sin token de API en el repo. GitHub
+  demuestra su identidad a PyPI con OIDC y PyPI emite un token de un solo uso,
+  así que lo único que puede publicar en tu nombre es quien pueda modificar el
+  repo. Dispara al publicar una release, valida antes que la versión del tag
+  coincida con la de `pyproject.toml`, que el paquete importe y que la CLI
+  funcione, y tiene un `dry_run` manual que valida sin publicar nada.
+- **Job `audit` en CI** con `pip-audit`: audita el runtime (lo que arrastra
+  Gatekeeper: starlette y sus transitivas) y el entorno de desarrollo, en venvs
+  limpios para que el resultado no dependa de la imagen del runner. Una CVE en
+  una dependencia transitiva ya no espera a que alguien la reporte.
+- Metadata de PyPI completa en `pyproject.toml`: `Homepage`, `Documentation`,
+  `Repository`, `Changelog`, `Issues` y `Funding`, más los classifiers que faltaban
+  (`Development Status`, `Environment`, `Intended Audience`, `OS Independent`).
+- **Python 3.13** en la matriz de CI: probarla aquí es más barato que descubrir
+  que se rompió en el release de un usuario.
 - **Percentiles por petición real** (p50/p95/p99/máx) en `benchmarks/latency.py`,
   en lugar de la media por ronda: la media escondía la cola, que es lo que nota
   un usuario. El escenario «completo» que la media rondaba en ~90 µs tiene un
@@ -87,6 +103,16 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   el contenido del payload sigue sin registrarse.
 
 ### Corregido
+- **`permissions` explícitos en los workflows** (aviso de CodeQL
+  `actions/missing-workflow-permissions`): sin ese bloque los workflows heredan
+  los permisos del repositorio, que en repos anteriores a 2023 son read-write.
+  Ahora es `contents: read` en todo lo que no publica, y solo el despliegue de
+  docs y la publicación en PyPI piden `write`/`id-token`, declarados en su job.
+- **Dependabot abría PRs duplicadas**: había dos entradas de pip y una estaba
+  anidada dentro de la otra (`/gatekeeper-v0.3/gatekeeper` y
+  `/…/gatekeeper/demo`), así que notificaba lo mismo dos veces — una pedía
+  `fastapi>=0.146.0` y la otra `>=0.148.0`, y competían por el merge. Se elimina
+  la entrada redundante y se agrupan las actualizaciones en una sola PR.
 - **[seguridad]** `X-Forwarded-For` se tomaba de izquierda a derecha
   (`ips[0]`, un valor que escribe el cliente): rotándolo se evadían el rate
   limit y `blocked_ips`. Se lee de derecha a izquierda (`ips[-trusted_proxies]`)
