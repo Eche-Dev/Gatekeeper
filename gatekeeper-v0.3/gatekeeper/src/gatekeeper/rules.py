@@ -683,6 +683,8 @@ def scan_detailed(
     extra: dict[str, list[re.Pattern[str]]] | None = None,
     only: frozenset[str] | set[str] | None = None,
     use_prefilter: bool = True,
+    carriers: list[str] | None = None,
+    allow_cross_carrier: bool = False,
 ) -> tuple[str, str] | None:
     """Como `scan()`, pero devuelve `(regla, patrón)` — el patrón es el "motivo"
     que se registra en los eventos de auditoría para poder tunear sin adivinar.
@@ -697,6 +699,22 @@ def scan_detailed(
     diagnosticar una discrepancia.
     """
     text = normalize(value)
+    # Cross-carrier query+body detection (opcional)
+    if allow_cross_carrier and carriers:
+        # Agrupar carriers por tipo: query vs body
+        query_parts = []
+        body_parts = []
+        for c in carriers:
+            cl = c.lower()
+            # Señales de que es contenido de query (palabras clave SQL, operadores)
+            if not query_parts and any(kw in cl for kw in ['union', 'select', 'or ', 'and ']):
+                query_parts.append(c)
+            # Señales de que es contenido de body (XML, JSON, HTML, tags)
+            if not body_parts and any(kw in cl for kw in ['<', '{', '<?xml']):
+                body_parts.append(c)
+        if query_parts and body_parts:
+            combined = ' '.join(query_parts + body_parts)
+            text = normalize(combined)
     desactivadas = disabled or set()
     activas = _familias_a_evaluar(text, desactivadas, only, use_prefilter)
 
