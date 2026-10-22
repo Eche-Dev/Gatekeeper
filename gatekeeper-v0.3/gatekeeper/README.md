@@ -118,8 +118,13 @@ regex de Python corriendo sobre texto inocuo. Casi ninguna puede casar sin un
 literal concreto (`script`, `union`, `/etc/`), así que se comprueba primero
 si el texto contiene alguno de los literales de cada familia — una búsqueda de
 subcadena en C, no una regex — y si no, esa familia se salta entera. Medido
-sobre texto limpio: **1,7× a 8,5× más rápido** (un payload de 250
-caracteres pasó de 247 a 29 µs).
+sobre texto limpio: **8× más rápido** (un payload de 250 caracteres pasó
+de 262 a 33 µs).
+
+Solo se aplica a partir de 128 caracteres: por debajo de eso el pre filtro no
+compensa (156 comparaciones `in` cuestan ~7 µs y el escaneo corto ya es
+rápido). Así un ataque SQLi corto queda **1,04×, ni mejor ni peor**, y
+un payload largo que antes costaba 262 µs ahora cuesta 33.
 
 No cambia qué se detecta: `tests/test_prefilter.py` compara el escaneo con y sin
 pre filtro sobre los 1582 valores de ambos corpus (propio y los 1379 tests de

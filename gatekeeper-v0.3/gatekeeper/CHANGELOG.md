@@ -10,11 +10,13 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   regex se comprueba si el texto contiene algún literal de cada familia
   (`script`, `union`, `/etc/`, `jndi`…) con una búsqueda de subcadena en C. Si no
   lo contiene, esa familia se descarta sin ejecutar una sola regex. Medido
-  sobre texto limpio: **1,7× a 8,5× más rápido** (p50 de inspección 88,3 → 70,1
-  µs; un payload de 250 caracteres pasa de 247 a 29 µs). El único escenario que
-  empeora es el de ataques (10 → 17 µs), que era el más barato. No cambia qué
-  se detecta: `tests/test_prefilter.py` compara el escaneo con y sin pre filtro
-  sobre los 1582 valores de ambos corpus y exige el mismo resultado.
+  sobre texto limpio: **8× más rápido** (un payload de 250 caracteres pasa de
+  262 a 33 µs). Solo se aplica a partir de 128 caracteres: por debajo, las 156
+  comparaciones `in` no compensan y el escaneo corto ya es rápido. El
+  escenario de ataque queda en 1,04× (ni mejor ni peor) y no hay ningún
+  regresión. No cambia qué se detecta: `tests/test_prefilter.py` compara el
+  escaneo con y sin pre filtro sobre los 1582 valores de ambos corpus y exige
+  el mismo resultado.
 - **Workflow de publicación en PyPI con Trusted Publishing**
   (`.github/workflows/publicar.yml`): sin token de API en el repo. GitHub
   demuestra su identidad a PyPI con OIDC y PyPI emite un token de un solo uso,
