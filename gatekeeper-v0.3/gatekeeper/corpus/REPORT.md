@@ -4,12 +4,12 @@
 
 | Métrica | Valor |
 |---|---|
-| Payloads de ataque | 148 |
-| Detectados | 148 (100.0%) |
-| Detectados por la regla esperada | 147 (99.3%) |
+| Payloads de ataque | 159 |
+| Detectados | 159 (100.0%) |
+| Detectados por la regla esperada | 158 (99.4%) |
 | Falsos negativos no documentados | 0 |
 | Falsos negativos documentados | 0 |
-| Requests benignos | 76 |
+| Requests benignos | 81 |
 | Falsos positivos no documentados | 0 (0.0%) |
 | Falsos positivos documentados | 5 |
 
@@ -24,10 +24,10 @@
 | path_traversal | 13 / 13 |
 | proto_pollution | 3 / 3 |
 | sensitive_files | 11 / 11 |
-| sqli | 43 / 43 |
+| sqli | 52 / 52 |
 | ssrf | 7 / 7 |
 | ssti | 7 / 7 |
-| xss | 38 / 38 |
+| xss | 40 / 40 |
 
 ## Falsos positivos
 
@@ -51,9 +51,9 @@
 | Familia (familias CRS 930/941/942) | Detectados / total |
 |---|---|
 | path_traversal | 30 / 62 |
-| sqli | 197 / 869 |
-| xss | 81 / 204 |
-| **total en alcance** | **308 / 1135 (27.1%)** |
+| sqli | 267 / 869 |
+| xss | 97 / 204 |
+| **total en alcance** | **394 / 1135 (34.7%)** |
 
 | Métrica externa | Valor |
 |---|---|
@@ -70,15 +70,15 @@
 | crs-941140-t14-s1 | xss | `/get/bar?test=url%28javascript%3Aalert%281%29%29` |
 | crs-941180-t7-s1 | xss | `/get/javascript-manual/document.cookie` |
 | crs-942101-t11-s1 | sqli | `/post/foo/24+union+all+select+1,2,3+from+aa/bar` |
-| crs-942131-t7-s1 | sqli | `a='1' not regexp '1'` |
 | crs-942160-t12-s1 | sqli | `/BENChmARk(2999/**/999,Md5(/` |
 | crs-942350-t9-s1 | sqli | `/get?test=%2F%2A%27%3BINSERT%20INTO%20category%28id%29%20VALUES%20%283%29--%20-%2A%2F` |
+| crs-942360-t29-s1 | sqli | `\|\|(SELECT(DBMS_LDAP.INIT('169.1.1.1',19))FROM(DUAL))/investigate` |
 | crs-942360-t30-s1 | sqli | `'\|\|(select(pg_sleep(15))where(true))\|\|'/investigate` |
 | crs-942360-t31-s1 | sqli | `UNION ALL SELECT NULL,NULL,CONCAT(CONCAT('qqkjq','mxTSrPILRz'),'qvxvq')-- sqCV` |
 | crs-942521-t16-s1 | sqli | `var=Incorrectly%20constructed%20SQL%20statements%0AThis%20form%20of%20injection%20relies%2…` |
 | crs-942522-t8-s1 | sqli | `var=Incorrectly%20constructed%20SQL%20statements%0AThis%20form%20of%20injection%20relies%2…` |
 
-### Muestra de falsos negativos (12 de 827)
+### Muestra de falsos negativos (12 de 741)
 
 | id | familia | payload |
 |---|---|---|
@@ -97,6 +97,6 @@
 
 ### Umbrales del corpus externo (guarda de regresión sobre la línea base)
 
-- detección CRS ≥ 19%: ✅ (27.1%)
+- detección CRS ≥ 19%: ✅ (34.7%)
 - FP CRS ≤ 5.0%: ✅ (4.7%)
 

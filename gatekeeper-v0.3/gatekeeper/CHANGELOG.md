@@ -6,20 +6,27 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [0.3.1] - 2026-10-22
 
 ### Añadido
-- **Once firmas nuevas contra los misses del corpus de OWASP CRS**, que suben la
-  detección externa del **21,0% (238/1135) al 27,1% (308/1135)** sin superar el
-  techo de falsos positivos (4,7% sobre los negativos de CRS, gate ≤ 5%). No
-  son casos copiados del examen: cada una cubre una técnica documentada.
+- **Veintidós firmas contra los misses de OWASP CRS** en dos tandas medidas. La
+  detección externa sube del **21,0% (238/1135) al 34,7% (394/1135)**,
+  manteniendo los falsos positivos de CRS en 4,7% (techo del gate: 5%) y cero
+  falsos positivos sin documentar en el corpus propio.
+  El método: se agrupan los misses por regla de origen, se identifica la
+  técnica (no el caso) y **se mide cada firma antes de entrarla** —cuántas
+  detecciones añade y cuántos FP cuesta en CRS y en el corpus propio—. Dos
+  firmas se descartaron por medición, no por intuición.
   - SQLi: concatenación por barras seguida de palabra clave (`|| select`),
-    funciones SQL en un parámetro (`ABS(`, `CAST(`, `CHAR(`, `COALESCE(`…) y
-    operadores tolerantes de blindaje (`REGEXP`, `LIKE NULL`, `>>`, `&&`).
+    subconsulta entre paréntesis (`( SELECT`), funciones SQL en un parámetro
+    (`ABS(`, `CAST(`, `CHAR(`, `COALESCE(`), operadores JSONB de PostgreSQL
+    (`::jsonb`, `<@`, `@>`), lectura de ficheros del servidor (`load_file`,
+    `pg_read_file`), negaciones pegadas a la comilla (`'not like`, `' is not`),
+    construcción de strings sin comillas (`CHR(`, `XMLType(`, `UNHEX(`) y
+    operadores tolerantes de blindaje (`REGEXP`, `LIKE NULL`, `>>`, `<<`).
   - XSS: HTML con namespace (`<x:script xmlns:x=…>`, que evade la firma
-    `<script` porque la etiqueta lleva prefijo), etiquetas SVG/MathML y APIs de
-    JS que ejecutan o acceden al DOM (`eval(`, `setInterval(`, `document.cookie`,
-    `window.`).
-  - Ficheros sensibles: rutas de reconocimiento del sistema (`/sys/class`,
-    `/sys/firmware`) y configuración de herramientas que antes no estaban
-    (`/.claude/`, `/.cursor/`, `/.kube/`, `/.gnupg/`).
+    `<script` porque la etiqueta lleva prefijo), SVG/MathML, APIs de JS que
+    ejecutan o acceden al DOM (`eval(`, `setInterval(`, `document.cookie`) y
+    exfiltración por CSS (`@import 'http://…'`, `expression(`).
+  - Ficheros sensibles: rutas de reconocimiento del sistema (`/sys/class`) y
+    configuración de herramientas (`/.claude/`, `/.cursor/`, `/.kube/`).
 - **Pre filtro de familias** (`PREFILTER_LITERALS`): antes de evaluar las 60
   regex se comprueba si el texto contiene algún literal de cada familia
   (`script`, `union`, `/etc/`, `jndi`…) con una búsqueda de subcadena en C. Si no

