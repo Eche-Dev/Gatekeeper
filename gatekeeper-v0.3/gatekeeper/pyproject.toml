@@ -24,6 +24,9 @@ classifiers = [
 ]
 keywords = ["security", "asgi", "fastapi", "starlette", "waf", "rate-limiting", "sqli", "xss"]
 
+[project.scripts]
+gatekeeper = "gatekeeper.cli:main"
+
 [project.optional-dependencies]
 yaml = ["pyyaml>=6"]
 redis = ["redis>=5.0"]

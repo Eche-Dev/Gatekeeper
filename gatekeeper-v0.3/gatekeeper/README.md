@@ -158,6 +158,8 @@ escenarios y detectar regresiones.
 | `inspect_requests` / `inspect_body` | `True` | inspección de query y de body |
 | `monitor_only` | `False` | registrar sin bloquear |
 | `disabled_rules` | `∅` | `sqli`, `xss`, `path_traversal`, `sensitive_files`, `nosql`, `cmdi`, `ssrf`, `ssti`, `crlf`, `log4shell`, `proto_pollution` o tus reglas |
+| `rule_packs` | `∅` (todas) | packs opt-in: `minimal`, `api`, `web`, `infrastructure`, `strict` (ver abajo) |
+| `exclude_fields` | `[]` | campos (parámetro, cabecera o puntero JSON) exentos de inspección; admite globs |
 | `custom_rules` | `∅` | `{nombre: regex}` o lista `{name, pattern}` |
 | `max_body_size` | `1 MiB` | límite del body inspeccionado |
 | `allow_paths` | `[]` | globs exentos de inspección |
@@ -167,11 +169,67 @@ escenarios y detectar regresiones.
 | `security_headers` | ver fuente | `None` = cabeceras por defecto |
 
 `Config` falla al arrancar, no en producción: claves desconocidas (un typo como
-`rate_limt`), regex inválidas o vacías, nombres duplicados y `disabled_rules`
-inexistentes lanzan `ValueError`.
+`rate_limt`), regex inválidas o vacías, nombres duplicados, `disabled_rules`
+inexistentes y packs desconocidos lanzan `ValueError`.
 Las reglas propias se evalúan sobre texto **decodificado, sin comentarios `/**/` y
 en minúsculas**; evita patrones con backtracking catastrófico, los patrones
 propios no están acotados por Gatekeeper.
+
+## Packs de reglas
+
+Las once familias se evalúan por defecto. Si tu app expone menos superficie de
+la que asumes, puedes activar un subconjunto (los packs son **opt-in**: sin
+`rule_packs` no cambia nada respecto a lo que ya hacía Gatekeeper).
+
+| Pack | Familias | Para qué |
+|---|---|---|
+| `strict` | las once | defecto explícito; apps que sirven HTML de terceros |
+| `web` | + `xss` sobre `api` | web pública con HTML (el pack que casi todos quieren) |
+| `api` | `sqli`, `nosql`, `path_traversal`, `sensitive_files`, `ssrf`, `log4shell`, `crlf`, `cmdi` | APIs JSON/GraphQL: sin `xss`, `ssti` ni `proto_pollution` porque no hay plantilla que renderizar |
+| `minimal` | `sqli`, `path_traversal` | solo lo que no depende de la superficie expuesta |
+| `infrastructure` | `ssrf`, `log4shell`, `crlf`, `cmdi` | segunda capa tras un WAF, o backend sin SQL |
+
+```python
+from gatekeeper import Config
+
+Config(rule_packs=["api"], disabled_rules=["cmdi"])   # API sin XSS ni SSTI, sin cmdi
+```
+
+Un pack desconocido es `ValueError` al arrancar: una app no puede quedarse sin
+protección porque alguien escribiera `rule_packs=["we"]`.
+
+## Excluir campos (y no campos)
+
+Cuando tu app acepta por diseño un valor que una firma bloquea (un buscador que
+indexa documentación de seguridad, un parámetro `template` con Jinja, un
+webhook), exímeno **ese campo**, no la familia entera:
+
+```python
+Config(exclude_fields=["template", "bio", "doc_*"])
+```
+
+Funciona en los tres transportes: parámetro de query, cabecera (`user-agent`)
+y puntero JSON (`/user/bio` o solo `bio`). La detección que cruza varios campos
+se conserva: si excluyes `a` pero el payload está repartido entre `a` y `b`,
+Gatekeeper quita `a` del objetivo y sigue vigilando `b`. La alternativa es
+`disabled_rules`, que apaga la familia para toda la app.
+
+## `gatekeeper report`: mide antes de bloquear
+
+Poner el middleware delante en `monitor_only=True`, dejar correr el tráfico real
+y mirar qué salta:
+
+```bash
+monitor_only: true      # en tu configuración, mientras tanto
+gatekeeper report gatekeeper.log          # ranking de reglas, rutas y campos
+gatekeeper report gatekeeper.log --json   # salida legible por máquina
+```
+
+El informe agrupa por (regla, campo) —lo que se repite es ruido— y propone un
+`exclude_fields` o un `disabled_rules` listo para copiar. Acepta el JSON que
+emite el logger de Gatekeeper o un log de acceso genérico
+(`GET /ruta?q=... 200`). Los eventos de auditoría no incluyen el contenido del
+payload, así que este informe tampoco puede filtrar lo que el log no trae.
 
 ## Desarrollo
 

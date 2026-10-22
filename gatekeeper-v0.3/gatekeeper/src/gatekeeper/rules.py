@@ -298,18 +298,84 @@ def normalize(value: str, max_rounds: int = 3) -> str:
     return text.replace("/**/", " ").lower()
 
 
+def _family_names() -> tuple[str, ...]:
+    return tuple(RULES)
+
+
+# Packs de reglas: la misma detección, agrupada por lo que una aplicación
+# EXIGE de verdad. No cambian ni una línea de los patrones; solo el subconjunto
+# de familias que se evalúa, para que un backend sin plantillas no pague (ni
+# sufra falsos positivos) por firmas que su superficie no expone.
+#
+# Todos son OPT-IN: sin `rule_packs` se evalúan las once familias (el defecto
+# no cambia respecto a 0.3.1). Configúralo solo si sabes qué expone tu app.
+#
+# - `minimal`: lo que no depende de la superficie (SQLi y traversal).
+# - `api`: APIs JSON/GraphQL sin HTML servido: fuera `xss`, `ssti` y
+#   `proto_pollution`; dentro SQLi, NoSQL, traversal, ficheros sensibles y las
+#   cuatro de infraestructura (SSRF, Log4Shell, CRLF, comandos).
+# - `web`: web pública con HTML: lo de `api` más `xss`. Es el pack que casi
+#   todo el mundo quiere; no excluye `ssti` porque un CMS renderiza plantillas.
+# - `infrastructure`: solo ataques que llegan por valores que el usuario nunca
+#   ve (destinos, cabeceras, logs) — útil como segunda capa tras otra.
+# - `strict`: las once familias, sin excluir nada (equivale al defecto).
+RULE_PACKS: dict[str, frozenset[str]] = {
+    "minimal": frozenset({"sqli", "path_traversal"}),
+    "api": frozenset({"sqli", "nosql", "path_traversal", "sensitive_files"}),
+    "web": frozenset({"sqli", "xss", "path_traversal", "sensitive_files"}),
+    "infrastructure": frozenset({"ssrf", "log4shell", "crlf", "cmdi"}),
+}
+# `web` y `api` heredan las familias de infraestructura: una web también recibe
+# SSRF y Log4Shell por sus formularios, aunque no renderice plantillas.
+RULE_PACKS["web"] = frozenset(RULE_PACKS["web"] | RULE_PACKS["infrastructure"])
+RULE_PACKS["api"] = frozenset(RULE_PACKS["api"] | RULE_PACKS["infrastructure"])
+RULE_PACKS["strict"] = frozenset(_family_names())
+
+PACK_NAMES: tuple[str, ...] = ("minimal", "api", "web", "infrastructure", "strict")
+
+
+def resolve_rules(packs: Iterable[str] | None = None) -> set[str]:
+    """Familias activas según los packs pedidos.
+
+    `None` o lista vacía = **todas** las familias (el defecto histórico: los
+    packs son opt-in). Cada nombre debe existir en `RULE_PACKS`; un nombre
+    desconocido es `ValueError` al arrancar, no una configuración que en
+    silencio deja la app sin protección.
+    """
+    selected = [str(p).strip() for p in (packs or ()) if str(p).strip()]
+    if not selected:
+        return set(_family_names())
+    familias: set[str] = set()
+    for name in selected:
+        pack = RULE_PACKS.get(name.lower())
+        if pack is None:
+            raise ValueError(
+                f"Pack de reglas desconocido: '{name}'. Disponibles: {', '.join(PACK_NAMES)}"
+            )
+        familias |= pack
+    return familias
+
+
 def scan_detailed(
     value: str,
     disabled: set[str] | None = None,
     extra: dict[str, list[re.Pattern[str]]] | None = None,
+    only: frozenset[str] | set[str] | None = None,
 ) -> tuple[str, str] | None:
     """Como `scan()`, pero devuelve `(regla, patrón)` — el patrón es el "motivo"
-    que se registra en los eventos de auditoría para poder tunear sin adivinar."""
+    que se registra en los eventos de auditoría para poder tunear sin adivinar.
+
+    `only` limita la evaluación a un subconjunto de familias (los packs de
+    `Config.active_rules`); las reglas personalizadas de `extra` se evaluan
+    siempre, porque son tuyas y las pediste explícitamente.
+    """
     disabled = disabled or set()
     text = normalize(value)
     groups = list(RULES.items()) + list((extra or {}).items())
     for name, patterns in groups:
         if name in disabled:
+            continue
+        if only is not None and name in RULES and name not in only:
             continue
         for pattern in patterns:
             if pattern.search(text):

@@ -6,6 +6,21 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [0.3.1] - 2026-10-22
 
 ### Añadido
+- **Packs de reglas opt-in** (`rule_packs`): `minimal`, `api`, `web`,
+  `infrastructure` y `strict` agrupan las familias por la superficie que la
+  app expone. Sin configurar nada se siguen evaluando las once (los packs no
+  cambian el defecto); un pack desconocido es `ValueError` al arrancar, para que
+  un typo no deje la app sin protección en silencio.
+- **Exclusiones por campo** (`exclude_fields`): parámetros de query, cabeceras
+  y punteros JSON que quedan exentos de inspección, con globs `fnmatch` (el
+  puntero `/user/bio` también casa por `bio`). La detección que cruza varios
+  campos se conserva: el campo exento se quita del objetivo y el resto se sigue
+  vigilando.
+- **CLI `gatekeeper report`**: lee el log de tráfico (el JSON del logger de
+  Gatekeeper o un access log genérico), agrupa por regla, ruta y campo, y
+  propone un `exclude_fields` o un `disabled_rules` listo para copiar. Salida
+  `--json` para máquinas. Cierra el ciclo que `monitor_only=True` promete: medir
+  los falsos positivos del tráfico real antes de bloquear.
 - **Siete familias de detección** con su regla, sus límites de falso positivo
   medidos y su caso en el corpus:
   - `nosql`: operadores de inyección Mongo `$ne`, `$nin`, `$where` y `$regex`

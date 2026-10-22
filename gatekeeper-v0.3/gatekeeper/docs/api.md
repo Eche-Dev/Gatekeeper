@@ -51,8 +51,16 @@ Dataclass con validación en `__post_init__`. Un valor inválido lanza
 | `inspect_requests` | `bool` | `True` |
 | `inspect_headers` | `set[str]` | `{"user-agent", "referer", "cookie", "x-forwarded-for"}` (vacío = desactivado) |
 | `monitor_only` | `bool` | `False` (solo registra) |
+| `rule_packs` | `list[str] \| None` | `None` = **todas** las familias (los packs son opt-in): `minimal`, `api`, `web`, `infrastructure`, `strict` |
 | `disabled_rules` | `set[str]` | `set()` — nombres de `sqli`, `xss`, `path_traversal`, `sensitive_files`, `nosql`, `cmdi`, `ssrf`, `ssti`, `crlf`, `log4shell`, `proto_pollution` (ver [modelo de amenazas](amenazas.md)) |
+| `exclude_fields` | `list[str]` | `[]` — parámetros, cabeceras o punteros JSON exentos de inspección (globs `fnmatch`; el puntero `/user/bio` también casa por `bio`) |
 | `custom_rules` | `dict[str, str]` o `list[dict]` | `dict()` |
+
+Un `rule_packs` desconocido es `ValueError` al arrancar, igual que un
+`disabled_rules` con nombres inexistentes.
+
+`exclude_fields` conserva la detección que cruza varios campos: el campo exento
+se quita del objetivo antes de escanear, el resto se sigue vigilando.
 
 ### Body y rutas
 
