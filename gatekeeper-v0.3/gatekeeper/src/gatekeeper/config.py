@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import fnmatch
 import ipaddress
 import re
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
-from .rules import RULES
+from .rules import RULES, resolve_rules
 
 DEFAULT_SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -96,6 +97,18 @@ class Config:
     # Rutas exentas de inspección (globs). El rate limit y el bloqueo de IP se mantienen.
     allow_paths: list[str] = field(default_factory=list)
 
+    # Campos (parámetros de query, claves de cabecera o punteros JSON) exentos de
+    # inspección: nombres exactos (sin distinguir mayúsculas) o globs. Útil cuando
+    # tu app acepta por diseño un valor que la firma bloquearía (un buscador que
+    # indexa documentación de seguridad, un parámetro `template` con Jinja...).
+    # Un payload que cruza varios campos se sigue detectando con los campos NO
+    # excluidos: se reconstruye el objetivo sin los exentos y se escanea eso.
+    exclude_fields: list[str] = field(default_factory=list)
+
+    # Packs de reglas a activar (ver rules.PACK_NAMES). None = `web`, el defecto.
+    # Combinar con `disabled_rules` para apagar familias concretas del pack.
+    rule_packs: list[str] | None = None
+
     # Red
     # IP exacta, CIDR ("10.0.0.0/8") o identificador literal del peer ("unknown").
     blocked_ips: set[str] = field(default_factory=set)
@@ -125,6 +138,12 @@ class Config:
     _trusted_proxy_nets: tuple[_IPvNetwork, ...] = field(
         init=False, repr=False, default=()
     )
+    # Exenciones de campo compiladas (globs con la semántica de fnmatch).
+    _exclude_globs: tuple[re.Pattern[str], ...] = field(
+        init=False, repr=False, default=()
+    )
+    # Familias efectivamente activas (pack menos `disabled_rules`).
+    active_rules: frozenset[str] = field(init=False, repr=False, default_factory=frozenset)
 
     def __post_init__(self) -> None:
         if self.rate_limit < 0:
@@ -156,6 +175,15 @@ class Config:
             name.strip().lower() for name in self.inspect_headers if name and name.strip()
         }
 
+        # Toda exclusión pasa por fnmatch (igual que `allow_paths`): un nombre
+        # sin comodines coincide solo consigo mismo, uno con `*`/`?`/`[]` es un
+        # glob. Se compila una vez aquí para no resolverlo en cada petición.
+        self._exclude_globs = tuple(
+            re.compile(fnmatch.translate(str(raw).strip()))
+            for raw in self.exclude_fields
+            if str(raw).strip()
+        )
+
         rules = self.custom_rules
         if isinstance(rules, list):
             converted: dict[str, str] = {}
@@ -184,6 +212,14 @@ class Config:
         if unknown:
             raise ValueError(f"disabled_rules contiene reglas inexistentes: {sorted(unknown)}")
 
+        # El pack decide qué familias se EVALÚAN; `disabled_rules` apaga las
+        # concretas. Un nombre de `disabled_rules` que no está en el pack es
+        # inocuo (no hace falta que dé error: el usuario puede activar y
+        # desactivar reglas en archivos de configuración distintos).
+        self.active_rules = frozenset(
+            resolve_rules(self.rule_packs) - set(self.disabled_rules)
+        )
+
     def headers(self) -> dict[str, str]:
         if self.security_headers is None:
             return DEFAULT_SECURITY_HEADERS
@@ -208,6 +244,21 @@ class Config:
         addr = _parse_ip(ip)
         return addr is not None and any(addr in net for net in self._trusted_proxy_nets)
 
+    def field_excluded(self, name: str | None) -> bool:
+        """¿Este campo (parámetro, cabecera o puntero JSON) está exento?
+
+        Un puntero JSON como `/user/bio` se compara por su ÚLTIMO segmento
+        (`bio`) y por el puntero completo, para que puedas exentar `bio` o
+        `/user/bio` sin ensuciar la lista. Vacío = nada excluido (caso normal).
+        """
+        if not self._exclude_globs or not name:
+            return False
+        candidates = (name, name.rsplit("/", 1)[-1])
+        return any(
+            pattern.match(candidate) for pattern in self._exclude_globs
+            for candidate in candidates
+        )
+
     @classmethod
     def from_dict(cls, data: Any) -> Config:
         if not isinstance(data, dict):
@@ -220,6 +271,9 @@ class Config:
         for key in ("disabled_rules", "blocked_ips", "trusted_proxy_cidrs", "inspect_headers"):
             if key in kwargs:
                 kwargs[key] = set(kwargs[key])
+        for key in ("exclude_fields", "allow_paths", "rule_packs"):
+            if key in kwargs and kwargs[key] is not None:
+                kwargs[key] = list(kwargs[key])
         return cls(**kwargs)
 
     @classmethod

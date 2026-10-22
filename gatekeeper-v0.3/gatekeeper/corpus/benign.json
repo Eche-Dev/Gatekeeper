@@ -62,6 +62,16 @@
     {"id": "benign-059", "payload": "/search?q=sort+order+by+date+asc", "note": "«order by» sin número no sondea columnas"},
     {"id": "benign-060", "payload": "/search?q=convert+int+to+string+en+python", "note": "«convert» sin la forma error-based"},
     {"id": "benign-061", "payload": "/search?q=when+to+use+exists+in+sql", "note": "«exists» sin subconsulta"},
-    {"id": "benign-062", "payload": "/search?q=benchmark+vs+stress+test", "note": "palabra completa sin paréntesis numérico"}
+    {"id": "benign-062", "payload": "/search?q=benchmark+vs+stress+test", "note": "palabra completa sin paréntesis numérico"},
+    {"id": "benign-063", "payload": "/api/items?precio[$gt]=10", "note": "filtro Mongo legítimo: $gt/$lt/$in quedan fuera de la firma NoSQL"},
+    {"id": "benign-064", "payload": "/search?q=angular+{{user.name}}+binding", "note": "plantilla de cliente: sin aritmética ni objetos peligrosos no es SSTI"},
+    {"id": "benign-065", "payload": "/search?q=curl+vs+wget+para+descargas", "note": "binarios de cmdi sin separador shell delante"},
+    {"id": "benign-066", "payload": "/auth/callback?redirect_uri=http://localhost:3000/cb", "note": "OAuth en desarrollo: localhost no es SSRF"},
+    {"id": "benign-067", "payload": "/search?q=set-cookie+header+http", "note": "nombre de cabecera sin salto CRLF delante no es splitting"},
+    {"id": "benign-068", "payload": "/search?q=${HOME}+variable+de+entorno", "note": "variable de entorno: sin aritmética no es SSTI ni lookup log4j"},
+    {"id": "benign-069", "payload": "/api/list?sort=asc;type=json", "note": "`;` como separador de parámetros, no como separador de comandos"},
+    {"id": "benign-070", "payload": "/search?q=java+script:+los+dos+palabras", "note": "espacio en medio del esquema: el navegador no lo descarta, no es XSS"},
+    {"id": "benign-071", "payload": "/search?q=que+es+__proto__+en+javascript", "note": "documentación: la clave dunder coincide con la firma", "known_fp": "búsquedas legítimas sobre proto-pollution: `__proto__` literal en el valor"},
+    {"id": "benign-072", "payload": "/search?q=constructor+of+class+in+python", "note": "`constructor` solo no es pollution: hace falta `.prototype`"}
   ]
 }

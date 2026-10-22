@@ -21,14 +21,15 @@ Python 3.10+ (el CI prueba 3.10–3.12). El proyecto vive en
 | `pytest --cov=gatekeeper` | Tests + fuzzing, cobertura ≥ 90% |
 | `python tools/evaluate.py --check` | Tasas de detección y FP (corpus propio + CRS) |
 | `python tools/import_crs.py --check` | Procedencia del corpus externo |
-| `python benchmarks/latency.py` | Latencia por petición por escenario |
+| `python benchmarks/latency.py` | Latencia p50/p95/p99 por petición y escenario |
+| `python benchmarks/latency.py --baseline <json>` | Compara con una Medición previa (misma máquina) |
 | `python -m build && twine check dist/*` | Empaquetado |
 
 ## Estructura
 
 | Carpeta | Contenido |
 |---|---|
-| `src/gatekeeper/` | El middleware: `middleware`, `config`, `rules`, `body`, `paths`, `ratelimit` |
+| `src/gatekeeper/` | El middleware: `middleware`, `config`, `rules`, `body`, `paths`, `ratelimit`, `cli` |
 | `tests/` | Unitarios, `test_corpus.py`, `test_crs_corpus.py`, `test_fuzz.py` |
 | `corpus/` | `attacks.json`, `benign.json`, `crs_payloads.json` (CRS, Apache-2.0) e informes |
 | `tools/` | `evaluate.py` (medición) e `import_crs.py` (importador de CRS) |
@@ -45,6 +46,43 @@ Python 3.10+ (el CI prueba 3.10–3.12). El proyecto vive en
    (unicode, percent-encoding, bytes) sobre `scan`, `normalize`,
    `extract_strings`, `Config` y `allow_paths`. Invariantes: nada revienta,
    `normalize` es idempotente, y una ruta con `..` **nunca** se exime.
+
+## Latencia: medir, no construir un guard automático
+
+`benchmarks/latency.py` mide **percentiles por petición real** (p50/p95/p99), no
+medias por ronda: la media escondía la cola, que es lo que nota un usuario. El
+mismo escenario que la media rondaba los ~90 µs tiene un p95 de 123 µs.
+
+### Cómo comparar dos versiones
+
+```bash
+python benchmarks/latency.py --save base.json
+# ... cambia el código ...
+python benchmarks/latency.py --baseline base.json    # sale 1 si empeoró más del margen
+```
+
+El margen por defecto es 25 %. Compara el **overhead** (lo que añade el
+middleware sobre la línea base de la misma corrida), no el absoluto.
+
+### Por qué no corre en CI
+
+Se implementó un guard automático con umbral en µs y **se eliminó al medir que
+no podía ser fiable**. En un runner de CI con CPU compartida, el ruido de la
+máquina supera a la señal:
+
+| Situación | Overhead p50 medido |
+|---|---|
+| Portátil sin carga | 73 µs |
+| Runner de CI saturado | 220–312 µs |
+| Regresión real (200 firmas nuevas) | 175 µs |
+
+Una máquina lenta da un overhead mayor que una regresión de código: ningún
+umbral los separa. El guard solo podría dar falsos positivos en cada build o
+ser ciego a regresiones moderadas. La decisión y sus datos están también en el
+`ci.yml`, para que nadie lo reintroduzca sin conocer la razón.
+
+El benchmark sigue siendo la herramienta: publicar la cola real y comparar
+antes/después localmente. Automatizarlo exigiría un runner con CPU fijada.
 
 ## Documentación
 

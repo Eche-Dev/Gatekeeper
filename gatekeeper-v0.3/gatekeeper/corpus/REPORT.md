@@ -4,23 +4,30 @@
 
 | Métrica | Valor |
 |---|---|
-| Payloads de ataque | 83 |
-| Detectados | 83 (100.0%) |
-| Detectados por la regla esperada | 83 (100.0%) |
+| Payloads de ataque | 131 |
+| Detectados | 131 (100.0%) |
+| Detectados por la regla esperada | 131 (100.0%) |
 | Falsos negativos no documentados | 0 |
 | Falsos negativos documentados | 0 |
-| Requests benignos | 62 |
+| Requests benignos | 72 |
 | Falsos positivos no documentados | 0 (0.0%) |
-| Falsos positivos documentados | 4 |
+| Falsos positivos documentados | 5 |
 
 ## Detección por regla
 
 | Regla | Detectados / total |
 |---|---|
+| cmdi | 9 / 9 |
+| crlf | 4 / 4 |
+| log4shell | 6 / 6 |
+| nosql | 7 / 7 |
 | path_traversal | 13 / 13 |
+| proto_pollution | 3 / 3 |
 | sensitive_files | 8 / 8 |
-| sqli | 32 / 32 |
-| xss | 30 / 30 |
+| sqli | 34 / 34 |
+| ssrf | 7 / 7 |
+| ssti | 7 / 7 |
+| xss | 33 / 33 |
 
 ## Falsos positivos
 
@@ -30,6 +37,7 @@
 | benign-011 | xss | sitios de documentación que permiten buscar por nombre de etiqueta | `/search?q=<script>+tag+in+html` |
 | benign-012 | xss | misma familia que la anterior: texto técnico que cita el vector | `/search?q=javascript:+scheme+in+urls` |
 | benign-049 | path_traversal | coincide con la firma de traversal tras decodificar; es el coste de decodificar varias veces | `/search?q=%252e%252e%252f+pruebas+de+codificacion` |
+| benign-071 | proto_pollution | búsquedas legítimas sobre proto-pollution: `__proto__` literal en el valor | `/search?q=que+es+__proto__+en+javascript` |
 
 ## Umbrales de CI
 
@@ -43,9 +51,9 @@
 | Familia (familias CRS 930/941/942) | Detectados / total |
 |---|---|
 | path_traversal | 24 / 62 |
-| sqli | 147 / 869 |
-| xss | 48 / 204 |
-| **total en alcance** | **219 / 1135 (19.3%)** |
+| sqli | 160 / 869 |
+| xss | 54 / 204 |
+| **total en alcance** | **238 / 1135 (21.0%)** |
 
 | Métrica externa | Valor |
 |---|---|
@@ -68,7 +76,7 @@
 | crs-942521-t16-s1 | sqli | `var=Incorrectly%20constructed%20SQL%20statements%0AThis%20form%20of%20injection%20relies%2…` |
 | crs-942522-t8-s1 | sqli | `var=Incorrectly%20constructed%20SQL%20statements%0AThis%20form%20of%20injection%20relies%2…` |
 
-### Muestra de falsos negativos (12 de 916)
+### Muestra de falsos negativos (12 de 897)
 
 | id | familia | payload |
 |---|---|---|
@@ -87,6 +95,6 @@
 
 ### Umbrales del corpus externo (guarda de regresión sobre la línea base)
 
-- detección CRS ≥ 19%: ✅ (19.3%)
+- detección CRS ≥ 19%: ✅ (21.0%)
 - FP CRS ≤ 5.0%: ✅ (3.9%)
 

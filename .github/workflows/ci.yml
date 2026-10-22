@@ -25,6 +25,22 @@ jobs:
       - name: Procedencia del corpus externo de CRS
         run: python tools/import_crs.py --check
 
+  # NO hay job de latencia en CI, y es una decisión con datos, no una pereza.
+  # Se intentó un guard de regresión (`benchmarks/latency.py --check`) y se
+  # descartó tras medir: en un runner de CPU compartida el ruido de la máquina
+  # es MAYOR que la señal. Medido con el mismo código, overhead p50 sobre la
+  # línea base: 73µs en local, 220-312µs en un runner (o un portátil al 30% de
+  # CPU), y 175µs con 200 firmas nuevas añadidas al código. Una máquina lenta
+  # produce un overhead mayor que una regresión de código real: ningún umbral
+  # los separa, así que el guard solo podía dar falsos positivos en CI o ser
+  # ciego a regresiones moderadas.
+  #
+  # El benchmark sigue siendo útil como INFORME (publica p50/p95/p99, que la
+  # media escondía) y como herramienta local para comparar antes/después de un
+  # cambio, pero el veredicto es de quien lo ejecuta, no del pipeline.
+  # Si algún día quieres automatizarlo, necesita un runner con CPU fijada y
+  # sin otros jobs; en `ubuntu-latest` compartido no es fiable.
+
   package:
     # El paquete se construye, se valida y se instala en un entorno limpio:
     # así un fallo de empaquetado (falta py.typed, metadata rota) no llega a PyPI.

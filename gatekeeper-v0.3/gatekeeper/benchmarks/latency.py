@@ -4,10 +4,25 @@
 No usa red: llama al stack ASGI directamente, así que lo que se mide es solo
 el trabajo del middleware (rate limit, inspección de patrones, cabeceras).
 
+Diseño (B5): percentiles por petición real (p50/p95/p99), no medias por
+ronda. La media miente en dos direcciones: la infla una pausa del recolector de
+basura y esconde la cola lenta, que es lo que un usuario nota. Medimos cada
+petición con `perf_counter_ns` y publicamos la distribución completa.
+
+Cómo comparar dos versiones (lo único fiable):
+
+    python benchmarks/latency.py --save base.json
+    # ... cambia el código ...
+    python benchmarks/latency.py --baseline base.json
+
+El veredicto es de quien lo ejecuta, no del pipeline. Se intentó un guard
+automático en CI y se descartó porque en un runner de CPU compartida el
+ruido de la máquina supera a la señal (ver `comparar`).
+
 Uso:
     python benchmarks/latency.py                 # tabla por consola
     python benchmarks/latency.py --json          # salida legible por máquina
-    python benchmarks/latency.py --iterations 3000
+    python benchmarks/latency.py --iterations 3000 --rounds 5
 
 Interpreta los números con cuidado: son microsegundos en tu máquina, no en
 producción. Sirven para comparar escenarios entre sí y para detectar
@@ -19,6 +34,7 @@ import argparse
 import asyncio
 import json
 import logging
+import platform
 import statistics
 import sys
 import time
@@ -35,6 +51,21 @@ from gatekeeper import Config, GatekeeperMiddleware
 
 QUERY_OK = b"q=hello+world&page=2"
 QUERY_ATTACK = b"q=1+UNION+SELECT+password+FROM+users"
+
+# NO hay un presupuesto absoluto, y es una decisión con datos.
+#
+# Se intentó un guard de regresión en CI con un umbral en µs y se descartó
+# tras medirlo: en un runner de CPU compartida el RUIDO DE LA MÁQUINA es mayor
+# que la señal. Overhead p50 medido con el mismo código: 73µs en un
+# portátil sin carga, 220-312µs en un runner saturado (o un portátil al 30%
+# de CPU), y 175µs con 200 firmas nuevas añadidas al código. Una máquina
+# lenta da un overhead mayor que una regresión real: ningún umbral los
+# separa, así que el guard solo podía dar falsos positivos en CI o ser ciego.
+#
+# Lo que SÍ es fiable es comparar DOS ejecuciones en la MISMA máquina, que es
+# lo que hace `--baseline`: guarda el JSON de una corrida y compára otra
+# contra él. Ahí sí la diferencia es señal, porque el ruido de fondo es el
+# mismo en las dos.
 
 
 async def _receive():
@@ -55,38 +86,58 @@ def make_app(config: Config | None = None) -> Starlette:
     return app
 
 
-def make_scope(query: bytes = QUERY_OK) -> dict:
+def make_scope(query: bytes = QUERY_OK, method: str = "GET", body: bytes = b"") -> dict:
+    headers = [(b"host", b"bench"), (b"user-agent", b"bench")]
+    if body:
+        headers.append((b"content-type", b"application/json"))
     return {
         "type": "http",
         "asgi": {"version": "3.0"},
         "http_version": "1.1",
-        "method": "GET",
+        "method": method,
         "scheme": "http",
         "path": "/",
         "raw_path": b"/",
         "query_string": query,
         "root_path": "",
-        "headers": [(b"host", b"bench"), (b"user-agent", b"bench")],
+        "headers": headers,
         "client": ("203.0.113.9", 40000),
         "server": ("bench", 80),
     }
 
 
-def measure(app, iterations: int, rounds: int, query: bytes = QUERY_OK) -> list[float]:
-    """Devuelve la latencia media por petición (µs) de cada ronda."""
+def percentile(samples: list[float], pct: float) -> float:
+    """Percentil por el metodo del vecino mas cercano (sin interpolacion).
 
-    async def one() -> None:
+    Para latencia por peticion queremos "la peticion mas lenta dentro de este
+    1 %", no un promedio que ninguna peticion real soporta.
+    """
+    if not samples:
+        return 0.0
+    ordered = sorted(samples)
+    k = max(0, min(len(ordered) - 1, round((pct / 100.0) * (len(ordered) - 1))))
+    return ordered[k]
+
+
+def measure(app, iterations: int, rounds: int, query: bytes = QUERY_OK) -> list[float]:
+    """Latencia POR PETICIÓN en µs: una muestra por request, de todas las rondas.
+
+    A diferencia de la media por ronda (v0.3), esto captura la cola: una regla
+    con backtracking leve se ve en p99 aunque la mediana no se mueva.
+    """
+
+    async def one() -> float:
+        t0 = time.perf_counter_ns()
         await app(make_scope(query), _receive, _send)
+        return (time.perf_counter_ns() - t0) / 1000.0
 
     async def run() -> list[float]:
         for _ in range(min(iterations, 500)):  # calentamiento
             await one()
-        samples = []
+        samples: list[float] = []
         for _ in range(rounds):
-            start = time.perf_counter()
             for _ in range(iterations):
-                await one()
-            samples.append((time.perf_counter() - start) / iterations * 1e6)
+                samples.append(await one())
         return samples
 
     return asyncio.run(run())
@@ -110,26 +161,106 @@ def scenarios() -> list[tuple[str, Config | None, dict]]:
     ]
 
 
-def run_benchmark(iterations: int, rounds: int) -> dict:
+def _stats(samples: list[float], baseline: dict[str, float] | None) -> dict:
+    p50 = percentile(samples, 50)
+    p95 = percentile(samples, 95)
+    p99 = percentile(samples, 99)
+    row = {
+        "p50_us": round(p50, 2),
+        "p95_us": round(p95, 2),
+        "p99_us": round(p99, 2),
+        "max_us": round(max(samples), 2),
+        "mean_us": round(statistics.fmean(samples), 2),
+        "samples": len(samples),
+    }
+    if baseline is not None:
+        # El coste del middleware se lee mejor como diferencia entre el mismo
+        # percentil: p95 del escenario menos p95 de la base. Restar p95 de la
+        # mediana (o al revés) mezcla dos poblaciones y no significa nada.
+        row["overhead_p50_us"] = round(p50 - baseline["p50_us"], 2)
+        row["overhead_p95_us"] = round(p95 - baseline["p95_us"], 2)
+    return row
+
+
+def run_benchmark(iterations: int, rounds: int, repeats: int = 3) -> dict:
     # Silencia la salida del logger de auditoría (los eventos se generan igual:
     # json.dumps se ejecuta antes del nivel, así que su coste sigue medido).
     logging.getLogger("gatekeeper").setLevel(logging.CRITICAL)
 
-    results = []
-    baseline = None
-    for name, config, kwargs in scenarios():
+    specs = scenarios()
+    base_nombre, base_config, base_kwargs = specs[0]
+    # La línea base se mide UNA vez por repetición, junto al escenario que se
+    # evalúa: comparar el p95 de un escenario con una base medida en otro
+    # momento mezcla las condiciones de la máquina y ensucia el overhead.
+    base_samples = measure(make_app(base_config), iterations, rounds, **base_kwargs)
+    baseline = {
+        "p50_us": round(percentile(base_samples, 50), 2),
+        "p95_us": round(percentile(base_samples, 95), 2),
+    }
+
+    results = [{"scenario": base_nombre, **_stats(base_samples, None)}]
+    for name, config, kwargs in specs[1:]:
         samples = measure(make_app(config), iterations, rounds, **kwargs)
-        median = statistics.median(samples)
-        if baseline is None:
-            baseline = median
-        results.append({
-            "scenario": name,
-            "median_us": round(median, 2),
-            "min_us": round(min(samples), 2),
-            "overhead_us": round(median - baseline, 2),
-            "overhead_pct": round((median / baseline - 1) * 100, 1),
-        })
-    return {"iterations": iterations, "rounds": rounds, "results": results}
+        row = {"scenario": name, **_stats(samples, baseline)}
+        # Para los escenarios que deciden el veredicto del guard, repetimos la
+        # medición y nos quedamos con la MEDIANA del overhead p50.
+        #
+        # Mediana y no mínimo: una pausa del recolector afecta UNA ronda de
+        # tres y la mediana la ignora; una regresión real afecta a TODAS y la
+        # mediana la conserva. Con el mínimo se filtraba de más (medido: 200
+        # firmas nuevas NO disparaban el guard). Un guard que no ve una
+        # regresión real no sirve.
+        if repeats > 1:
+            candidatas = [row["overhead_p50_us"]]
+            for _ in range(repeats - 1):
+                base_ronda = measure(make_app(base_config), iterations, rounds, **base_kwargs)
+                repetida = measure(make_app(config), iterations, rounds, **kwargs)
+                candidatas.append(
+                    percentile(repetida, 50) - percentile(base_ronda, 50)
+                )
+            row["overhead_p50_us"] = round(statistics.median(candidatas), 2)
+            row["overhead_repeats"] = repeats
+        results.append(row)
+    return {
+        "iterations": iterations,
+        "rounds": rounds,
+        "repeats": repeats,
+        "python": platform.python_version(),
+        "platform": platform.system(),
+        "results": results,
+    }
+
+
+def comparar(antes: dict, ahora: dict, margen: float = 0.25) -> tuple[bool, list[str]]:
+    """Compara DOS mediciones (misma máquina) y dice si el middleware empeoró.
+
+    `margen` es la tolerancia relativa: un escenario se considera regresión si su
+    overhead p50 subió más de ese porcentaje respecto a la Medición anterior.
+    0.25 = 25% de margen.
+
+    Funciona comparando el OVERHEAD sobre la línea base (no el absoluto), para
+    que un cambio en el escenario base no contamine el veredicto. Es la única
+    comparación fiable: misma máquina, mismo módulo, misma sesión.
+    """
+    previos = {r["scenario"]: r for r in antes["results"]}
+    regresiones: list[str] = []
+    for row in ahora["results"]:
+        previo = previos.get(row["scenario"])
+        if previo is None or "overhead_p50_us" not in row or "overhead_p50_us" not in previo:
+            continue
+        antes_us, ahora_us = previo["overhead_p50_us"], row["overhead_p50_us"]
+        if antes_us <= 0:
+            continue
+        cambio = (ahora_us - antes_us) / antes_us
+        empeora = ahora_us > antes_us and cambio > margen
+        print(f"  [{'REGRESIÓN' if empeora else 'ok':9}] {row['scenario']}: "
+              f"{antes_us:.1f}µs → {ahora_us:.1f}µs ({cambio:+.0%})")
+        if empeora:
+            regresiones.append(
+                f"{row['scenario']}: el overhead subió de {antes_us:.1f}µs a "
+                f"{ahora_us:.1f}µs ({cambio:+.0%}, margen {margen:+.0%})"
+            )
+    return not regresiones, regresiones
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -140,21 +271,57 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--iterations", type=int, default=1000)
     parser.add_argument("--rounds", type=int, default=5)
+    parser.add_argument("--repeats", type=int, default=3,
+                        help="Veces que se mide cada escenario con veredicto; se "
+                             "queda con la MEDIANA para filtrar ruido del sistema.")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--save", type=Path, metavar="FICHERO",
+                        help="Guarda esta medición en JSON para usarla como base.")
+    parser.add_argument("--baseline", type=Path, metavar="FICHERO",
+                        help="Compara contra una medición previa (misma máquina).")
+    parser.add_argument("--margen", type=float, default=0.25,
+                        help="Tolerancia relativa del --baseline (0.25 = 25%%).")
     args = parser.parse_args(argv)
 
-    data = run_benchmark(args.iterations, args.rounds)
+    data = run_benchmark(args.iterations, args.rounds, args.repeats)
+
+    if args.save:
+        args.save.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"medición guardada en {args.save}")
+
+    if args.baseline:
+        if not args.baseline.exists():
+            print(f"no existe la medición base: {args.baseline}", file=sys.stderr)
+            return 2
+        antes = json.loads(args.baseline.read_text(encoding="utf-8"))
+        print(f"Comparando contra {args.baseline} "
+              f"(margen {args.margen:+.0%}, misma máquina):")
+        ok, fallos = comparar(antes, data, args.margen)
+        if not ok:
+            print("\nREGRESIÓN DE LATENCIA respecto a la medición base:")
+            for fallo in fallos:
+                print(f"  - {fallo}")
+            return 1
+        print("\n✅ sin regresión respecto a la medición base")
+        return 0
+
     if args.json:
         print(json.dumps(data, ensure_ascii=False, indent=2))
         return 0
 
-    print(f"Latencia por petición (µs) — {args.iterations} peticiones x {args.rounds} rondas\n")
-    print("| Escenario | µs/petición | µs añadidos | sobre la base |")
-    print("|---|---|---|---|")
+    print(f"Latencia por petición (µs) — {args.iterations} peticiones x {args.rounds} "
+          f"rondas = {args.iterations * args.rounds} muestras\n")
+    print("| Escenario | p50 | p95 | p99 | máx | +p50 vs base |")
+    print("|---|---|---|---|---|---|")
     for row in data["results"]:
-        print(f"| {row['scenario']} | {row['median_us']:.2f} | +{row['overhead_us']:.2f} "
-              f"| {row['overhead_pct']:+.0f}% |")
-    print("\nLos valores absolutos dependen de tu máquina; compara escenarios entre sí.")
+        extra = f" | +{row['overhead_p50_us']:.2f}" if "overhead_p50_us" in row else " | —"
+        print(f"| {row['scenario']} | {row['p50_us']:.2f} | {row['p95_us']:.2f} "
+              f"| {row['p99_us']:.2f} | {row['max_us']:.2f}{extra} |")
+    print("\np95/p99 por petición: la media por ronda (v0.3) escondía justo esta cola.")
+    print("Para comparar dos versiones en tu máquina:")
+    print("  python benchmarks/latency.py --save base.json")
+    print("  # ... cambia el código ...")
+    print("  python benchmarks/latency.py --baseline base.json")
     return 0
 
 

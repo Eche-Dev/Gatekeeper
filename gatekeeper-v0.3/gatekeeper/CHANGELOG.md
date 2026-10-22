@@ -6,6 +6,65 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [0.3.1] - 2026-10-22
 
 ### Añadido
+- **Percentiles por petición real** (p50/p95/p99/máx) en `benchmarks/latency.py`,
+  en lugar de la media por ronda: la media escondía la cola, que es lo que nota
+  un usuario. El escenario «completo» que la media rondaba en ~90 µs tiene un
+  p95 de 123 µs y un p99 de 149 µs.
+- **Comparación de dos versiones** (`--save` / `--baseline`): mide en tu máquina,
+  cambia el código, mide otra vez y te dice si algún escenario empeoró más del
+  margen (25 % por defecto). Es la única comparación fiable y la que se usa antes
+  de abrir un PR que toca el camino caliente.
+- **Packs de reglas opt-in** (`rule_packs`): `minimal`, `api`, `web`,
+  `infrastructure` y `strict` agrupan las familias por la superficie que la
+  app expone. Sin configurar nada se siguen evaluando las once (los packs no
+  cambian el defecto); un pack desconocido es `ValueError` al arrancar, para que
+  un typo no deje la app sin protección en silencio.
+- **Exclusiones por campo** (`exclude_fields`): parámetros de query, cabeceras
+  y punteros JSON que quedan exentos de inspección, con globs `fnmatch` (el
+  puntero `/user/bio` también casa por `bio`). La detección que cruza varios
+  campos se conserva: el campo exento se quita del objetivo y el resto se sigue
+  vigilando.
+- **CLI `gatekeeper report`**: lee el log de tráfico (el JSON del logger de
+  Gatekeeper o un access log genérico), agrupa por regla, ruta y campo, y
+  propone un `exclude_fields` o un `disabled_rules` listo para copiar. Salida
+  `--json` para máquinas. Cierra el ciclo que `monitor_only=True` promete: medir
+  los falsos positivos del tráfico real antes de bloquear.
+- **Siete familias de detección** con su regla, sus límites de falso positivo
+  medidos y su caso en el corpus:
+  - `nosql`: operadores de inyección Mongo `$ne`, `$nin`, `$where` y `$regex`
+    (login bypass y ejecución de JS). `$gt`/`$lt`/`$in` se dejan fuera a
+    propósito: los usan los filtros legítimos.
+  - `cmdi`: separador shell + binario (`; ls`, `| cat`, `&& whoami`, `$(id)`,
+    `` `uname` ``), LOLBins de Windows (`powershell.exe`), webshells PHP
+    (`;system('`, `shell_exec(`) y reverse shells (`/dev/tcp/`).
+  - `ssrf`: IPs de metadata cloud (AWS/GCP/Azure/Alibaba) y esquemas de lectura
+    local (`file://`, `gopher://`, `dict://`, `jar://`, `netdoc://`, `tftp://`).
+    `localhost` no se bloquea: OAuth de desarrollo y webhooks locales son
+    tráfico legítimo.
+  - `ssti`: la aritmética canónica de plantillas (`{{7*7}}`, `${7*7}`, `<%= 7*7 %>`,
+    `#{7*7}`) y el acceso a objetos peligrosos (`config`, `self`, `request`,
+    `__class__`, `__subclasses__`).
+  - `crlf`: response splitting e inyección de cabeceras (salto de línea seguido
+    de nombre de cabecera, sea CRLF real decodificado de `%0d%0a` o literal
+    `\r\n`).
+  - `log4shell`: `${jndi:…}` con sus ofuscaciones (`${${::-j}ndi:`,
+    `${jndi:${lower:l}…}`), JNDI sin envoltorio y la cadena de lookups que
+    exfiltra secretos (`${env:AWS_SECRET…}`).
+  - `proto_pollution`: `__proto__` en cualquier posición y
+    `constructor.prototype`.
+- **Evasiones** que antes pasaban intactas:
+  - **Entidades HTML nombradas** (`&lt;script`, `javascript&colon;`) resueltas
+    como sus equivalentes numéricos, por rondas de decodificación.
+  - **Esquema con tab o salto de línea** (`java\tscript:alert(1)`, `java&#9;script:`):
+    el navegador descarta tab/NL/CR en cualquier punto de una URL (WHATWG), así
+    que el esquema sigue siendo ejecutable. Solo se aceptan contenedores, no
+    espacios: `java script:` en prosa no es un esquema y no salta.
+  - **Comentarios versionados de MySQL** (`/*!50000union*/`) desenvueltos a su
+    contenido (`union`) en lugar de borrarse: MySQL los ejecuta, y borrar el
+    contenido convertía el payload en texto invisible para el inspector.
+- `docs/amenazas.md`: **modelo de amenazas** con el desglose de las once familias,
+  el supuesto de atacante, los transportes inspeccionados, las fronteras de falso
+  positivo de cada firma y lo que NO cubre Gatekeeper.
 - Detección de **entidades HTML numéricas** en `decode()`: `&#60;script&#62;`
   y `&#106;avascript:` ya no pasan intactos; rango acotado para que `&#99999999;`
   no reviente (protegido por test).
@@ -43,10 +102,14 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   (`10.0.0.0/8`) el bloqueo no existía aunque la configuración lo dijera.
 
 ### Cambiado
-- Corpus propio: **83/83 (100.0%)**, 0 FP sin documentar. El gate de CI sube
-  de ≥ 90% a **100%**: cualquier regresión de detección deja CI en rojo.
+- El benchmark mide percentiles por petición real (p50/p95/p99) en lugar de la
+  media por ronda: una media mezcla la pausa del recolector de basura con el
+  trabajo real del middleware y esconde la cola de latencia.
+- Corpus propio: **131/131 (100.0%)**, 0 FP sin documentar, 5 FP documentados (los
+  cuatro de antes más `benign-071`, búsquedas sobre `__proto__`). El gate de CI
+  sube de ≥ 90% a **100%**: cualquier regresión de detección deja CI en rojo.
 - Corpus CRS recalibrado con las cabeceras y los bodies textuales en alcance:
-  **19.3% (219/1135)** con 3.9% de FP; los excluidos bajan de 212 a 12 (solo
+  **21.0% (238/1135)** con 3.9% de FP; los excluidos bajan de 212 a 12 (solo
   binarios y cabeceras fuera de `inspect_headers`). Gate de CI: ≥ 19%.
 
 ## [0.3.0] - 2026-10-21

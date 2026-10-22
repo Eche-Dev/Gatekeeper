@@ -36,7 +36,14 @@ app.add_middleware(GatekeeperMiddleware, config=Config(rate_limit=100, rate_wind
 | XSS | `<script>`, handlers de evento con y sin etiqueta (`onerror=`, ` onload=`), `javascript:`, `data:text/html`, con doble codificación |
 | Path traversal | `../`, `..\`, `..;/`, con decodificación repetida y frontera de segmento (`foo../x` no es un salto) |
 | Ficheros sensibles | `/etc/passwd`, `shadow`, `subuid`; `/proc/self/environ`; `win.ini`; `.ssh/id_*`; `.aws/credentials`; `.docker/secrets`; `.git/config`; `.env` (exigen separador: `?q=.env` pasa) |
-| Evasiones | URL-encoding repetido (3 rondas), escapes IIS `%uXXXX` mayúsculas o no, ancho completo (`＜script` vía NFKC), comentarios SQL `/**/` |
+| NoSQL | Operadores de inyección Mongo: `$ne`, `$nin`, `$where`, `$regex` en JSON o corchetes (`user[$ne]=x`). `$gt`/`$lt`/`$in` quedan fuera: los usan los filtros legítimos |
+| Comandos del sistema | Separador shell + binario (`; ls`, `\| cat`, `&& whoami`, `$(id)`, `` `uname` ``), LOLBins de Windows (`powershell.exe`), webshells PHP (`;system('`, `shell_exec(`), reverse shell `/dev/tcp/` |
+| SSRF | Metadata cloud (AWS/GCP/Azure/Alibaba) y esquemas de lectura local (`file://`, `gopher://`, `dict://`, `jar://`); `localhost` no bloquea (OAuth de desarrollo) |
+| SSTI | Aritmética de plantillas (`{{7*7}}`, `${7*7}`, `<%= 7*7 %>`, `#{7*7}`) y objetos peligrosos (`config`, `self`, `__class__`, `__subclasses__`) |
+| CRLF | Salto de línea seguido de cabecera: response splitting e inyección de cabeceras (CRLF real o `\r\n` literal) |
+| Log4Shell | `${jndi:ldap://…}` con sus ofuscaciones (`${${::-j}ndi:`) y lookups de exfiltración (`${env:AWS_SECRET…}`) |
+| Proto-pollución | `__proto__` en cualquier posición y `constructor.prototype` |
+| Evasiones | URL-encoding repetido (3 rondas), escapes IIS `%uXXXX` mayúsculas o no, ancho completo (`＜script` vía NFKC), comentarios SQL `/**/` y versionados (`/*!50000union*/`), entidades HTML numéricas **y nombradas** (`&lt;script`), tab/NL dentro del esquema (`java\tscript:`) |
 | Límite de body | `max_body_size` (1 MiB por defecto) → 413, también sin `Content-Length` |
 | Reglas propias | Regex en YAML o `Config(custom_rules=...)`, validadas al arrancar |
 | Exclusión de rutas | `allow_paths` (globs). Rutas con `..`, `\` o codificación residual nunca se eximen |
@@ -50,11 +57,16 @@ documentada ([corpus/](corpus/)):
 
 | Métrica (corpus propio) | Valor |
 |---|---|
-| Ataques detectados | 83 / 83 (**100.0%**) |
+| Ataques detectados | 131 / 131 (**100.0%**) |
 | Falsos negativos sin documentar | 0 |
-| Peticiones legítimas bloqueadas sin documentar | **0** / 62 |
-| Falsos positivos documentados (límites aceptados) | 4 |
-| Falsos negativos documentados (límites aceptados) | 5 |
+| Peticiones legítimas bloqueadas sin documentar | **0** / 72 |
+| Falsos positivos documentados (límites aceptados) | 5 |
+| Falsos negativos documentados (límites aceptados) | 0 |
+
+Once familias de detección: SQLi, XSS, path traversal, ficheros sensibles, NoSQL,
+comandos del sistema, SSRF, SSTI, CRLF, Log4Shell y proto-pollución. El
+desglose con la frontera de falsos positivos de cada una está en
+[docs/amenazas.md](docs/amenazas.md).
 
 El segundo es **ajeno**: los tests de regresión de
 [OWASP Core Rule Set](https://github.com/coreruleset/coreruleset) (Apache-2.0,
@@ -64,12 +76,12 @@ para otro WAF, con sus propios negativos:
 | Métrica (corpus externo CRS, familias 930/941/942) | Valor |
 |---|---|
 | Tests importados | 1379 (1135 en alcance, 12 excluidos y declarados) |
-| Ataques detectados | 219 / 1135 (**19.3%**) |
+| Ataques detectados | 238 / 1135 (**21.0%**) |
 | Negativos de CRS bloqueados (FP) | 9 / 232 (3.9%) |
 
-Ese 19.3% no es una meta: es la **línea base** de un corpus diseñado para un
+Ese 21.0% no es una meta: es la **línea base** de un corpus diseñado para un
 WAF de 500+ reglas y payloads mucho más ofuscados, y el workflow la vigila para
-que no baje. Publicarlo entero es el punto: un 100% propio y un 19.3% ajeno, los
+que no baje. Publicarlo entero es el punto: un 100% propio y un 21.0% ajeno, los
 dos medidos y los dos con guarda en CI.
 
 El detalle, incluidos los payloads que se escapan y por qué, está en
@@ -92,20 +104,54 @@ para Vercel (`vercel --prod`) y Docker: [`demo/`](demo/).
 `python benchmarks/latency.py` mide el coste por petición en tu máquina
 (Python 3.14, portátil, sin red):
 
-| Escenario | µs/petición | µs añadidos |
-|---|---|---|
-| sin middleware (base) | 12.56 | — |
-| solo cabeceras | 29.89 | +17.32 |
-| inspección (query + cabeceras + body) | 70.59 | +58.03 |
-| rate limit solo | 31.62 | +19.06 |
-| completo (inspección + rate limit) | 71.10 | +58.54 |
-| request atacante (403 temprano) | 48.63 | +36.07 |
+| Escenario | p50 | p95 | p99 | +p50 vs base |
+|---|---|---|---|---|
+| sin middleware (base) | 12.30 | 19.60 | 27.50 | — |
+| solo cabeceras | 29.30 | 46.70 | 65.90 | +17.00 |
+| inspección (query + cabeceras + body) | 85.70 | 117.60 | 185.90 | +73.40 |
+| rate limit solo | 30.60 | 37.80 | 54.40 | +18.30 |
+| completo (inspección + rate limit) | 88.30 | 123.20 | 149.20 | +76.00 |
+| request atacante (403 temprano) | 62.70 | 88.10 | 115.40 | +50.40 |
+
+**Por qué p95 y no la media.** Hasta 0.3.1 el benchmark publicaba la media por
+ronda, y esa cifra escondía justo lo que un usuario nota: la cola. El mismo
+escenario «completo» que la media rondaba los ~90 µs tiene un **p95 de 123 µs y
+un p99 de 149 µs**; una pausa puntual del recolector de basura puede llevar una
+petición aislada a 500–1500 µs, y con 7500 muestras esa cola existe. Medir el
+percentil 95 de la distribución real es lo que permite poner una guardia útil.
+
+`python benchmarks/latency.py --save base.json` y, tras cambiar el código,
+`python benchmarks/latency.py --baseline base.json` comparan dos versiones **en
+tu máquina** y dicen si algún escenario empeoró más de un margen (25 % por
+defecto). Es la única comparación fiable, y la que se usa antes de abrir un PR
+que toca el camino caliente.
+
+### Por qué no hay un guard de latencia en CI
+
+Se intentó y se descartó **con datos, no por pereza**. La señal (el coste
+real del middleware) es menor que el ruido de la máquina en un runner de CI con
+CPU compartida. Overhead p50 medido con el mismo código:
+
+| Situación | Overhead p50 |
+|---|---|
+| Portátil sin carga | 73 µs |
+| Runner de CI saturado (o portátil al 30 % de CPU) | 220–312 µs |
+| **Regresión real** (200 firmas nuevas en el código) | 175 µs |
+
+Una máquina lenta da un overhead **mayor** que una regresión de código. Ningún
+umbral los separa, así que el guard solo podría dar falsos positivos en cada
+build o ser ciego a regresiones moderadas. Un pipeline rojo por ruido entrena al
+equipo a ignorar pipelines rojos, que es peor que no medir.
+
+Así que el benchmark es un **informe y una herramienta local**, no un veredicto
+automático. Si algún día quieres automatizarlo, necesita un runner con CPU
+fijada y sin otros jobs; en `ubuntu-latest` compartido no es fiable.
 
 ## Documentación
 
 Guía completa con [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
-en [`docs/`](docs/): uso, detección y medición, seguridad, referencia de API y
-desarrollo. En local: `mkdocs serve`. Se publica en
+en [`docs/`](docs/): uso, detección y medición, modelo de amenazas, seguridad,
+referencia de API y desarrollo. En local: `mkdocs serve`. Se publica en
 <https://eche-dev.github.io/Gatekeeper/> en cada push a `main` (build
 `--strict` en CI: un enlace roto rompe el workflow).
 
@@ -113,16 +159,13 @@ Contribuir: [CONTRIBUTING.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/C
 · [Código de conducta](https://github.com/Eche-Dev/Gatekeeper/blob/main/CODE_OF_CONDUCT.md)
 · Plantillas de issues y PR en la raíz del repo.
 
-Son microsegundos relativos, no una promesa de latencia: sirve para comparar
-escenarios y detectar regresiones.
-
 ## Qué NO cubre
 
 - La detección por regex tiene falsos positivos y falsos negativos: **no sustituye**
   a consultas parametrizadas, a validación de entradas ni a un WAF.
 - `multipart/form-data` y bodies binarios no se inspeccionan (las subidas de archivos pasan intactas; parser en v0.4).
 - Cada valor del body se analiza por separado: un ataque repartido en varios campos no se detecta.
-- Entidades HTML **nombradas** (`&lt;script`): pendientes de medición.
+- Los operadores `$gt`/`$lt`/`$in` de Mongo quedan fuera de la firma NoSQL a propósito (los usan los filtros legítimos); `localhost` y `127.0.0.1` no cuentan como SSRF (OAuth de desarrollo).
 - Con `rate_backend="memory"` y varios workers, el límite efectivo se multiplica: usa Redis.
 - Si Redis no responde, `rate_fail_open=True` (por defecto) sigue admitiendo peticiones; ponlo a `False` si prefieres 503.
 - `trust_proxy=False` por defecto; actívalo solo detrás de un proxy de confianza. Con `trust_proxy=True` el XFF se lee de derecha a izquierda (`ips[-trusted_proxies]`); añade `trusted_proxy_cidrs` si la app es alcanzable por otro camino.
@@ -139,7 +182,9 @@ escenarios y detectar regresiones.
 | `rate_fail_open` | `True` | política si Redis no responde: admitir o 503 |
 | `inspect_requests` / `inspect_body` | `True` | inspección de query y de body |
 | `monitor_only` | `False` | registrar sin bloquear |
-| `disabled_rules` | `∅` | `sqli`, `xss`, `path_traversal`, `sensitive_files` o tus reglas |
+| `disabled_rules` | `∅` | `sqli`, `xss`, `path_traversal`, `sensitive_files`, `nosql`, `cmdi`, `ssrf`, `ssti`, `crlf`, `log4shell`, `proto_pollution` o tus reglas |
+| `rule_packs` | `∅` (todas) | packs opt-in: `minimal`, `api`, `web`, `infrastructure`, `strict` (ver abajo) |
+| `exclude_fields` | `[]` | campos (parámetro, cabecera o puntero JSON) exentos de inspección; admite globs |
 | `custom_rules` | `∅` | `{nombre: regex}` o lista `{name, pattern}` |
 | `max_body_size` | `1 MiB` | límite del body inspeccionado |
 | `allow_paths` | `[]` | globs exentos de inspección |
@@ -149,11 +194,67 @@ escenarios y detectar regresiones.
 | `security_headers` | ver fuente | `None` = cabeceras por defecto |
 
 `Config` falla al arrancar, no en producción: claves desconocidas (un typo como
-`rate_limt`), regex inválidas o vacías, nombres duplicados y `disabled_rules`
-inexistentes lanzan `ValueError`.
+`rate_limt`), regex inválidas o vacías, nombres duplicados, `disabled_rules`
+inexistentes y packs desconocidos lanzan `ValueError`.
 Las reglas propias se evalúan sobre texto **decodificado, sin comentarios `/**/` y
 en minúsculas**; evita patrones con backtracking catastrófico, los patrones
 propios no están acotados por Gatekeeper.
+
+## Packs de reglas
+
+Las once familias se evalúan por defecto. Si tu app expone menos superficie de
+la que asumes, puedes activar un subconjunto (los packs son **opt-in**: sin
+`rule_packs` no cambia nada respecto a lo que ya hacía Gatekeeper).
+
+| Pack | Familias | Para qué |
+|---|---|---|
+| `strict` | las once | defecto explícito; apps que sirven HTML de terceros |
+| `web` | + `xss` sobre `api` | web pública con HTML (el pack que casi todos quieren) |
+| `api` | `sqli`, `nosql`, `path_traversal`, `sensitive_files`, `ssrf`, `log4shell`, `crlf`, `cmdi` | APIs JSON/GraphQL: sin `xss`, `ssti` ni `proto_pollution` porque no hay plantilla que renderizar |
+| `minimal` | `sqli`, `path_traversal` | solo lo que no depende de la superficie expuesta |
+| `infrastructure` | `ssrf`, `log4shell`, `crlf`, `cmdi` | segunda capa tras un WAF, o backend sin SQL |
+
+```python
+from gatekeeper import Config
+
+Config(rule_packs=["api"], disabled_rules=["cmdi"])   # API sin XSS ni SSTI, sin cmdi
+```
+
+Un pack desconocido es `ValueError` al arrancar: una app no puede quedarse sin
+protección porque alguien escribiera `rule_packs=["we"]`.
+
+## Excluir campos (y no campos)
+
+Cuando tu app acepta por diseño un valor que una firma bloquea (un buscador que
+indexa documentación de seguridad, un parámetro `template` con Jinja, un
+webhook), exímeno **ese campo**, no la familia entera:
+
+```python
+Config(exclude_fields=["template", "bio", "doc_*"])
+```
+
+Funciona en los tres transportes: parámetro de query, cabecera (`user-agent`)
+y puntero JSON (`/user/bio` o solo `bio`). La detección que cruza varios campos
+se conserva: si excluyes `a` pero el payload está repartido entre `a` y `b`,
+Gatekeeper quita `a` del objetivo y sigue vigilando `b`. La alternativa es
+`disabled_rules`, que apaga la familia para toda la app.
+
+## `gatekeeper report`: mide antes de bloquear
+
+Poner el middleware delante en `monitor_only=True`, dejar correr el tráfico real
+y mirar qué salta:
+
+```bash
+monitor_only: true      # en tu configuración, mientras tanto
+gatekeeper report gatekeeper.log          # ranking de reglas, rutas y campos
+gatekeeper report gatekeeper.log --json   # salida legible por máquina
+```
+
+El informe agrupa por (regla, campo) —lo que se repite es ruido— y propone un
+`exclude_fields` o un `disabled_rules` listo para copiar. Acepta el JSON que
+emite el logger de Gatekeeper o un log de acceso genérico
+(`GET /ruta?q=... 200`). Los eventos de auditoría no incluyen el contenido del
+payload, así que este informe tampoco puede filtrar lo que el log no trae.
 
 ## Desarrollo
 

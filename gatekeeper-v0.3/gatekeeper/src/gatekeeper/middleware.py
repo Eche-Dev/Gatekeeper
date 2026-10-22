@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, urlencode
 
 from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
@@ -87,14 +87,35 @@ def _content_length(scope: Scope) -> int | None:
 def _query_field(path: str, query: str, cfg: Config) -> str | None:
     """Atribución del campo: el parámetro cuyo nombre/valor coincide, `path`,
     o None si el payload cruza parámetros (la detección es sobre el conjunto)."""
+    disabled = cfg.disabled_rules
+    extra = cfg.compiled_custom
     for key, value in parse_qsl(query, keep_blank_values=True):
-        if scan_detailed(key, cfg.disabled_rules, cfg.compiled_custom):
+        if scan_detailed(key, disabled, extra, cfg.active_rules):
             return key
-        if scan_detailed(value, cfg.disabled_rules, cfg.compiled_custom):
+        if scan_detailed(value, disabled, extra, cfg.active_rules):
             return key
-    if scan_detailed(path, cfg.disabled_rules, cfg.compiled_custom):
+    if scan_detailed(path, disabled, extra, cfg.active_rules):
         return "path"
     return None
+
+
+def _query_without_excluded(query: str, cfg: Config) -> str:
+    """Reconstruye la query sin los parámetros exentos.
+
+    La detección sigue siendo sobre el objetivo COMPLETO (un payload puede
+    cruzar parámetros), pero excluir un campo significa excluirlo de verdad: se
+    quita del objetivo lo que el usuario marcó como exento y se escanea el
+    resto. Si todo era exento, se devuelve la query original vacía y no hay
+    detección sobre ella (pero el path y los headers siguen inspeccionándose).
+    """
+    if not cfg.exclude_fields:
+        return query
+    pares = [
+        (key, value)
+        for key, value in parse_qsl(query, keep_blank_values=True)
+        if not cfg.field_excluded(key)
+    ]
+    return urlencode(pares)
 
 
 class GatekeeperMiddleware:
@@ -164,10 +185,14 @@ class GatekeeperMiddleware:
         path = scope.get("path", "")
         if cfg.inspect_requests and not is_path_allowed(path, cfg.allow_paths):
             query = scope.get("query_string", b"").decode("latin-1")
+            # Los campos exentos se quitan del objetivo ANTES de escanear: la
+            # detección sigue cruzando parámetros, pero no sobre lo excluido.
+            target = path + "?" + _query_without_excluded(query, cfg)
 
             # 1) ruta + query string: la detección va sobre el objetivo completo
             #    (un payload puede cruzar parámetros); el campo es atribución.
-            hit = scan_detailed(path + "?" + query, cfg.disabled_rules, cfg.compiled_custom)
+            hit = scan_detailed(target, cfg.disabled_rules, cfg.compiled_custom,
+                                cfg.active_rules)
             if hit:
                 rule, pattern = hit
                 self._audit("attack_detected", ip, scope, rule=rule, source="query",
@@ -180,10 +205,13 @@ class GatekeeperMiddleware:
             # 2) cabeceras inspeccionables: ahí viven los scanners y los
             #    payloads tipo Log4Shell (User-Agent, Referer, Cookie...)
             for header_name in sorted(cfg.inspect_headers):
+                if cfg.field_excluded(header_name):
+                    continue
                 raw_header = _header(scope, header_name.encode("latin-1"))
                 if not raw_header:
                     continue
-                hit = scan_detailed(raw_header, cfg.disabled_rules, cfg.compiled_custom)
+                hit = scan_detailed(raw_header, cfg.disabled_rules, cfg.compiled_custom,
+                                    cfg.active_rules)
                 if hit:
                     rule, pattern = hit
                     self._audit("attack_detected", ip, scope, rule=rule, source="header",
@@ -215,7 +243,10 @@ class GatekeeperMiddleware:
                 receive = replay(messages, receive)
 
                 for pointer, value in extract_strings(ctype, body):
-                    hit = scan_detailed(value, cfg.disabled_rules, cfg.compiled_custom)
+                    if cfg.field_excluded(pointer):
+                        continue
+                    hit = scan_detailed(value, cfg.disabled_rules, cfg.compiled_custom,
+                                        cfg.active_rules)
                     if not hit:
                         continue
                     rule, pattern = hit
