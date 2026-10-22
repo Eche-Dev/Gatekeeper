@@ -21,8 +21,8 @@ jobs:
         # release de un usuario.
         python: ["3.10", "3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: ${{ matrix.python }}
       - run: pip install -e ".[dev]"
@@ -56,11 +56,11 @@ jobs:
     # así un fallo de empaquetado (falta py.typed, metadata rota) no llega a PyPI.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.12"
-      - run: pip install build twine
+      - run: pip install --only-binary ":all:" "build==1.6.1" "twine==7.0.0"
       - run: python -m build
       - run: twine check dist/*
       - name: Instala el wheel en un entorno limpio y comprueba que importa
@@ -70,14 +70,14 @@ jobs:
           /tmp/gk-venv/bin/python -c "import gatekeeper; from gatekeeper import Config; print(gatekeeper.__version__)"
       - name: Comprueba que los tipos llegan al consumidor (py.typed)
         run: |
-          /tmp/gk-venv/bin/pip install mypy
+          /tmp/gk-venv/bin/pip install "mypy==2.4.0"
           printf 'from gatekeeper import Config\nconfig: int = Config()\n' > /tmp/consumidor.py
           if /tmp/gk-venv/bin/mypy /tmp/consumidor.py; then
             echo "mypy NO detectó el error esperado: faltan tipos en el wheel"
             exit 1
           fi
           echo "mypy detectó el error esperado: py.typed funciona"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: dist
           path: gatekeeper-v0.3/gatekeeper/dist/
@@ -95,11 +95,11 @@ jobs:
       run:
         working-directory: gatekeeper-v0.3/gatekeeper
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.12"
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: dist
           path: gatekeeper-v0.3/gatekeeper/dist
@@ -111,7 +111,7 @@ jobs:
         run: |
           python -m venv /tmp/audit
           /tmp/audit/bin/pip install -q dist/*.whl
-          /tmp/audit/bin/pip install -q pip-audit
+          /tmp/audit/bin/pip install -q "pip-audit==2.10.1"
           /tmp/audit/bin/pip freeze \
             | grep -v '^-e ' \
             | grep -vi '^gatekeeper-asgi' \
@@ -123,7 +123,7 @@ jobs:
         run: |
           python -m venv /tmp/audit-dev
           /tmp/audit-dev/bin/pip install -q -e ".[dev]"
-          /tmp/audit-dev/bin/pip install -q pip-audit
+          /tmp/audit-dev/bin/pip install -q "pip-audit==2.10.1"
           /tmp/audit-dev/bin/pip freeze \
             | grep -v '^-e ' \
             | grep -vi '^gatekeeper-asgi' \

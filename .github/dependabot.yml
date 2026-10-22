@@ -4,6 +4,11 @@
 # tocan. Cadencia mensual para no abrir PRs por cada minuto.
 version: 2
 updates:
+  # Las actions están fijadas a SHA completo en los workflows (un tag es una
+  # promesa móvil: quien mantiene la action puede re-apuntar `v7` a otro commit
+  # después de tu revisión). Esta entrada es lo que hace que eso sea sostenible:
+  # Dependabot lee el comentario `# v7` que sigue al SHA y sigue ofreciendo
+  # actualizaciones, así que el pin no te deja atrapado en una versión vieja.
   - package-ecosystem: github-actions
     directory: /
     schedule:

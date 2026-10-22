@@ -103,6 +103,18 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   el contenido del payload sigue sin registrarse.
 
 ### Corregido
+- **Actions fijadas a SHA completo** en todos los workflows (aviso de
+  SonarCloud, `Security Rating on New Code`): un tag como `actions/checkout@v7`
+  es una promesa móvil —quien mantiene la action puede re-apuntarlo a otro
+  commit después de tu revisión— y en el job de publicación a PyPI eso es
+  especialmente-sensitive. Los SHA se resolvieron contra la API de GitHub y
+  cada pin lleva su comentario `# v7`, que es lo que lee Dependabot para seguir
+  ofreciendo actualizaciones: el pin no te deja atrapado en una versión vieja.
+- **Herramientas de CI fijadas a versión exacta** (`build==1.6.1`,
+  `twine==7.0.0`, `mypy==2.4.0`, `pip-audit==2.10.1`) y con
+  `--only-binary ":all:"` para que pip no ejecute scripts de instalación de un
+  paquete comprometido (avisos de SonarCloud). Verificado que cada versión
+  existe y que el pipeline de build funciona con ellas.
 - **`permissions` explícitos en los workflows** (aviso de CodeQL
   `actions/missing-workflow-permissions`): sin ese bloque los workflows heredan
   los permisos del repositorio, que en repos anteriores a 2023 son read-write.
