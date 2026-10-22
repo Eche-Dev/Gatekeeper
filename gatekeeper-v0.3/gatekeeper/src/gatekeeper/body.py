@@ -12,12 +12,36 @@ def content_type_of(raw: str | None) -> str:
     return (raw or "").split(";")[0].strip().lower()
 
 
+# Content-types BINARIOS: su contenido no son cadenas que inspeccionar. Todo lo
+# demás —incluido el ausente— SÍ se inspecciona: un `text/plain` o un POST sin
+# content-type lo parsea `await request.json()` igual, y con la allowlist
+# anterior el payload pasaba sin verlo. multipart queda fuera hasta su parser
+# propio (v0.4).
+_BINARY_CONTENT_TYPES = frozenset({
+    "application/octet-stream",
+    "application/pdf",
+    "application/zip",
+    "application/gzip",
+    "application/x-gzip",
+    "application/x-tar",
+    "application/x-7z-compressed",
+    "application/x-rar-compressed",
+    "application/wasm",
+    "application/java-archive",
+    "application/x-bzip2",
+})
+_BINARY_PREFIXES = ("image/", "video/", "audio/", "font/")
+
+
 def is_inspectable(content_type: str) -> bool:
-    return (
-        content_type == "application/x-www-form-urlencoded"
-        or content_type == "application/json"
-        or content_type.endswith("+json")
-    )
+    """True salvo que el body sea binario conocido o multipart (ver arriba)."""
+    if not content_type:
+        return True
+    if content_type == "multipart/form-data":
+        return False
+    if content_type.startswith(_BINARY_PREFIXES):
+        return False
+    return content_type not in _BINARY_CONTENT_TYPES
 
 
 async def read_body(receive: Receive, max_size: int) -> tuple[list[Message], bytes | None]:
@@ -53,29 +77,45 @@ def replay(messages: list[Message], receive: Receive) -> Receive:
     return wrapped
 
 
-def _iter_strings(obj: Any) -> Iterator[str]:
-    stack = [obj]  # iterativo: sin recursión por anidamiento
+def _escape_pointer(token: str) -> str:
+    """Escapado RFC 6901 para los punteros de campo de los eventos de auditoría."""
+    return token.replace("~", "~0").replace("/", "~1")
+
+
+def _iter_fields(obj: Any, pointer: str = "") -> Iterator[tuple[str, str]]:
+    """`(puntero, texto)` de todos los textos, claves incluidas (iterativo)."""
+    stack: list[tuple[str, Any]] = [(pointer, obj)]
     while stack:
-        cur = stack.pop()
+        ptr, cur = stack.pop()
         if isinstance(cur, str):
-            yield cur
+            yield ptr, cur
         elif isinstance(cur, dict):
-            stack.extend(cur.keys())
-            stack.extend(cur.values())
+            for key, value in cur.items():
+                child = f"{ptr}/{_escape_pointer(str(key))}"
+                stack.append((child, value))
+                stack.append((child, str(key)))
         elif isinstance(cur, list):
-            stack.extend(cur)
+            for pos, value in enumerate(cur):
+                stack.append((f"{ptr}/{pos}", value))
 
 
-def extract_strings(content_type: str, body: bytes) -> list[str]:
-    """Extrae los textos a inspeccionar (claves y valores)."""
+def extract_strings(content_type: str, body: bytes) -> list[tuple[str, str]]:
+    """Extrae `(puntero, texto)` a inspeccionar.
+
+    El puntero identifica el campo en los eventos de auditoría: JSON pointer
+    (`/users/0/name`) en JSON, `/campo` en formularios y cadena vacía cuando se
+    inspecciona el cuerpo en bruto.
+    """
     text = body.decode("utf-8", errors="replace")
     if content_type == "application/x-www-form-urlencoded":
-        out: list[str] = []
+        out: list[tuple[str, str]] = []
         for key, value in parse_qsl(text, keep_blank_values=True):
-            out.extend((key, value))
+            ptr = f"/{_escape_pointer(key)}"
+            out.append((ptr, key))
+            out.append((ptr, value))
         return out
     try:
         obj = json.loads(body)
     except (ValueError, RecursionError):
-        return [text]  # JSON inválido o demasiado anidado: se escanea en bruto
-    return list(_iter_strings(obj))
+        return [("", text)]  # JSON inválido o demasiado anidado: se escanea en bruto
+    return list(_iter_fields(obj))

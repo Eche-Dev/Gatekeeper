@@ -164,21 +164,33 @@ def normalize(value: str, max_rounds: int = 3) -> str:
     return text.replace("/**/", " ").lower()
 
 
-def scan(
+def scan_detailed(
     value: str,
     disabled: set[str] | None = None,
     extra: dict[str, list[re.Pattern[str]]] | None = None,
-) -> str | None:
-    """Devuelve el nombre de la regla que coincide (integrada o personalizada), o None."""
+) -> tuple[str, str] | None:
+    """Como `scan()`, pero devuelve `(regla, patrón)` — el patrón es el "motivo"
+    que se registra en los eventos de auditoría para poder tunear sin adivinar."""
     disabled = disabled or set()
     text = normalize(value)
     groups = list(RULES.items()) + list((extra or {}).items())
     for name, patterns in groups:
         if name in disabled:
             continue
-        if any(p.search(text) for p in patterns):
-            return name
+        for pattern in patterns:
+            if pattern.search(text):
+                return name, pattern.pattern
     return None
+
+
+def scan(
+    value: str,
+    disabled: set[str] | None = None,
+    extra: dict[str, list[re.Pattern[str]]] | None = None,
+) -> str | None:
+    """Devuelve el nombre de la regla que coincide (integrada o personalizada), o None."""
+    hit = scan_detailed(value, disabled, extra)
+    return hit[0] if hit else None
 
 
 def scan_all(

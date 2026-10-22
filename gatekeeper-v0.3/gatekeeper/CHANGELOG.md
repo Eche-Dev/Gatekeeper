@@ -15,12 +15,39 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 - Firma de SQLi **blind boolean**: `ASCII(SUBSTRING(nombre,1,1))>64`.
 - `/WEB-INF/` como ruta sensible (por especificación Java EE es innaccesible
   desde un navegador; pedirla es exploración).
+- **Inspección de cabeceras** con `inspect_headers` (por defecto `user-agent`,
+  `referer`, `cookie` y `x-forwarded-for`): los payloads que viajan en
+  `User-Agent`/`Referer`/`Cookie` ya no pasan sin revisarse.
+- `blocked_ips` acepta **CIDR e IPv6** (`10.0.0.0/8`), además de IP exacta e
+  identificador literal del peer; una máscara mal escrita es `ValueError` al
+  arrancar, no un bloqueo ausente en silencio.
+- `trusted_proxies` y `trusted_proxy_cidrs`: cuántos hops tuyos hay en la cadena
+  XFF y desde qué redes se cree su valor.
+- La auditoría de ataques añade **`field`** (JSON pointer o parámetro culpable),
+  **`pattern`** (la regex que disparó) y **`entry`** (la red que bloqueó la IP);
+  el contenido del payload sigue sin registrarse.
+
+### Corregido
+- **[seguridad]** `X-Forwarded-For` se tomaba de izquierda a derecha
+  (`ips[0]`, un valor que escribe el cliente): rotándolo se evadían el rate
+  limit y `blocked_ips`. Se lee de derecha a izquierda (`ips[-trusted_proxies]`)
+  y, con `trusted_proxy_cidrs`, el XFF de un peer que no es tu proxy se ignora.
+- **[seguridad]** Solo se inspeccionaban bodies JSON/form: un POST
+  `text/plain` o sin `content-type` pasaba sin revisarse aunque
+  `await request.json()` lo parseara igual. Ahora todo content-type textual se
+  inspecciona (denylist de binarios; `multipart` queda para v0.4).
+- **[seguridad]** Las cabeceras no pasaban por las reglas: `User-Agent`,
+  `Referer` y `Cookie` admitían payloads sin salir del middleware
+  (resuelto con `inspect_headers`, arriba).
+- `blocked_ips` solo hacía coincidencia exacta; con un rango de red
+  (`10.0.0.0/8`) el bloqueo no existía aunque la configuración lo dijera.
 
 ### Cambiado
 - Corpus propio: **83/83 (100.0%)**, 0 FP sin documentar. El gate de CI sube
   de ≥ 90% a **100%**: cualquier regresión de detección deja CI en rojo.
-- Corpus CRS sin cambios (18.8% / FP 4.3%): las mejoras son de normalización
-  propia, no de sobreajuste al examen externo.
+- Corpus CRS recalibrado con las cabeceras y los bodies textuales en alcance:
+  **19.3% (219/1135)** con 3.9% de FP; los excluidos bajan de 212 a 12 (solo
+  binarios y cabeceras fuera de `inspect_headers`). Gate de CI: ≥ 19%.
 
 ## [0.3.0] - 2026-10-21
 

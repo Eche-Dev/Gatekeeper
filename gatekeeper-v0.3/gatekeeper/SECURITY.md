@@ -42,10 +42,15 @@ detección y registro, no sustitución de controles fundamentales.
 
 - **`trust_proxy=False` por defecto**: confiar en `X-Forwarded-For` sin un proxy
   de confianza permite falsificar la IP y saltarse el rate limit y el bloqueo.
+  Con `trust_proxy=True` el header se lee **de derecha a izquierda**
+  (`ips[-trusted_proxies]`, la entrada que añadió tu proxy, no la que escribe el
+  cliente) y, si la app es alcanzable saltándose el proxy, define
+  `trusted_proxy_cidrs` para ignorar el XFF de peers que no son tuyos.
 - **`rate_fail_open=True` por defecto**: si Redis cae, se sigue sirviendo
   tráfico. Cambia a `False` si tu prioridad es rechazar en vez de servir (503).
 - **Los logs de auditoría nunca contienen el payload**: registran la regla que
-  saltó y el origen, no el contenido. Un log con payloads es un vector de
+  saltó, el campo (JSON pointer o parámetro), el patrón que lo disparó y el
+  origen, no el contenido. Un log con payloads es un vector de
   inyección de log y expone datos de usuarios.
 - **Regex con cuantificadores acotados**: todos los cuantificadores de las reglas
   integradas van con límite (`\s{0,16}`). En v0.3 se encontró, con la batería de

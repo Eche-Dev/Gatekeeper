@@ -75,10 +75,16 @@ def test_normalize_es_idempotente_y_no_lanza(value: str) -> None:
     st.binary(max_size=500),
 )
 @settings(max_examples=200, deadline=None)
-def test_extract_strings_devuelve_solo_textos(content_type: str, raw: bytes) -> None:
+def test_extract_strings_devuelve_pares_puntero_texto(content_type: str, raw: bytes) -> None:
     out = body.extract_strings(content_type, raw)
     assert isinstance(out, list)
-    assert all(isinstance(item, str) for item in out)
+    assert all(
+        isinstance(item, tuple)
+        and len(item) == 2
+        and isinstance(item[0], str)
+        and isinstance(item[1], str)
+        for item in out
+    )
 
 
 @given(st.text(max_size=200))

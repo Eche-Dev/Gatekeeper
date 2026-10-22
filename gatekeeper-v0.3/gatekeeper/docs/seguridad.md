@@ -23,7 +23,7 @@ consultas parametrizadas y validación.
 
 | Capa | Mecanismo |
 |---|---|
-| Red/proxy | `trust_proxy` (solo detrás de un proxy de confianza) y `blocked_ips` |
+| Red/proxy | `trust_proxy` con lectura XFF de derecha a izquierda (`trusted_proxies` / `trusted_proxy_cidrs`) y `blocked_ips` (IP o CIDR) |
 | Abuso | Rate limiting por IP, memoria o Redis atómico |
 | Transporte | Límite de body (1 MiB → 413), también sin `Content-Length` |
 | Contenido | Normalización (3 rondas, `%uXXXX`, NFKC) + reglas acotadas |

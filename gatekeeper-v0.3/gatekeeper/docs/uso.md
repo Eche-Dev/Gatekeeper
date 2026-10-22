@@ -50,15 +50,18 @@ en silencio.
 
 En este orden, y el primero que salta manda:
 
-1. **IP bloqueada** (`blocked_ips`) → 403.
+1. **IP bloqueada** (`blocked_ips`: IP exacta o CIDR) → 403.
 2. **Rate limit** → 429.
 3. **Ruta + query string** decodificadas contra las reglas → 403.
-4. **Body** con content-type `application/json`, `+json` o
-   `application/x-www-form-urlencoded` → 403. Si el body supera
+4. **Cabeceras** de `inspect_headers` (`User-Agent`, `Referer`, `Cookie`,
+   `X-Forwarded-For`) → 403.
+5. **Body** con cualquier content-type textual (JSON, form, `text/plain`, XML
+   o sin `content-type`) → 403. Si el body supera
    `max_body_size` (o no declara `Content-Length`) → 413.
 
 !!! note "Qué NO inspecciona (por diseño)"
-    Cabeceras, cookies, `multipart/form-data` y bodies XML/binarios. Son límites
+    `multipart/form-data` y bodies binarios (imagen, PDF, zip…): no son cadenas
+    que inspeccionar sin parser propio (multipart, v0.4). Son límites
     conscientes y están declarados en la medición del corpus externo: no se
     cuentan como fallos, se cuentan como exclusiones.
 

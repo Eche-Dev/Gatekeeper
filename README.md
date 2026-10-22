@@ -41,8 +41,8 @@ Dos corpus, uno propio y otro externo, ambos con guarda en CI:
 
 | Métrica | Corpus propio (83 + 62) | OWASP CRS externo (1379 tests) |
 |---|---|---|
-| Ataques detectados | **100.0%** (83/83) | **18.8%** (185/982, familias 930/941/942) |
-| Falsos positivos sin documentar | **0** | — (4.3% sobre los negativos de CRS, línea base) |
+| Ataques detectados | **100.0%** (83/83) | **19.3%** (219/1135, familias 930/941/942) |
+| Falsos positivos sin documentar | **0** | — (3.9% sobre los negativos de CRS, línea base) |
 
 El detalle y los payloads que escapan están en
 [corpus/REPORT.md](gatekeeper-v0.3/gatekeeper/corpus/REPORT.md). Publicar el
