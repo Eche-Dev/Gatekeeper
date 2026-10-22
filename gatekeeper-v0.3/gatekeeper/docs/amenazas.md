@@ -53,8 +53,8 @@ el resto de la cobertura.
 |---|---|---|
 | Path y query | Siempre | Incluye el path completo (`/api/v1/<payload>` es vector) |
 | Cabeceras | `user-agent`, `referer`, `cookie`, `x-forwarded-for` por defecto | Configurable con `inspect_headers`; añade las tuyas si tu app las lee |
-| Body JSON/text/form | Hasta `max_body_bytes` (1 MiB) | `Content-Type: multipart/*` y octet-stream quedan fuera (ver límites) |
-| Body sin `Content-Length` | Se rechaza con 413 | No se arriesga a leer sin límite |
+| Body JSON/text/form | Hasta `max_body_size` (1 MiB) | `Content-Type: multipart/*` y octet-stream quedan fuera (ver límites) |
+| Body sin `Content-Length` | Se lee con límite | 413 si el stream supera `max_body_size` |
 
 ## Qué NO cubre Gatekeeper
 
@@ -64,9 +64,11 @@ Esto no son carencias por arreglar: son las fronteras del diseño.
 - **Validación semántica.** Gatekeeper ve firmas, no significado: un JSON
   enorme pero inocuo pasa; una consulta SQL construida a mano desde tu app
   también (eso es de las consultas parametrizadas).
-- **Payload repartido entre campos.** Un ataque repartido entre `q`, `sort` y
-  un header, cada trozo inocuo, pasa la inspección (ver
-  [corpus/README.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/README.md)).
+- **Payload repartido entre transportes.** Sin `inspect_cross_carrier=True`,
+  un ataque repartido entre query y body, con cada parte inocua, pasa la
+  inspección. Query y cabeceras siguen analizándose por separado. La opción de
+  cruce combina query con valores textuales no excluidos del body; no incluye
+  claves JSON ni cabeceras.
 - **Bodies multipart y binarios.** Un ataque dentro de un fichero adjunto no se
   inspecciona en v0.3; si aceptas uploads, sanea en la app o espera v0.4.
 - **WAF gestionado.** Gatekeeper no sustituye a ModSecurity/CRS ni a Cloudflare

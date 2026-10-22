@@ -697,24 +697,15 @@ def scan_detailed(
     aparece en el texto (ver `PREFILTER_LITERALS`). No cambia qué se detecta:
     un test lo verifica contra los dos corpus. Se puede desactivar para
     diagnosticar una discrepancia.
+
+    Si `allow_cross_carrier` es verdadero, `value` y `carriers` se consideran
+    partes de una misma entrada y se normalizan juntas antes de escanearlas.
     """
-    text = normalize(value)
-    # Cross-carrier query+body detection (opcional)
+    # Cross-carrier detection is opt-in because joining input contexts can add
+    # false positives; middleware only calls this after independent scans miss.
     if allow_cross_carrier and carriers:
-        # Agrupar carriers por tipo: query vs body
-        query_parts: list[str] = []
-        body_parts: list[str] = []
-        for c in carriers:
-            cl = c.lower()
-            # Señales de que es contenido de query (palabras clave SQL, operadores)
-            if not query_parts and any(kw in cl for kw in ['union', 'select', 'or ', 'and ']):
-                query_parts.append(c)
-            # Señales de que es contenido de body (XML, JSON, HTML, tags)
-            if not body_parts and any(kw in cl for kw in ['<', '{', '<?xml']):
-                body_parts.append(c)
-        if query_parts and body_parts:
-            combined = ' '.join(query_parts + body_parts)
-            text = normalize(combined)
+        value = " ".join((value, *carriers))
+    text = normalize(value)
     desactivadas = disabled or set()
     activas = _familias_a_evaluar(text, desactivadas, only, use_prefilter)
 

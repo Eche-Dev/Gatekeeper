@@ -51,6 +51,8 @@ from gatekeeper import Config, GatekeeperMiddleware
 
 QUERY_OK = b"q=hello+world&page=2"
 QUERY_ATTACK = b"q=1+UNION+SELECT+password+FROM+users"
+BODY_OK = b'{"comment":"A normal request body"}'
+BODY_CROSS_ATTACK = b'{"statement":"select password from users"}'
 
 # NO hay un presupuesto absoluto, y es una decisión con datos.
 #
@@ -68,8 +70,17 @@ QUERY_ATTACK = b"q=1+UNION+SELECT+password+FROM+users"
 # mismo en las dos.
 
 
-async def _receive():
-    return {"type": "http.request", "body": b"", "more_body": False}
+def make_receive(body: bytes = b""):
+    sent = False
+
+    async def receive():
+        nonlocal sent
+        if sent:
+            return {"type": "http.disconnect"}
+        sent = True
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    return receive
 
 
 async def _send(message):
@@ -80,13 +91,15 @@ def make_app(config: Config | None = None) -> Starlette:
     async def ok(request):
         return PlainTextResponse("ok")
 
-    app = Starlette(routes=[Route("/", ok)])
+    app = Starlette(routes=[Route("/", ok, methods=["GET", "POST"])])
     if config is not None:
         app.add_middleware(GatekeeperMiddleware, config=config)
     return app
 
 
-def make_scope(query: bytes = QUERY_OK, method: str = "GET", body: bytes = b"") -> dict:
+def make_scope(
+    query: bytes = QUERY_OK, method: str = "GET", body: bytes = b""
+) -> dict:
     headers = [(b"host", b"bench"), (b"user-agent", b"bench")]
     if body:
         headers.append((b"content-type", b"application/json"))
@@ -119,7 +132,14 @@ def percentile(samples: list[float], pct: float) -> float:
     return ordered[k]
 
 
-def measure(app, iterations: int, rounds: int, query: bytes = QUERY_OK) -> list[float]:
+def measure(
+    app,
+    iterations: int,
+    rounds: int,
+    query: bytes = QUERY_OK,
+    method: str = "GET",
+    body: bytes = b"",
+) -> list[float]:
     """Latencia POR PETICIÓN en µs: una muestra por request, de todas las rondas.
 
     A diferencia de la media por ronda (v0.3), esto captura la cola: una regla
@@ -128,7 +148,7 @@ def measure(app, iterations: int, rounds: int, query: bytes = QUERY_OK) -> list[
 
     async def one() -> float:
         t0 = time.perf_counter_ns()
-        await app(make_scope(query), _receive, _send)
+        await app(make_scope(query, method, body), make_receive(body), _send)
         return (time.perf_counter_ns() - t0) / 1000.0
 
     async def run() -> list[float]:
@@ -150,8 +170,16 @@ def scenarios() -> list[tuple[str, Config | None, dict]]:
         ("sin middleware (base)", None, {}),
         ("solo cabeceras",
          Config(inspect_requests=False, inspect_body=False, rate_limit=0), {}),
-        ("inspección (query + body), sin rate limit",
+        ("inspección de query (sin body), sin rate limit",
          Config(rate_limit=0), {}),
+        ("inspección de body JSON, sin rate limit",
+         Config(rate_limit=0), {"method": "POST", "body": BODY_OK}),
+        ("cruce query/body opt-in (benigno)",
+         Config(rate_limit=0, inspect_cross_carrier=True),
+         {"query": b"q=hello", "method": "POST", "body": BODY_OK}),
+        ("cruce query/body atacante (403)",
+         Config(rate_limit=0, inspect_cross_carrier=True),
+         {"query": b"q=union", "method": "POST", "body": BODY_CROSS_ATTACK}),
         ("rate limit solo (sin inspección)",
          Config(inspect_requests=False, inspect_body=False, rate_limit=10_000_000), {}),
         ("completo (inspección + rate limit)",

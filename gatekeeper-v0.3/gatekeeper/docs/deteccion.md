@@ -46,6 +46,9 @@ PortSwigger), con procedencia en [corpus/README.md](https://github.com/Eche-Dev/
 | Falsos negativos sin documentar | 0 |
 | Falsos positivos sin documentar | **0** / 81 (5 documentados) |
 
+Estas cifras miden los escaneos individuales del corpus; no incluyen el modo
+opt-in `inspect_cross_carrier=True`.
+
 Los 5 FP documentados existen y se listan con su motivo en
 [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md):
 texto técnico que cita vectores (`sleep(5)` en búsquedas, `<script>` como término
@@ -64,12 +67,12 @@ y 942 (SQLi)** — se importan a `corpus/crs_payloads.json` con `tools/import_cr
 | Métrica (CRS) | Valor |
 |---|---|
 | Tests importados | 1379 (1135 en alcance) |
-| Ataques detectados | 394 / 1135 (**34.7%**) |
+| Ataques detectados | 459 / 1135 (**40.4%**) |
 | Negativos de CRS bloqueados | 11 / 232 (4.7%) |
 | Excluidos y declarados | 12 (cabeceras fuera de `inspect_headers` y bodies binarios) |
 
-!!! success "Por qué se publica el 34.7%"
-    Un 100% propio junto a un 34.7% ajeno es la señal de que la medición es
+!!! success "Por qué se publica el 40.4%"
+    Un 100% propio junto a un 40.4% ajeno es la señal de que la medición es
     honesta. El corpus de CRS está diseñado para un WAF de 500+ reglas que
     acepta los falsos positivos que Gatekeeper no acepta; aquí su número es una
     **línea base con guarda de regresión**, no una promesa. Y los 11 FP de CRS

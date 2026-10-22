@@ -9,7 +9,14 @@ from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from .body import content_type_of, extract_strings, is_inspectable, read_body, replay
+from .body import (
+    content_type_of,
+    extract_strings,
+    extract_strings_and_values,
+    is_inspectable,
+    read_body,
+    replay,
+)
 from .config import Config
 from .paths import is_path_allowed
 from .ratelimit import BackendUnavailable, MemoryBackend, RateLimitBackend, RedisBackend
@@ -193,6 +200,7 @@ class GatekeeperMiddleware:
             #    (un payload puede cruzar parámetros); el campo es atribución.
             hit = scan_detailed(target, cfg.disabled_rules, cfg.compiled_custom,
                                 cfg.active_rules)
+            individually_detected = hit is not None
             if hit:
                 rule, pattern = hit
                 self._audit("attack_detected", ip, scope, rule=rule, source="query",
@@ -213,6 +221,7 @@ class GatekeeperMiddleware:
                 hit = scan_detailed(raw_header, cfg.disabled_rules, cfg.compiled_custom,
                                     cfg.active_rules)
                 if hit:
+                    individually_detected = True
                     rule, pattern = hit
                     self._audit("attack_detected", ip, scope, rule=rule, source="header",
                                 field=header_name, pattern=pattern[:160],
@@ -242,13 +251,22 @@ class GatekeeperMiddleware:
                     return
                 receive = replay(messages, receive)
 
-                for pointer, value in extract_strings(ctype, body):
+                has_inspectable_body_value = False
+                if cfg.inspect_cross_carrier:
+                    body_fields, cross_values = extract_strings_and_values(ctype, body)
+                else:
+                    body_fields = extract_strings(ctype, body)
+                    cross_values = []
+
+                for pointer, value in body_fields:
                     if cfg.field_excluded(pointer):
                         continue
+                    has_inspectable_body_value = True
                     hit = scan_detailed(value, cfg.disabled_rules, cfg.compiled_custom,
                                         cfg.active_rules)
                     if not hit:
                         continue
+                    individually_detected = True
                     rule, pattern = hit
                     self._audit("attack_detected", ip, scope, rule=rule, source="body",
                                 field=pointer, pattern=pattern[:160],
@@ -257,6 +275,46 @@ class GatekeeperMiddleware:
                         await self._reject(403, "Forbidden", scope, receive, send)
                         return
                     break  # monitor_only: un evento basta; seguimos hacia la app
+
+                if (
+                    cfg.inspect_cross_carrier
+                    and not individually_detected
+                    and has_inspectable_body_value
+                ):
+                    # Only non-excluded fields participate; audit never stores
+                    # their text. The body size is bounded before this join.
+                    cross_body = " ".join(
+                        value
+                        for pointer, value in cross_values
+                        if not cfg.field_excluded(pointer)
+                    )
+                    hit = (
+                        scan_detailed(
+                            target,
+                            cfg.disabled_rules,
+                            cfg.compiled_custom,
+                            cfg.active_rules,
+                            carriers=[cross_body],
+                            allow_cross_carrier=True,
+                        )
+                        if cross_body
+                        else None
+                    )
+                    if hit:
+                        rule, pattern = hit
+                        self._audit(
+                            "attack_detected",
+                            ip,
+                            scope,
+                            rule=rule,
+                            source="query_body",
+                            field="request target + body",
+                            pattern=pattern[:160],
+                            blocked=not cfg.monitor_only,
+                        )
+                        if not cfg.monitor_only:
+                            await self._reject(403, "Forbidden", scope, receive, send)
+                            return
 
         headers = cfg.headers()
 

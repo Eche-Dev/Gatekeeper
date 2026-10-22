@@ -25,7 +25,7 @@ Se añade con `app.add_middleware(GatekeeperMiddleware, config=...)`.
 |---|---|---|
 | `403` | `{"detail": "Forbidden"}` | Regla de detección, IP bloqueada |
 | `429` | `{"detail": "rate limit exceeded"}` | Rate limit |
-| `413` | `{"detail": "payload too large"}` | Body sobre `max_body_size` o sin `Content-Length` |
+| `413` | `{"detail": "Payload Too Large"}` | Tamaño declarado o leído del body supera `max_body_size` |
 | `503` | `{"detail": "rate_limit_backend_unavailable"}` | Redis caído con `rate_fail_open=False` |
 
 ## `Config`
@@ -51,6 +51,7 @@ Dataclass con validación en `__post_init__`. Un valor inválido lanza
 | `inspect_requests` | `bool` | `True` |
 | `inspect_headers` | `set[str]` | `{"user-agent", "referer", "cookie", "x-forwarded-for"}` (vacío = desactivado) |
 | `monitor_only` | `bool` | `False` (solo registra) |
+| `inspect_cross_carrier` | `bool` | `False` (combina ruta/query con valores textuales del body; claves se inspeccionan individualmente; opt-in por posibles falsos positivos) |
 | `rule_packs` | `list[str] \| None` | `None` = **todas** las familias (los packs son opt-in): `minimal`, `api`, `web`, `infrastructure`, `strict` |
 | `disabled_rules` | `set[str]` | `set()` — nombres de `sqli`, `xss`, `path_traversal`, `sensitive_files`, `nosql`, `cmdi`, `ssrf`, `ssti`, `crlf`, `log4shell`, `proto_pollution` (ver [modelo de amenazas](amenazas.md)) |
 | `exclude_fields` | `list[str]` | `[]` — parámetros, cabeceras o punteros JSON exentos de inspección (globs `fnmatch`; el puntero `/user/bio` también casa por `bio`) |
@@ -59,8 +60,10 @@ Dataclass con validación en `__post_init__`. Un valor inválido lanza
 Un `rule_packs` desconocido es `ValueError` al arrancar, igual que un
 `disabled_rules` con nombres inexistentes.
 
-`exclude_fields` conserva la detección que cruza varios campos: el campo exento
-se quita del objetivo antes de escanear, el resto se sigue vigilando.
+`exclude_fields` conserva la detección que cruza varios parámetros de
+ruta/query: el campo exento se quita del objetivo antes de escanear, el resto se
+sigue vigilando. En el cruce opcional query/body, los valores excluidos tampoco
+participan.
 
 ### Body y rutas
 

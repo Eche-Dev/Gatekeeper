@@ -99,6 +99,25 @@ def test_malformed_benign_json_reaches_app():
     assert r.status_code == 200
 
 
+def test_extract_strings_can_omit_json_keys_for_cross_carrier_scanning():
+    from gatekeeper.body import extract_strings
+
+    body = b'{"select": "password from users"}'
+    assert extract_strings("application/json", body, include_keys=False) == [
+        ("/select", "password from users")
+    ]
+
+
+def test_extract_strings_and_values_reuses_parsed_body_fields():
+    from gatekeeper.body import extract_strings_and_values
+
+    body = b'{"select": "password from users"}'
+    assert extract_strings_and_values("application/json", body) == (
+        [("/select", "select"), ("/select", "password from users")],
+        [("/select", "password from users")],
+    )
+
+
 def test_deeply_nested_json_does_not_crash():
     body = b"[" * 5000 + b"]" * 5000
     r = make_client().post("/echo", content=body, headers={"content-type": "application/json"})

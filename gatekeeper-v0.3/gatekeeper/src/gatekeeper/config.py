@@ -80,6 +80,9 @@ class Config:
     # Detección de patrones
     inspect_requests: bool = True
     monitor_only: bool = False  # True: solo registra, no bloquea
+    # Combina el objetivo de ruta/query con los campos textuales del body.
+    # Opt-in porque combinar contextos puede aumentar los falsos positivos.
+    inspect_cross_carrier: bool = False
     disabled_rules: set[str] = field(default_factory=set)
     # Reglas propias: {nombre: regex} o [{name:, pattern:}]. Se evalúan sobre texto
     # decodificado y en minúsculas.

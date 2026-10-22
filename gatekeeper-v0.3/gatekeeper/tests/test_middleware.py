@@ -12,7 +12,7 @@ def make_client(**cfg):
     async def home(request):
         return PlainTextResponse("ok")
 
-    app = Starlette(routes=[Route("/", home)])
+    app = Starlette(routes=[Route("/", home, methods=["GET", "POST"])])
     app.add_middleware(GatekeeperMiddleware, config=Config(**cfg))
     return TestClient(app)
 
@@ -65,3 +65,62 @@ def test_custom_rule_blocks_and_is_audited(caplog):
         r = c.get("/wp-login.php")
     assert r.status_code == 403
     assert "wp-probe" in caplog.text
+
+
+def test_query_body_cross_detection_is_opt_in():
+    body = "select password from users"
+    headers = {"content-type": "text/plain"}
+    assert make_client().post("/?q=union", content=body, headers=headers).status_code == 200
+    assert (
+        make_client(inspect_cross_carrier=True)
+        .post("/?q=union", content=body, headers=headers)
+        .status_code
+        == 403
+    )
+
+
+def test_query_body_cross_detection_respects_excluded_fields():
+    response = make_client(
+        inspect_cross_carrier=True,
+        exclude_fields=["q"],
+    ).post(
+        "/?q=union",
+        content="select password from users",
+        headers={"content-type": "text/plain"},
+    )
+    assert response.status_code == 200
+
+
+def test_query_body_cross_detection_handles_json_values():
+    response = make_client(inspect_cross_carrier=True).post(
+        "/?q=union",
+        json={"statement": "select password from users"},
+    )
+    assert response.status_code == 403
+
+
+def test_query_body_cross_detection_respects_excluded_body_fields():
+    response = make_client(
+        inspect_cross_carrier=True,
+        exclude_fields=["statement"],
+    ).post(
+        "/?q=union",
+        json={"statement": "select password from users"},
+    )
+    assert response.status_code == 200
+
+
+def test_query_body_cross_detection_monitor_mode_does_not_log_payload(caplog):
+    body = "select private_column from users"
+    with caplog.at_level(logging.WARNING, logger="gatekeeper"):
+        response = make_client(
+            inspect_cross_carrier=True,
+            monitor_only=True,
+        ).post(
+            "/?q=union",
+            content=body,
+            headers={"content-type": "text/plain"},
+        )
+    assert response.status_code == 200
+    assert '"source": "query_body"' in caplog.text
+    assert "private_column" not in caplog.text

@@ -6,6 +6,7 @@ redis_url: redis://localhost:6379/0
 redis_prefix: gatekeeper:rl:
 rate_fail_open: true     # si Redis no responde: true -> admite, false -> 503
 monitor_only: false      # true: solo registra, no bloquea (útil para medir falsos positivos)
+inspect_cross_carrier: false  # combina ruta/query + valores textuales del body; probar primero en monitor_only
 max_body_size: 1048576   # bytes; JSON/form por encima -> 413
 trust_proxy: false       # true solo detrás de un proxy de confianza
 allow_paths:             # exentas de inspección (siguen sujetas a rate limit)

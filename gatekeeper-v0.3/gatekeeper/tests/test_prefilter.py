@@ -50,8 +50,8 @@ TEXTOS = _textos()
 
 
 def test_corpus_no_esta_vacio():
-    # 131 ataques + 72 benignos + 1379 de CRS
-    assert len(TEXTOS) > 1500, f"el corpus se ha cargado mal: {len(TEXTOS)}"
+    # 159 ataques + 81 benignos + 1379 solicitudes CRS y sus cabeceras.
+    assert len(TEXTOS) == 1787, f"el corpus se ha cargado mal: {len(TEXTOS)}"
 
 
 @pytest.mark.parametrize("texto", TEXTOS)
