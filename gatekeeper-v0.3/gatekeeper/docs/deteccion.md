@@ -22,8 +22,8 @@ dos `\s*` adyacentes son O(n²) — en v0.3 eso se midió (118 s de CPU con
 | Cubre | No cubre (y por qué) |
 |---|---|
 | SQLi con firma reconocible | Payloads sin firma (`>>`, `RegExp`): no somos un motor de contexto |
-| XSS con etiqueta, handler o esquema | Entidades HTML (`&#60;script`): decidido y documentado |
-| Traversal `../` en frontera de segmento | UTF-8 sobre-long (`%c0%af`): requeriría validar encoding |
+| XSS con etiqueta, handler, esquema o entidad numérica | Entidades nombradas (`&lt;script`): pendiente de medición |
+| Traversal `../` en frontera de segmento (incl. sobre-long `%c0%af`) | Truncación por `%00`: no aplica en Python 3 (lanza error) |
 | Ficheros sensibles con separador de ruta | Enumeración passiva (`?id=7`) |
 | JSON y form bodies | Cabeceras, cookies, XML, multipart |
 | — | Ataques a la lógica, authn/authz, CSRF, rate abuse por usuario |
@@ -36,15 +36,16 @@ PortSwigger), con procedencia en [corpus/README.md](https://github.com/Eche-Dev/
 
 | Métrica | Valor |
 |---|---|
-| Ataques detectados | 78 / 83 (**94.0%**) |
-| Falsos negativos sin documentar | 0 (5 documentados) |
+| Ataques detectados | **83 / 83 (100.0%)** |
+| Falsos negativos sin documentar | 0 |
 | Falsos positivos sin documentar | **0** / 62 (4 documentados) |
 
-Los FP/FN documentados existen y se listan con su motivo en
+Los 4 FP documentados existen y se listan con su motivo en
 [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md):
-texto técnico que cita vectores (`sleep(5)` en búsquedas), entidades HTML,
-blind boolean carácter a carácter… La regla es que **un límite se documenta, no
-se esconde**.
+texto técnico que cita vectores (`sleep(5)` en búsquedas, `<script>` como término
+de búsqueda, `javascript:` en prosa, `%252e%252e%252f` al hablar de codificación).
+Colisionan con la firma por construcción — la regla es que **un límite se
+documenta, no se esconde**.
 
 ## El corpus externo (OWASP CRS)
 
@@ -62,7 +63,7 @@ y 942 (SQLi)** — se importan a `corpus/crs_payloads.json` con `tools/import_cr
 | Excluidos y declarados | 212 (cabeceras y content-types no inspeccionados) |
 
 !!! success "Por qué se publica el 18.8%"
-    Un 94% propio junto a un 18.8% ajeno es la señal de que la medición es
+    Un 100% propio junto a un 18.8% ajeno es la señal de que la medición es
     honesta. El corpus de CRS está diseñado para un WAF de 500+ reglas que
     acepta los falsos positivos que Gatekeeper no acepta; aquí su número es una
     **línea base con guarda de regresión**, no una promesa. Y los 8 FP de CRS
@@ -78,8 +79,9 @@ python tools/evaluate.py --json        # salida legible por máquina
 python tools/import_crs.py --check     # procedencia del corpus externo
 ```
 
-Umbrales actuales en CI: detección ≥ 90% y 0 FP sin documentados (corpus
-propio); ≥ 18% de detección y ≤ 5% de FP sobre CRS (guarda de línea base).
+Umbrales actuales en CI: detección **100%** y 0 FP sin documentados (el corpus
+propio es la promesa pública); ≥ 18% de detección y ≤ 5% de FP sobre CRS
+(guarda de línea base).
 
 ## Cómo se añade una regla (resumen)
 

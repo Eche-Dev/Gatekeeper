@@ -34,6 +34,13 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"\border\s{1,16}by\s{1,16}['\"]?\d+"),
         # subconsulta sin filtrar: `EXISTS(SELECT ...)`, `OR (SELECT ...)`
         re.compile(r"\bexists\s{0,16}\(\s{0,16}select\b"),
+        # blind boolean carácter a carácter: `ASCII(SUBSTRING(p,1,1))>64` — la
+        # combinatoria ascii/ord/length sobre substring/mid no aparece en
+        # tráfico legítimo y es la firma canónica de la exfiltración ciega
+        re.compile(
+            r"\b(?:ascii|ord|length|char_length)\s{0,16}\(\s{0,16}"
+            r"(?:substring|substr|mid)\s{0,16}\("
+        ),
         # time-based: SLEEP / PG_SLEEP / BENCHMARK / DBMS_PIPE
         re.compile(r"\b(?:pg_|dbms_)?sleep\s{0,16}\(\s{0,16}\d+"),
         re.compile(r"\bbenchmark\s{0,16}\(\s{0,16}\d+"),
@@ -76,23 +83,66 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"(?:^|[\\/?=&])\.git/config\b"),
         # `.env` exige separador de ruta: `?q=.env` (búsqueda) pasa, `?file=/app/.env` no
         re.compile(r"(?:^|[\\/])\.env\b"),
+        # Java: `/WEB-INF/` es innaccesible por especificación Java EE; pedirlo
+        # desde un navegador es exploración, nunca tráfico legítimo
+        re.compile(r"(?:^|[\\/?=&])web-inf[/\\]"),
     ],
 }
 
 
 _UNICODE_ESCAPE = re.compile(r"%u([0-9a-fA-F]{4})", re.IGNORECASE)
+# Entidades HTML numéricas: `&#60;` es `<` y `&#106;avascript:` es `javascript:`.
+# Sin este paso, `&#60;script&#62;alert(1)` pasa intacto por cualquier inspección.
+_HTML_ENTITY = re.compile(r"&#(?:x([0-9a-fA-F]{1,6})|(\d{1,7}));", re.IGNORECASE)
+# UTF-8 sobre-long: `%c0%af` es una `/` con bytes de más. `unquote` deja los
+# bytes inválidos como U+FFFD, así que la forma porcentual se sustituye ANTES
+# de decodificar; la forma ya convertida a caracteres (`%u00c0%u00af`) se
+# normaliza después. Cualquier servidor que valide el encoding hace lo mismo.
+_OVERLONG_MAP = {"%c0%af": "/", "%c0%ae": ".", "%e0%80%af": "/", "%e0%80%ae": "."}
+_OVERLONG_PERCENT = re.compile("|".join(map(re.escape, _OVERLONG_MAP)), re.IGNORECASE)
+_OVERLONG_CHARS = (
+    ("\u00c0\u00af", "/"),
+    ("\u00c0\u00ae", "."),
+    ("\u00e0\u0080\u00af", "/"),
+    ("\u00e0\u0080\u00ae", "."),
+)
+
+
+def _overlong_to_char(match: re.Match[str]) -> str:
+    return _OVERLONG_MAP[match.group(0).lower()]
+
+
+def _entity_to_char(match: re.Match[str]) -> str:
+    hexa, decimal = match.group(1), match.group(2)
+    code = int(hexa, 16) if hexa else int(decimal, 10)
+    # `chr()` lanza con > 0x10FFFF: la entidad se deja tal cual. El fuzzer
+    # genera `&#99999999;` y debe seguir pasando sin excepción.
+    return match.group(0) if code > 0x10FFFF else chr(code)
 
 
 def decode(value: str, max_rounds: int = 3) -> str:
-    """Decodifica URL-encoding repetido y escapes `%uXXXX` (IIS/ASP).
+    """Decodifica URL-encoding repetido, escapes `%uXXXX` y entidades HTML.
 
-    El `%uXXXX` es la codificación Unicode de IIS: `or %U20191%U2019` es
-    `or ’1’`. Sin este paso, esa evasión pasa intacta (mayúsculas incluidas).
+    - `%uXXXX` es la codificación Unicode de IIS: `or %U20191%U2019` es
+      `or ’1’`. Sin este paso, esa evasión pasa intacta (mayúsculas incluidas).
+    - Entidades numéricas: `&#60;script&#62;` es `<script>`; los rangos se
+      acotan para que `&#99999999;` no reviente (`_entity_to_char`).
+    - Sobre-long: `%c0%af` → `/` antes de decodificar (`_OVERLONG_PERCENT`)
+      y en forma de caracteres después (`_OVERLONG_CHARS`).
+    Todo por rondas: cada forma puede revelar la siguiente (`&#38;#60;` →
+    `&#60;` → `<`), de ahí que convivan en el mismo ciclo.
     """
     for _ in range(max_rounds):
+        antes = value
         value = _UNICODE_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), value)
+        value = _HTML_ENTITY.sub(_entity_to_char, value)
+        value = _OVERLONG_PERCENT.sub(_overlong_to_char, value)
         decoded = unquote_plus(value)
-        if decoded == value:
+        for overlong, directo in _OVERLONG_CHARS:
+            decoded = decoded.replace(overlong, directo)
+        # se compara con el INICIO de la ronda: una transformación puede revelar
+        # otra sin que el final del pipeline cambie (`&#38;#60;` → `&#60;` → `<`)
+        if decoded == antes:
             break
         value = decoded
     return value
