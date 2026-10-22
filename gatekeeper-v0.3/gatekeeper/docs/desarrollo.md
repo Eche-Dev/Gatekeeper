@@ -22,7 +22,7 @@ Python 3.10+ (el CI prueba 3.10–3.12). El proyecto vive en
 | `python tools/evaluate.py --check` | Tasas de detección y FP (corpus propio + CRS) |
 | `python tools/import_crs.py --check` | Procedencia del corpus externo |
 | `python benchmarks/latency.py` | Latencia p50/p95/p99 por petición y escenario |
-| `python benchmarks/latency.py --check` | Guarda de regresión de latencia (lo que corre CI) |
+| `python benchmarks/latency.py --baseline <json>` | Compara con una Medición previa (misma máquina) |
 | `python -m build && twine check dist/*` | Empaquetado |
 
 ## Estructura
@@ -47,27 +47,42 @@ Python 3.10+ (el CI prueba 3.10–3.12). El proyecto vive en
    `extract_strings`, `Config` y `allow_paths`. Invariantes: nada revienta,
    `normalize` es idempotente, y una ruta con `..` **nunca** se exime.
 
-## La guarda de latencia
+## Latencia: medir, no construir un guard automático
 
-`benchmarks/latency.py` mide **percentiles por petición real** (p50/p95/p99),
-no medias por ronda: la media esconde la cola, que es lo que nota un usuario.
-Con `--check` se convierte en un guard de regresión que corre en CI.
+`benchmarks/latency.py` mide **percentiles por petición real** (p50/p95/p99), no
+medias por ronda: la media escondía la cola, que es lo que nota un usuario. El
+mismo escenario que la media rondaba los ~90 µs tiene un p95 de 123 µs.
 
-Dos decisiones que hay que entender antes de tocar `CHECK_BUDGET_US`:
+### Cómo comparar dos versiones
 
-- **El veredicto usa el mejor p95 de tres rondas.** El ruido del sistema (GC,
-  CPU compartida de los runners) solo *sube* el percentil; el mínimo de varias
-  mediciones es la estimación más cercana al coste real del código. Con una
-  sola ronda, una pausa del recolector cae dentro del 5 % más lento y declara
-  una regresión donde no la hay — un guard que da falsos positivos es peor que
-  no tener guard.
-- **Los presupuestos son de regresión, no de rendimiento.** No son un SLA ni un
-  número para comparar entre máquinas. Subirlos es una decisión deliberada: si
-  un cambio legítimo (más familias, más campos) empuja el p95 por encima,
-  actualiza el umbral **explicando el motivo en el PR**, no en silencio.
+```bash
+python benchmarks/latency.py --save base.json
+# ... cambia el código ...
+python benchmarks/latency.py --baseline base.json    # sale 1 si empeoró más del margen
+```
 
-La batería incluye un test que verifica que el guard **falla** ante un
-presupuesto imposible: un guard que nunca rompe nada es un adorno.
+El margen por defecto es 25 %. Compara el **overhead** (lo que añade el
+middleware sobre la línea base de la misma corrida), no el absoluto.
+
+### Por qué no corre en CI
+
+Se implementó un guard automático con umbral en µs y **se eliminó al medir que
+no podía ser fiable**. En un runner de CI con CPU compartida, el ruido de la
+máquina supera a la señal:
+
+| Situación | Overhead p50 medido |
+|---|---|
+| Portátil sin carga | 73 µs |
+| Runner de CI saturado | 220–312 µs |
+| Regresión real (200 firmas nuevas) | 175 µs |
+
+Una máquina lenta da un overhead mayor que una regresión de código: ningún
+umbral los separa. El guard solo podría dar falsos positivos en cada build o
+ser ciego a regresiones moderadas. La decisión y sus datos están también en el
+`ci.yml`, para que nadie lo reintroduzca sin conocer la razón.
+
+El benchmark sigue siendo la herramienta: publicar la cola real y comparar
+antes/después localmente. Automatizarlo exigiría un runner con CPU fijada.
 
 ## Documentación
 

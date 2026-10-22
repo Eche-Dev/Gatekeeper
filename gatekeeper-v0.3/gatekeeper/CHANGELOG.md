@@ -6,13 +6,14 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [0.3.1] - 2026-10-22
 
 ### Añadido
-- **Guarda de regresión de latencia en CI** (`python benchmarks/latency.py
-  --check`): mide p50/p95/p99 por petición real en vez de la media por ronda, y
-  falla el pipeline si un escenario se pasa de su presupuesto. Usa el mejor p95
-  de tres rondas porque el ruido del sistema solo sube el percentil; los
-  presupuesto viven en `CHECK_BUDGET_US` y subirlos es una decisión que se
-  documenta. Detecta regresiones reales (medido: 200 firmas nuevas llevan el p95
-  del escenario completo de ~120 a ~195 µs y el guard lo ve).
+- **Percentiles por petición real** (p50/p95/p99/máx) en `benchmarks/latency.py`,
+  en lugar de la media por ronda: la media escondía la cola, que es lo que nota
+  un usuario. El escenario «completo» que la media rondaba en ~90 µs tiene un
+  p95 de 123 µs y un p99 de 149 µs.
+- **Comparación de dos versiones** (`--save` / `--baseline`): mide en tu máquina,
+  cambia el código, mide otra vez y te dice si algún escenario empeoró más del
+  margen (25 % por defecto). Es la única comparación fiable y la que se usa antes
+  de abrir un PR que toca el camino caliente.
 - **Packs de reglas opt-in** (`rule_packs`): `minimal`, `api`, `web`,
   `infrastructure` y `strict` agrupan las familias por la superficie que la
   app expone. Sin configurar nada se siguen evaluando las once (los packs no
@@ -101,6 +102,9 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   (`10.0.0.0/8`) el bloqueo no existía aunque la configuración lo dijera.
 
 ### Cambiado
+- El benchmark mide percentiles por petición real (p50/p95/p99) en lugar de la
+  media por ronda: una media mezcla la pausa del recolector de basura con el
+  trabajo real del middleware y esconde la cola de latencia.
 - Corpus propio: **131/131 (100.0%)**, 0 FP sin documentar, 5 FP documentados (los
   cuatro de antes más `benign-071`, búsquedas sobre `__proto__`). El gate de CI
   sube de ≥ 90% a **100%**: cualquier regresión de detección deja CI en rojo.

@@ -7,20 +7,26 @@ el trabajo del middleware (rate limit, inspección de patrones, cabeceras).
 Diseño (B5): percentiles por petición real (p50/p95/p99), no medias por
 ronda. La media miente en dos direcciones: la infla una pausa del recolector de
 basura y esconde la cola lenta, que es lo que un usuario nota. Medimos cada
-petición con `perf_counter_ns` y publicamos la distribución entera, más un
-guard de regresión (`--check`) que CI pueda ejecutar.
+petición con `perf_counter_ns` y publicamos la distribución completa.
+
+Cómo comparar dos versiones (lo único fiable):
+
+    python benchmarks/latency.py --save base.json
+    # ... cambia el código ...
+    python benchmarks/latency.py --baseline base.json
+
+El veredicto es de quien lo ejecuta, no del pipeline. Se intentó un guard
+automático en CI y se descartó porque en un runner de CPU compartida el
+ruido de la máquina supera a la señal (ver `comparar`).
 
 Uso:
     python benchmarks/latency.py                 # tabla por consola
     python benchmarks/latency.py --json          # salida legible por máquina
-    python benchmarks/latency.py --check         # guard de regresión (sale 1 si empeora)
-    python benchmarks/latency.py --iterations 5000 --rounds 3
+    python benchmarks/latency.py --iterations 3000 --rounds 5
 
 Interpreta los números con cuidado: son microsegundos en tu máquina, no en
 producción. Sirven para comparar escenarios entre sí y para detectar
-regresiones de rendimiento, no como promesa de latencia absoluta. Por eso el
-guard compara con margen de ruido y documenta su presupuesto, en vez de
-comprobar una cifra absoluta que ningún CI comparte.
+regresiones de rendimiento, no como promesa de latencia absoluta.
 """
 from __future__ import annotations
 
@@ -46,12 +52,20 @@ from gatekeeper import Config, GatekeeperMiddleware
 QUERY_OK = b"q=hello+world&page=2"
 QUERY_ATTACK = b"q=1+UNION+SELECT+password+FROM+users"
 
-# Presupuesto del guard, en µs por petición, para el escenario COMPLETO (el
-# peor caso honesto: inspección + rate limit). Es una guarda de REGRESIÓN: si
-# alguien añade una regla cara o cambia el camino caliente, el p95 lo delata.
-# El margen absorbe el ruido de la máquina de CI (CPU compartida, GC, jitter):
-# no buscamos precisión de reloj, buscamos que una regresión grande no pase.
-CHECK_BUDGET_US = {"completo (inspección + rate limit)": 150.0, "inspección (query + body), sin rate limit": 150.0}
+# NO hay un presupuesto absoluto, y es una decisión con datos.
+#
+# Se intentó un guard de regresión en CI con un umbral en µs y se descartó
+# tras medirlo: en un runner de CPU compartida el RUIDO DE LA MÁQUINA es mayor
+# que la señal. Overhead p50 medido con el mismo código: 73µs en un
+# portátil sin carga, 220-312µs en un runner saturado (o un portátil al 30%
+# de CPU), y 175µs con 200 firmas nuevas añadidas al código. Una máquina
+# lenta da un overhead mayor que una regresión real: ningún umbral los
+# separa, así que el guard solo podía dar falsos positivos en CI o ser ciego.
+#
+# Lo que SÍ es fiable es comparar DOS ejecuciones en la MISMA máquina, que es
+# lo que hace `--baseline`: guarda el JSON de una corrida y compára otra
+# contra él. Ahí sí la diferencia es señal, porque el ruido de fondo es el
+# mismo en las dos.
 
 
 async def _receive():
@@ -173,30 +187,39 @@ def run_benchmark(iterations: int, rounds: int, repeats: int = 3) -> dict:
     # json.dumps se ejecuta antes del nivel, así que su coste sigue medido).
     logging.getLogger("gatekeeper").setLevel(logging.CRITICAL)
 
-    results = []
-    baseline: dict[str, float] | None = None
-    for name, config, kwargs in scenarios():
+    specs = scenarios()
+    base_nombre, base_config, base_kwargs = specs[0]
+    # La línea base se mide UNA vez por repetición, junto al escenario que se
+    # evalúa: comparar el p95 de un escenario con una base medida en otro
+    # momento mezcla las condiciones de la máquina y ensucia el overhead.
+    base_samples = measure(make_app(base_config), iterations, rounds, **base_kwargs)
+    baseline = {
+        "p50_us": round(percentile(base_samples, 50), 2),
+        "p95_us": round(percentile(base_samples, 95), 2),
+    }
+
+    results = [{"scenario": base_nombre, **_stats(base_samples, None)}]
+    for name, config, kwargs in specs[1:]:
         samples = measure(make_app(config), iterations, rounds, **kwargs)
         row = {"scenario": name, **_stats(samples, baseline)}
-        if baseline is None:
-            baseline = {"p50_us": row["p50_us"], "p95_us": row["p95_us"]}
-        # Para los escenarios que decide el veredicto del guard, repetimos la
-        # medición y nos quedamos con el MEJOR p95. El ruido del sistema (GC,
-        # CPU compartida) solo SUBE el percentil; el mínimo de varias rondas es
-        # la estimación más cercana al coste real del código. Sin esto, una
-        # pausa del recolector dentro del 5 % más lento declara una regresión
-        # inexistente y el guard deja de ser creíble.
-        if name in CHECK_BUDGET_US and repeats > 1:
-            mejor_p95 = row["p95_us"]
+        # Para los escenarios que deciden el veredicto del guard, repetimos la
+        # medición y nos quedamos con la MEDIANA del overhead p50.
+        #
+        # Mediana y no mínimo: una pausa del recolector afecta UNA ronda de
+        # tres y la mediana la ignora; una regresión real afecta a TODAS y la
+        # mediana la conserva. Con el mínimo se filtraba de más (medido: 200
+        # firmas nuevas NO disparaban el guard). Un guard que no ve una
+        # regresión real no sirve.
+        if repeats > 1:
+            candidatas = [row["overhead_p50_us"]]
             for _ in range(repeats - 1):
+                base_ronda = measure(make_app(base_config), iterations, rounds, **base_kwargs)
                 repetida = measure(make_app(config), iterations, rounds, **kwargs)
-                mejor_p95 = min(mejor_p95, percentile(repetida, 95))
-            row["p95_us"] = round(mejor_p95, 2)
-            row["p95_repeats"] = repeats
-            # El overhead se recalcula: si no, mezclaría el p95 original (con
-            # ruido) contra una base limpia y daría un número sin sentido.
-            if baseline is not None:
-                row["overhead_p95_us"] = round(row["p95_us"] - baseline["p95_us"], 2)
+                candidatas.append(
+                    percentile(repetida, 50) - percentile(base_ronda, 50)
+                )
+            row["overhead_p50_us"] = round(statistics.median(candidatas), 2)
+            row["overhead_repeats"] = repeats
         results.append(row)
     return {
         "iterations": iterations,
@@ -208,33 +231,36 @@ def run_benchmark(iterations: int, rounds: int, repeats: int = 3) -> dict:
     }
 
 
-def check(data: dict) -> tuple[bool, list[str]]:
-    """Guard de regresión: ningún escenario con presupuesto supera su p95.
+def comparar(antes: dict, ahora: dict, margen: float = 0.25) -> tuple[bool, list[str]]:
+    """Compara DOS mediciones (misma máquina) y dice si el middleware empeoró.
 
-    Función PURA sobre los datos ya medidos (no vuelve a medir): el ruido se
-    filtró en `run_benchmark` repitiendo y quedándose con el mejor p95, así que
-    aquí el veredicto es determinista y testeable.
+    `margen` es la tolerancia relativa: un escenario se considera regresión si su
+    overhead p50 subió más de ese porcentaje respecto a la Medición anterior.
+    0.25 = 25% de margen.
 
-    Falla SOLO si el p95 se pasa del presupuesto. El p50 se informa pero no
-    rompe el build: en CI compartido la mediana tiene demasiado ruido para ser
-    un contrato, mientras que una regresión grande sube el percentil 95 de
-    forma consistente.
+    Funciona comparando el OVERHEAD sobre la línea base (no el absoluto), para
+    que un cambio en el escenario base no contamine el veredicto. Es la única
+    comparación fiable: misma máquina, mismo módulo, misma sesión.
     """
-    fallos: list[str] = []
-    for row in data["results"]:
-        presupuesto = CHECK_BUDGET_US.get(row["scenario"])
-        if presupuesto is None:
+    previos = {r["scenario"]: r for r in antes["results"]}
+    regresiones: list[str] = []
+    for row in ahora["results"]:
+        previo = previos.get(row["scenario"])
+        if previo is None or "overhead_p50_us" not in row or "overhead_p50_us" not in previo:
             continue
-        p95 = row["p95_us"]
-        estado = "ok" if p95 <= presupuesto else "REGRESIÓN"
-        print(f"  [{estado:9}] {row['scenario']}: p95={p95:.2f}µs "
-              f"(presupuesto {presupuesto:.0f}µs)")
-        if p95 > presupuesto:
-            fallos.append(
-                f"{row['scenario']}: p95 {p95:.2f}µs supera el presupuesto "
-                f"{presupuesto:.0f}µs"
+        antes_us, ahora_us = previo["overhead_p50_us"], row["overhead_p50_us"]
+        if antes_us <= 0:
+            continue
+        cambio = (ahora_us - antes_us) / antes_us
+        empeora = ahora_us > antes_us and cambio > margen
+        print(f"  [{'REGRESIÓN' if empeora else 'ok':9}] {row['scenario']}: "
+              f"{antes_us:.1f}µs → {ahora_us:.1f}µs ({cambio:+.0%})")
+        if empeora:
+            regresiones.append(
+                f"{row['scenario']}: el overhead subió de {antes_us:.1f}µs a "
+                f"{ahora_us:.1f}µs ({cambio:+.0%}, margen {margen:+.0%})"
             )
-    return not fallos, fallos
+    return not regresiones, regresiones
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -246,25 +272,37 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--iterations", type=int, default=1000)
     parser.add_argument("--rounds", type=int, default=5)
     parser.add_argument("--repeats", type=int, default=3,
-                        help="Veces que se mide cada escenario con presupuesto; se "
-                             "queda con el MEJOR p95 para filtrar ruido del sistema.")
+                        help="Veces que se mide cada escenario con veredicto; se "
+                             "queda con la MEDIANA para filtrar ruido del sistema.")
     parser.add_argument("--json", action="store_true")
-    parser.add_argument("--check", action="store_true",
-                        help="Guard de regresión: sale 1 si algún p95 supera el presupuesto.")
+    parser.add_argument("--save", type=Path, metavar="FICHERO",
+                        help="Guarda esta medición en JSON para usarla como base.")
+    parser.add_argument("--baseline", type=Path, metavar="FICHERO",
+                        help="Compara contra una medición previa (misma máquina).")
+    parser.add_argument("--margen", type=float, default=0.25,
+                        help="Tolerancia relativa del --baseline (0.25 = 25%%).")
     args = parser.parse_args(argv)
 
     data = run_benchmark(args.iterations, args.rounds, args.repeats)
 
-    if args.check:
-        print("Guard de latencia (p95 por petición, presupuesto de regresión):")
-        ok, fallos = check(data)
+    if args.save:
+        args.save.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"medición guardada en {args.save}")
+
+    if args.baseline:
+        if not args.baseline.exists():
+            print(f"no existe la medición base: {args.baseline}", file=sys.stderr)
+            return 2
+        antes = json.loads(args.baseline.read_text(encoding="utf-8"))
+        print(f"Comparando contra {args.baseline} "
+              f"(margen {args.margen:+.0%}, misma máquina):")
+        ok, fallos = comparar(antes, data, args.margen)
         if not ok:
-            print("\nREGRESIÓN DE LATENCIA:")
+            print("\nREGRESIÓN DE LATENCIA respecto a la medición base:")
             for fallo in fallos:
                 print(f"  - {fallo}")
-            print("\nSi el cambio es intencionado, actualiza CHECK_BUDGET_US con el motivo.")
             return 1
-        print("\n✅ sin regresión de latencia")
+        print("\n✅ sin regresión respecto a la medición base")
         return 0
 
     if args.json:
@@ -280,7 +318,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"| {row['scenario']} | {row['p50_us']:.2f} | {row['p95_us']:.2f} "
               f"| {row['p99_us']:.2f} | {row['max_us']:.2f}{extra} |")
     print("\np95/p99 por petición: la media por ronda (v0.3) escondía justo esta cola.")
-    print("Los valores absolutos dependen de tu máquina; compara escenarios entre sí.")
+    print("Para comparar dos versiones en tu máquina:")
+    print("  python benchmarks/latency.py --save base.json")
+    print("  # ... cambia el código ...")
+    print("  python benchmarks/latency.py --baseline base.json")
     return 0
 
 

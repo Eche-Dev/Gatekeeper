@@ -1,11 +1,12 @@
 """El benchmark debe poder ejecutarse siempre: si se rompe, se entera CI.
 
-Y el guard de latencia (`--check`) tiene que ser CREÍBLE en los dos sentidos:
-pasar con el código actual y FALLAR ante una regresión. Un guard que nunca
-rompe un pipeline es un adorno.
+Y el comparador `--baseline` tiene que ser CREÍBLE en los dos sentidos:
+aprobar una medición que no ha cambiado y detectar una que sí. Un comparador
+que nunca señala nada es un adorno.
 """
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -38,13 +39,12 @@ def test_middleware_adds_work_but_does_not_explode():
 
 def test_percentile_es_el_vecino_mas_cercano():
     """Vecino más cercano sobre el índice, que es lo que se usa para latencia:
-    el percentil es una Muestra real, no un promedio entre dos."""
+    el percentil es una muestra real, no un promedio entre dos."""
     muestras = [float(n) for n in range(1, 101)]  # 1..100
     assert latency.percentile(muestras, 0) == 1.0
     assert latency.percentile(muestras, 100) == 100.0
     assert latency.percentile(muestras, 95) == 95.0
-    # el 50 cae en el índice 49 o 50 según el redondeo; los dos son válidos y
-    # ambos son muestras reales del conjunto
+    # el 50 cae en el índice 49 o 50 según el redondeo; los dos son válidos
     assert latency.percentile(muestras, 50) in (50.0, 51.0)
     # ningún percentil devuelve un valor inventado: siempre es una muestra
     for pct in range(0, 101, 7):
@@ -76,10 +76,11 @@ def test_el_informe_expone_p50_p95_y_p99_por_escenario():
 
 
 def test_overhead_se_calcula_contra_la_base_en_el_mismo_percentil():
-    data = latency.run_benchmark(iterations=20, rounds=1)
+    # repeats=1 para que el overhead sea directamente p50 - p50 de la base
+    # (con repeats>1 se sustituye por la mediana de varias rondas).
+    data = latency.run_benchmark(iterations=20, rounds=1, repeats=1)
     base, inspeccion = data["results"][0], data["results"][2]
     assert base["scenario"] == "sin middleware (base)"
-    # el overhead de p50 debe ser p50 - p50 de la base (no mezclar percentiles)
     assert inspeccion["overhead_p50_us"] == pytest.approx(
         inspeccion["p50_us"] - base["p50_us"], abs=0.02
     )
@@ -88,48 +89,88 @@ def test_overhead_se_calcula_contra_la_base_en_el_mismo_percentil():
     )
 
 
-# ------------------------------------------------------- el guard
-
-
-def test_el_guard_pasa_con_el_codigo_actual():
-    data = latency.run_benchmark(iterations=60, rounds=2)
-    ok, fallos = latency.check(data)
-    assert ok, f"el guard falló con el código sin cambios: {fallos}"
-
-
-def test_el_guard_falla_ante_una_regresion(monkeypatch, capsys):
-    """La mitad importante: el guard tiene que ROMPER el build cuando toca."""
-    monkeypatch.setitem(latency.CHECK_BUDGET_US, "completo (inspección + rate limit)", 0.01)
-    data = latency.run_benchmark(iterations=20, rounds=1)
-    ok, fallos = latency.check(data)
-    assert not ok, "un presupuesto de 0.01 µs debe fallar siempre"
-    assert fallos and "supera el presupuesto" in fallos[0]
-    assert "REGRESIÓN" in capsys.readouterr().out
-
-
-def test_el_guard_es_puro_sobre_los_datos():
-    """`check` no vuelve a medir: evalúa lo que se le pasa. Así el veredicto es
-    determinista y el ruido se filtra una sola vez, en `run_benchmark`."""
-    data = latency.run_benchmark(iterations=20, rounds=1, repeats=1)
-    fila = next(r for r in data["results"] if r["scenario"] == "completo (inspección + rate limit)")
-    original = dict(fila)
-    latency.check(data)
-    assert fila == original, "check() no debe modificar los datos que evalúa"
-
-
 def test_repeats_filtra_el_ruido_del_sistema():
-    """Con repeats>1 el p95 de un escenario con presupuesto es el MEJOR de
-    varias mediciones: una pausa del GC no puede declararse regresión."""
+    """Con repeats>1 el overhead es la MEDIANA de varias mediciones: una pausa
+    del GC afecta una ronda y la mediana la ignora; una regresión las afecta a
+    todas y la mediana la conserva."""
     data = latency.run_benchmark(iterations=40, rounds=1, repeats=3)
     fila = next(r for r in data["results"] if r["scenario"] == "completo (inspección + rate limit)")
-    assert fila["p95_repeats"] == 3, "debe registrar que el p95 se filtró"
-    # el p95 filtrado nunca es peor que el p50 (una mediana es un percentil real)
-    assert fila["p95_us"] >= fila["p50_us"]
+    assert fila["overhead_repeats"] == 3
 
 
-def test_todo_escenario_con_presupuesto_tiene_escenario_real():
-    """Un presupuesto que apunta a un nombre de escenario inexistente sería un
-    guard que nunca revisa nada."""
-    nombres = {nombre for nombre, _, _ in latency.scenarios()}
-    for nombre in latency.CHECK_BUDGET_US:
-        assert nombre in nombres, f"el presupuesto '{nombre}' no corresponde a ningún escenario"
+# ------------------------------------------ el comparador --baseline
+
+
+def _medicion_falsa(overheads: dict[str, float]) -> dict:
+    """Una medición sintética con los overheads dados (no mide nada)."""
+    return {
+        "results": [
+            {"scenario": "sin middleware (base)", "p50_us": 12.0, "overhead_p50_us": 0.0}
+        ] + [
+            {"scenario": nombre, "p50_us": 12.0 + overhead, "overhead_p50_us": overhead}
+            for nombre, overhead in overheads.items()
+        ]
+    }
+
+
+def test_el_comparador_aprueba_lo_que_no_cambio():
+    antes = _medicion_falsa({"completo (inspección + rate limit)": 100.0})
+    ahora = _medicion_falsa({"completo (inspección + rate limit)": 105.0})
+    ok, fallos = latency.comparar(antes, ahora)
+    assert ok, f"un +5 % no es una regresión: {fallos}"
+
+
+def test_el_comparador_detecta_una_regresion_real():
+    antes = _medicion_falsa({"completo (inspección + rate limit)": 100.0})
+    ahora = _medicion_falsa({"completo (inspección + rate limit)": 180.0})
+    ok, fallos = latency.comparar(antes, ahora, margen=0.25)
+    assert not ok, "un +80 % tiene que ser una regresión"
+    assert fallos and "overhead subió" in fallos[0]
+
+
+def test_el_comparador_respeta_el_margen():
+    antes = _medicion_falsa({"escenario": 100.0})
+    ahora = _medicion_falsa({"escenario": 130.0})
+    assert latency.comparar(antes, ahora, margen=0.50)[0], "con margen 50 % un +30 % pasa"
+    assert not latency.comparar(antes, ahora, margen=0.10)[0], "con margen 10 % un +30 % falla"
+
+
+def test_el_comparador_ignora_una_mejora():
+    antes = _medicion_falsa({"escenario": 200.0})
+    ahora = _medicion_falsa({"escenario": 100.0})
+    ok, _ = latency.comparar(antes, ahora)
+    assert ok, "mejorar nunca es una regresión"
+
+
+def test_el_comparador_ignora_escenarios_nuevos_o_desconocidos():
+    antes = _medicion_falsa({"escenario-a": 100.0})
+    ahora = _medicion_falsa({"escenario-a": 100.0, "escenario-nuevo": 500.0})
+    ok, _ = latency.comparar(antes, ahora)
+    assert ok, "un escenario que no estaba en la base no se puede comparar"
+
+
+def test_baseline_inexistente_falla_con_mensaje(tmp_path, capsys):
+    assert latency.main(["--baseline", str(tmp_path / "nope.json"), "--iterations", "5",
+                         "--rounds", "1"]) == 2
+    assert "no existe" in capsys.readouterr().err
+
+
+def test_save_y_baseline_redondean(tmp_path, capsys):
+    """Guardar una medición y compararla consigo misma no debe inventar nada."""
+    destino = tmp_path / "base.json"
+    assert latency.main(["--iterations", "10", "--rounds", "1", "--save", str(destino),
+                         "--baseline", str(destino)]) == 0
+    assert destino.exists()
+    datos = json.loads(destino.read_text(encoding="utf-8"))
+    assert "results" in datos and datos["results"]
+
+
+def test_no_hay_umbral_absoluto_en_el_codigo():
+    """El guard de CI se descartó con datos: una máquina lenta produce un
+    overhead mayor que una regresión real, así que un umbral fijo en µs solo
+    podía dar falsos positivos. Si alguien reintroduce ese presupuesto, este
+    test lo señala."""
+    fuente = Path(latency.__file__).read_text(encoding="utf-8")
+    assert "CHECK_BUDGET_US" not in fuente, "el umbral absoluto se descartó a propósito"
+    assert "CHECK_OVERHEAD_US" not in fuente, "el umbral de overhead tampoco era fiable"
+    assert "--check" not in fuente, "el veredicto es de quien ejecuta, no del pipeline"

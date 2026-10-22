@@ -120,19 +120,32 @@ un p99 de 149 µs**; una pausa puntual del recolector de basura puede llevar una
 petición aislada a 500–1500 µs, y con 7500 muestras esa cola existe. Medir el
 percentil 95 de la distribución real es lo que permite poner una guardia útil.
 
-`python benchmarks/latency.py --check` es la **guarda de regresión** que corre en
-CI: si algún escenario con presupuesto se pasa del umbral, el pipeline falla.
-Usa el **mejor p95 de tres rondas** a propósito — el ruido del sistema solo sube
-el percentil, así que el mínimo es la estimación más cercana al coste real
-del código y evita falsos positivos por una pausa del garbage collector (que sí
-los producía: con una sola ronda el guard fallaba de forma intermitente). Los
-umbrales viven en `CHECK_BUDGET_US` con su margen justificado; subirlos es una
-decisión que se documenta en el PR, no un número que sube en silencio.
+`python benchmarks/latency.py --save base.json` y, tras cambiar el código,
+`python benchmarks/latency.py --baseline base.json` comparan dos versiones **en
+tu máquina** y dicen si algún escenario empeoró más de un margen (25 % por
+defecto). Es la única comparación fiable, y la que se usa antes de abrir un PR
+que toca el camino caliente.
 
-Las cifras de la tabla son de **una** ejecución en una máquina concreta
-(portátil, sin red, Python 3.14). Entre ejecuciones varían — razón por la que
-el guard no las compara con un valor fijo, sino con un presupuesto con margen.
-Lo reproducible es la comparación entre escenarios de una misma corrida.
+### Por qué no hay un guard de latencia en CI
+
+Se intentó y se descartó **con datos, no por pereza**. La señal (el coste
+real del middleware) es menor que el ruido de la máquina en un runner de CI con
+CPU compartida. Overhead p50 medido con el mismo código:
+
+| Situación | Overhead p50 |
+|---|---|
+| Portátil sin carga | 73 µs |
+| Runner de CI saturado (o portátil al 30 % de CPU) | 220–312 µs |
+| **Regresión real** (200 firmas nuevas en el código) | 175 µs |
+
+Una máquina lenta da un overhead **mayor** que una regresión de código. Ningún
+umbral los separa, así que el guard solo podría dar falsos positivos en cada
+build o ser ciego a regresiones moderadas. Un pipeline rojo por ruido entrena al
+equipo a ignorar pipelines rojos, que es peor que no medir.
+
+Así que el benchmark es un **informe y una herramienta local**, no un veredicto
+automático. Si algún día quieres automatizarlo, necesita un runner con CPU
+fijada y sin otros jobs; en `ubuntu-latest` compartido no es fiable.
 
 ## Documentación
 
