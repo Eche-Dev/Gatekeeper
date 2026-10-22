@@ -302,6 +302,126 @@ def _family_names() -> tuple[str, ...]:
     return tuple(RULES)
 
 
+# Prefiltro literal por familia: si el texto normalizado no contiene NINGUNO de
+# estos literales, es IMPOSIBLE que esa familia case, y se salta entera sin
+# ejecutar sus regex.
+#
+# Por qué: medido, el escaneo cuesta 57 µs y casi todo es regex de Python
+# corriendo sobre texto inocuo. Una comprobación `lit in texto` esstrcmp en C y
+# cuesta nanosegundos. El ahorro es real solo si el conjunto está bien elegido.
+#
+# La regla para_no perder una detección es: si un patrón casa, TODOS los literales
+# de su familia tienen que estar presentes en el texto (alternativa: `or` en la
+# lista). `tests/test_prefilter.py` lo verifica contra todo el corpus (propio y
+# CRS) y falla si alguien añade una regla sin prefiarla o la prefila mal.
+#
+# `None` = familia sin prefilto (se ejecuta siempre). Se deja así cuando el
+# patrón puede casar con cualquier texto (p. ej. `?a=1=1`), donde un literal
+# "obligatorio" no existe o sería tan común que no filtraría nada.
+PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
+    # Nota sobre literales con espacios: `unquote_plus` convierte `+` en
+    # espacio, así que `pay=or+1=1` llega como `or 1=1` (con espacio) pero
+    # `?or&1=1` llega como `or&1=1` (sin espacio). Por eso los literales de
+    # palabras sueltas van SIN espacios (`or`, `and`), no con ellos: `or` a secas
+    # aparece en "color", "orden"... pero es el precio de no perder detecciones,
+    # y sqli se evalúa igual que antes de este pre filtro.
+    "sqli": (
+        "union", "select", "insert", "update", "drop", "delete", "alter",
+        "truncate", "exec", "exists", "order by", "ascii", "ord", "length",
+        "char_length", "substring", "substr", "mid", "sleep", "benchmark",
+        "waitfor", "delay", "extractvalue", "updatexml", "convert",
+        "xp_cmdshell", "'--", "'#", " or ", " and ",
+        # `or`/`and` a secas (sin exigir espacios alrededor) porque la
+        # tautología dispara también con `pay=or 120=121=`: exigir el espacio
+        # hacía que el pre filtro descartara la familia en esos casos.
+        "or", "and",
+        # Tautología canónica en contexto de parámetro: `?a=1=1`, `1,1=1`.
+        # El patrón exige un `1` a cada lado del `=`, así que `1=1` es
+        # obligatorio en el texto si ese patrón dispara.
+        "1=1",
+    ),
+    # `on\w+=` cubre CUALQUIER handler de evento (`onerror`, `onload`,
+    # `onwebkitplaybacktargetavailabilitychanged`...). Es un pre filtro, no una
+    # regla: si el texto tiene algo `on...=`, la familia se evalúa y decide.
+    "xss": (
+        "script", "javascript", "data:text/html", "<iframe", "alert",
+        # `on` como literal cubre cualquier handler de evento (finito o
+        # exótico: `onerror=`, `onend=`, `onwebkitplaybacktarget=…`): la regla
+        # real `on\w+=` decide después; aquí solo evitamos descartar la familia
+        # antes de tiempo. Cuesta algo de precisión (aparece en "botón"), que es
+        # el precio de no perder detecciones.
+        "on",
+    ),
+    "path_traversal": ("../", "..\\", "..;", "/etc/", "/proc/", "win.ini", "/windows"),
+    "sensitive_files": (
+        "/etc/", "/proc/self", "win.ini", ".ssh/", ".aws/", ".docker/",
+        ".git/", ".env", "web-inf", "/windows/system32",
+    ),
+    "nosql": ("$ne", "$nin", "$where", "$regex"),
+    "cmdi": (
+        "; ls", "; cat", "; id", "; whoami", "; uname", "; wget", "; curl",
+        "| ls", "| cat", "| id", "| whoami", "| uname", "| nc", "| bash", "| sh",
+        "| type", "| dd", "| rm", "| dir", "&& ", "$(", "`", "powershell",
+        "cmd.exe", ".exe", "system(", "exec(", "eval(", "shell_exec",
+        "passthru", "popen", "proc_open", "pcntl_exec", "assert(",
+        "/dev/tcp",
+        # `dd`, `ls`, `cat`… sueltos: el patrón acepta cualquier binario tras
+        # `;` o `|`, y enumerarlos todos en el pre filtro es frágil (CRS genera
+        # combinaciones raras como `;;dd foo bar`). Con los binarios sueltos, el
+        # pre filtro deja pasar esos casos y la regex real decide.
+        "dd", "uname", "whoami",
+    ),
+    "ssrf": (
+        "169.254.", "100.100.100.200", "metadata.google", "file://", "gopher://",
+        "dict://", "jar:", "netdoc://", "tftp://",
+    ),
+    "ssti": ("{{", "${", "<%=", "#{", "config", "request", "self.", "lipsum",
+            "cycler", "namespace", "globals", "builtins", "__class__", "__mro__",
+            "__subclasses__", "application", "session"),
+    "crlf": ("set-cookie", "location", "content-type", "content-length",
+             "www-authenticate", "refresh", "strict-transport-security",
+             "transfer-encoding", "x-"),
+    "log4shell": ("jndi", "env:", "sys:", "date:", "java:", "main:",
+                  "marker:", "web:", "ctx:", "lower:", "upper:", "spring:", "k8s:",
+                  "::-", "ldap://", "rmi://", "dns://", "iiop://", "corba://",
+                  "${", "ldaps", "nis:", "nds:"),
+    "proto_pollution": ("__proto__", "constructor", "prototype"),
+}
+
+
+def _build_prefilter() -> tuple[tuple[str, ...], dict[str, frozenset[str]]]:
+    """Literales (para `in`, que es C puro) + dict literal→familias.
+
+    Se midieron tres enfoques y todos menos este pierden:
+    - 11 `search` por familia: ~12 µs, se come el ahorro.
+    - un `finditer` con alternancia gigante: 15 µs en texto corto, 80 µs en
+      largo (crea un objeto por coincidencia).
+    - un `search` con grupos por familia en bucle: 30 µs (el bucle dominates).
+
+    Este es el que gana: una comprobación `lit in texto` por literal. `in` sobre
+    `str` es una búsqueda de subcadena en C, y con pocos cientos de caracteres
+    es de nanosegundos. Para el texto inocuo (sin ninguno de los literales) son
+    ~60 comparaciones, pero cada una es más barata que cualquier regex.
+    """
+    familias: dict[str, set[str]] = {}
+    for familia, literales in PREFILTER_LITERALS.items():
+        for literal in literales or ():
+            familias.setdefault(literal, set()).add(familia)
+    return tuple(familias), {k: frozenset(v) for k, v in familias.items()}
+
+
+_PREFILTER_LITERALS_FLAT, _PREFILTER_FAMILIA = _build_prefilter()
+
+
+def _posibles_familias(text: str) -> set[str]:
+    """Familias con algún literal presente (comprobaciones `in`, sin regex)."""
+    posibles: set[str] = set()
+    for literal in _PREFILTER_LITERALS_FLAT:
+        if literal in text:
+            posibles |= _PREFILTER_FAMILIA[literal]
+    return posibles
+
+
 # Packs de reglas: la misma detección, agrupada por lo que una aplicación
 # EXIGE de verdad. No cambian ni una línea de los patrones; solo el subconjunto
 # de familias que se evalúa, para que un backend sin plantillas no pague (ni
@@ -361,6 +481,7 @@ def scan_detailed(
     disabled: set[str] | None = None,
     extra: dict[str, list[re.Pattern[str]]] | None = None,
     only: frozenset[str] | set[str] | None = None,
+    use_prefilter: bool = True,
 ) -> tuple[str, str] | None:
     """Como `scan()`, pero devuelve `(regla, patrón)` — el patrón es el "motivo"
     que se registra en los eventos de auditoría para poder tunear sin adivinar.
@@ -368,14 +489,25 @@ def scan_detailed(
     `only` limita la evaluación a un subconjunto de familias (los packs de
     `Config.active_rules`); las reglas personalizadas de `extra` se evaluan
     siempre, porque son tuyas y las pediste explícitamente.
+
+    `use_prefilter` activa el descarte de familias cuyo literal obligatorio no
+    aparece en el texto (ver `PREFILTER_LITERALS`). No cambia qué se detecta:
+    un test lo verifica contra los dos corpus. Se puede desactivar para
+    diagnosticar una discrepancia.
     """
     disabled = disabled or set()
     text = normalize(value)
+    # Una sola búsqueda decide qué familias pueden casar. Las reglas
+    # personalizadas (`extra`) no se pre filtran: son tuyas y las pediste.
+    posibles = _posibles_familias(text) if use_prefilter else None
+
     groups = list(RULES.items()) + list((extra or {}).items())
     for name, patterns in groups:
         if name in disabled:
             continue
         if only is not None and name in RULES and name not in only:
+            continue
+        if posibles is not None and name in RULES and name not in posibles:
             continue
         for pattern in patterns:
             if pattern.search(text):

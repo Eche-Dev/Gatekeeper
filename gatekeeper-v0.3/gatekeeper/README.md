@@ -106,12 +106,25 @@ para Vercel (`vercel --prod`) y Docker: [`demo/`](demo/).
 
 | Escenario | p50 | p95 | p99 | +p50 vs base |
 |---|---|---|---|---|
-| sin middleware (base) | 12.30 | 19.60 | 27.50 | — |
-| solo cabeceras | 29.30 | 46.70 | 65.90 | +17.00 |
-| inspección (query + cabeceras + body) | 85.70 | 117.60 | 185.90 | +73.40 |
-| rate limit solo | 30.60 | 37.80 | 54.40 | +18.30 |
-| completo (inspección + rate limit) | 88.30 | 123.20 | 149.20 | +76.00 |
-| request atacante (403 temprano) | 62.70 | 88.10 | 115.40 | +50.40 |
+| sin middleware (base) | 13.10 | 20.30 | 28.50 | — |
+| solo cabeceras | 25.10 | 42.60 | 60.20 | +12.00 |
+| inspección (query + body), sin rate limit | 70.10 | 85.40 | 108.50 | +57.40 |
+| rate limit solo | 31.20 | 45.80 | 62.20 | +18.50 |
+| completo (inspección + rate limit) | 72.20 | 107.90 | 146.00 | +59.60 |
+| request atacante (403 temprano) | 65.00 | 100.30 | 141.00 | +51.90 |
+
+**El pre filtro de familias.** Normalizar cuesta ~5 µs; el resto eran las 60
+regex de Python corriendo sobre texto inocuo. Casi ninguna puede casar sin un
+literal concreto (`script`, `union`, `/etc/`), así que se comprueba primero
+si el texto contiene alguno de los literales de cada familia — una búsqueda de
+subcadena en C, no una regex — y si no, esa familia se salta entera. Medido
+sobre texto limpio: **1,7× a 8,5× más rápido** (un payload de 250
+caracteres pasó de 247 a 29 µs).
+
+No cambia qué se detecta: `tests/test_prefilter.py` compara el escaneo con y sin
+pre filtro sobre los 1582 valores de ambos corpus (propio y los 1379 tests de
+OWASP CRS) y exige el mismo resultado. El coste es la latencia de los ataques,
+que era el escenario barato (10 µs) y sube a 17 µs.
 
 **Por qué p95 y no la media.** Hasta 0.3.1 el benchmark publicaba la media por
 ronda, y esa cifra escondía justo lo que un usuario nota: la cola. El mismo
