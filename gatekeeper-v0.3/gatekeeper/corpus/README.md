@@ -5,8 +5,8 @@ bloquean y lo que dejan pasar:
 
 | Fichero | Qué contiene |
 |---|---|
-| `attacks.json` | 83 payloads de ataque redactados para este proyecto (SQLi, XSS, path traversal, ficheros sensibles), cada uno con la regla que se espera que lo detecte |
-| `benign.json` | 62 peticiones legítimas que **no** deben bloquearse, incluidos casos difíciles (texto técnico que cita un vector, SQL de tutorial, acentos, JSON normal) |
+| `attacks.json` | 131 payloads de ataque redactados para este proyecto (SQLi, XSS, path traversal, ficheros sensibles, NoSQL, comandos, SSRF, SSTI, CRLF, Log4Shell, proto-pollución), cada uno con la regla que se espera que lo detecte |
+| `benign.json` | 72 peticiones legítimas que **no** deben bloquearse, incluidos casos difíciles (texto técnico que cita un vector, SQL de tutorial, filtros Mongo legítimos, acentos, JSON normal) |
 | `crs_payloads.json` | 1379 tests extraídos del corpus **externo** de OWASP Core Rule Set (Apache-2.0): ataques con su expectativa y negativos de CRS para medir falsos positivos |
 
 Se ejecutan con:
@@ -53,7 +53,7 @@ Alcance y política de puntuación (para que el número sea defendible):
 - Los umbrales de CI sobre este corpus (`DEFAULT_MIN_CRS_DETECTION`,
   `DEFAULT_MAX_CRS_FP`) son **guardas de regresión sobre la línea base medida**,
   no una promesa de cobertura: se recalculan al reimportar. La detección sobre
-  CRS es ~19% frente a ~94% del corpus propio, y es así a propósito: CRS está
+  CRS es ~21% frente a 100% del corpus propio, y es así a propósito: CRS está
   diseñado para un WAF con 500+ reglas y paga con falsos positivos que nosotros
   no aceptamos. Publicar ese número entero es el punto.
 
@@ -75,13 +75,14 @@ Un middleware de seguridad que dijera "detecta todo y nunca falla" estaría mint
 Por eso el corpus marca explícitamente sus límites:
 
 - `known_fp` en `benign.json`: peticiones legítimas que **sí** bloquea, con el
-  motivo. Hoy son 4, todas de la misma familia: texto técnico que contiene la
-  firma literal (`sleep(5)`, `<script>`, `javascript:`, codificación doble).
-  Es el coste de decodificar y buscar firmas: un buscador de documentación
-  técnica puede encontrarlos.
+  motivo. Hoy son 5, todas de la misma familia: texto técnico que contiene la
+  firma literal (`sleep(5)`, `<script>`, `javascript:`, codificación doble,
+  `__proto__`). Es el coste de decodificar y buscar firmas: un buscador de
+  documentación técnica puede encontrarlos.
 - `documented_miss` en `attacks.json`: ataques que **se escapan** hoy, con el
-  motivo. Hoy son 5: blind boolean sin comilla pegada al comentario, entidades
-  HTML (`&#60;script&#62;`), UTF-8 sobre-long (`%c0%af`) y `web-inf/web.xml`.
+  motivo. Hoy son **0**: los cinco que había (blind boolean, entidades HTML,
+  UTF-8 sobre-long y `WEB-INF`) se cerraron en 0.3.1 con firmas medidas. Si algo
+  se cuelga, se documenta aquí antes que en un commit.
 
 Regla de mantenimiento: si añades una firma, añade también payloads benignos que
 demuestren que no rompe nada; si aceptas un falso positivo nuevo, documéntalo en

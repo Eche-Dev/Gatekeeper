@@ -51,7 +51,7 @@ Dataclass con validación en `__post_init__`. Un valor inválido lanza
 | `inspect_requests` | `bool` | `True` |
 | `inspect_headers` | `set[str]` | `{"user-agent", "referer", "cookie", "x-forwarded-for"}` (vacío = desactivado) |
 | `monitor_only` | `bool` | `False` (solo registra) |
-| `disabled_rules` | `set[str]` | `set()` — nombres de `sqli`, `xss`, `path_traversal`, `sensitive_files` |
+| `disabled_rules` | `set[str]` | `set()` — nombres de `sqli`, `xss`, `path_traversal`, `sensitive_files`, `nosql`, `cmdi`, `ssrf`, `ssti`, `crlf`, `log4shell`, `proto_pollution` (ver [modelo de amenazas](amenazas.md)) |
 | `custom_rules` | `dict[str, str]` o `list[dict]` | `dict()` |
 
 ### Body y rutas

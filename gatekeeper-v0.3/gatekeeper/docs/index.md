@@ -30,15 +30,16 @@ path traversal en query, cabeceras y body, y eventos de auditoría en el logger
 
 Dos corpus con guarda en CI — uno propio, otro escrito por gente distinta:
 
-| Métrica | Corpus propio (83 ataques / 62 benignos) | OWASP CRS externo (1379 tests) |
+| Métrica | Corpus propio (131 ataques / 72 benignos) | OWASP CRS externo (1379 tests) |
 |---|---|---|
-| Ataques detectados | **100.0%** (83/83) | **19.3%** (219/1135) |
-| Falsos positivos sin documentar | **0** | 3.9% sobre los negativos de CRS (línea base) |
-| Falsos negativos sin documentar | 0 (5 documentados y aceptados) | — (muestra en el informe) |
+| Ataques detectados | **100.0%** (131/131) | **21.0%** (238/1135) |
+| Falsos positivos sin documentar | **0** (5 documentados) | 3.9% sobre los negativos de CRS (línea base) |
+| Falsos negativos sin documentar | 0 | — (muestra en el informe) |
 
-El 19.3% del corpus externo no es una meta: es la **línea base** de un corpus
+El 21.0% del corpus externo no es una meta: es la **línea base** de un corpus
 diseñado para un WAF de 500+ reglas y mucho más ofuscado, y el workflow la
-vigila para que no baje. Ver [Detección y medición](deteccion.md) y
+vigila para que no baje. Ver [Detección y medición](deteccion.md),
+[Modelo de amenazas](amenazas.md) y
 [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md).
 
 ## Demo
@@ -56,12 +57,17 @@ botones en [`demo/`](https://github.com/Eche-Dev/Gatekeeper/tree/main/gatekeeper
 | Rate limiting | Ventana deslizante por IP, en memoria o Redis (script Lua atómico, no bloquea el event loop) |
 | Cabeceras | nosniff, X-Frame-Options, HSTS, Referrer-Policy, Permissions-Policy |
 | SQLi | UNION SELECT, tautologías, consultas apiladas, time-based, error-based |
-| XSS | `<script>`, handlers de evento, `javascript:`, con doble codificación |
+| XSS | `<script>`, handlers de evento, `javascript:`, entidades nombradas, con doble codificación |
 | Path traversal | `../`, `..;`, con decodificación repetida y frontera de segmento |
 | Ficheros sensibles | `/etc/shadow`, `.ssh/*`, `.aws/credentials`, `.env` y más |
-| Evasiones | URL-encoding repetido, escapes `%uXXXX` (IIS), ancho completo (NFKC) |
+| NoSQL · Comandos · SSRF | `$ne`/`$where`; `; ls` y `` `id` ``; metadata cloud y `file://` |
+| SSTI · CRLF · Log4Shell · Proto | `{{7*7}}`; splitting con cabecera; `${jndi:…}`; `__proto__` |
+| Evasiones | URL-encoding repetido, escapes `%uXXXX` (IIS), ancho completo (NFKC), comentarios versionados `/*!…*/` |
 | Límite de body | 1 MiB por defecto → 413 |
 | Auditoría | Eventos JSON en el logger `gatekeeper`, sin contenido de payloads |
+
+El desglose completo por familia, con su frontera de falsos positivos, está en
+[Modelo de amenazas](amenazas.md).
 
 ## Requisitos
 

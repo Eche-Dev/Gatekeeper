@@ -36,7 +36,14 @@ app.add_middleware(GatekeeperMiddleware, config=Config(rate_limit=100, rate_wind
 | XSS | `<script>`, handlers de evento con y sin etiqueta (`onerror=`, ` onload=`), `javascript:`, `data:text/html`, con doble codificación |
 | Path traversal | `../`, `..\`, `..;/`, con decodificación repetida y frontera de segmento (`foo../x` no es un salto) |
 | Ficheros sensibles | `/etc/passwd`, `shadow`, `subuid`; `/proc/self/environ`; `win.ini`; `.ssh/id_*`; `.aws/credentials`; `.docker/secrets`; `.git/config`; `.env` (exigen separador: `?q=.env` pasa) |
-| Evasiones | URL-encoding repetido (3 rondas), escapes IIS `%uXXXX` mayúsculas o no, ancho completo (`＜script` vía NFKC), comentarios SQL `/**/` |
+| NoSQL | Operadores de inyección Mongo: `$ne`, `$nin`, `$where`, `$regex` en JSON o corchetes (`user[$ne]=x`). `$gt`/`$lt`/`$in` quedan fuera: los usan los filtros legítimos |
+| Comandos del sistema | Separador shell + binario (`; ls`, `\| cat`, `&& whoami`, `$(id)`, `` `uname` ``), LOLBins de Windows (`powershell.exe`), webshells PHP (`;system('`, `shell_exec(`), reverse shell `/dev/tcp/` |
+| SSRF | Metadata cloud (AWS/GCP/Azure/Alibaba) y esquemas de lectura local (`file://`, `gopher://`, `dict://`, `jar://`); `localhost` no bloquea (OAuth de desarrollo) |
+| SSTI | Aritmética de plantillas (`{{7*7}}`, `${7*7}`, `<%= 7*7 %>`, `#{7*7}`) y objetos peligrosos (`config`, `self`, `__class__`, `__subclasses__`) |
+| CRLF | Salto de línea seguido de cabecera: response splitting e inyección de cabeceras (CRLF real o `\r\n` literal) |
+| Log4Shell | `${jndi:ldap://…}` con sus ofuscaciones (`${${::-j}ndi:`) y lookups de exfiltración (`${env:AWS_SECRET…}`) |
+| Proto-pollución | `__proto__` en cualquier posición y `constructor.prototype` |
+| Evasiones | URL-encoding repetido (3 rondas), escapes IIS `%uXXXX` mayúsculas o no, ancho completo (`＜script` vía NFKC), comentarios SQL `/**/` y versionados (`/*!50000union*/`), entidades HTML numéricas **y nombradas** (`&lt;script`), tab/NL dentro del esquema (`java\tscript:`) |
 | Límite de body | `max_body_size` (1 MiB por defecto) → 413, también sin `Content-Length` |
 | Reglas propias | Regex en YAML o `Config(custom_rules=...)`, validadas al arrancar |
 | Exclusión de rutas | `allow_paths` (globs). Rutas con `..`, `\` o codificación residual nunca se eximen |
@@ -50,11 +57,16 @@ documentada ([corpus/](corpus/)):
 
 | Métrica (corpus propio) | Valor |
 |---|---|
-| Ataques detectados | 83 / 83 (**100.0%**) |
+| Ataques detectados | 131 / 131 (**100.0%**) |
 | Falsos negativos sin documentar | 0 |
-| Peticiones legítimas bloqueadas sin documentar | **0** / 62 |
-| Falsos positivos documentados (límites aceptados) | 4 |
-| Falsos negativos documentados (límites aceptados) | 5 |
+| Peticiones legítimas bloqueadas sin documentar | **0** / 72 |
+| Falsos positivos documentados (límites aceptados) | 5 |
+| Falsos negativos documentados (límites aceptados) | 0 |
+
+Once familias de detección: SQLi, XSS, path traversal, ficheros sensibles, NoSQL,
+comandos del sistema, SSRF, SSTI, CRLF, Log4Shell y proto-pollución. El
+desglose con la frontera de falsos positivos de cada una está en
+[docs/amenazas.md](docs/amenazas.md).
 
 El segundo es **ajeno**: los tests de regresión de
 [OWASP Core Rule Set](https://github.com/coreruleset/coreruleset) (Apache-2.0,
@@ -64,12 +76,12 @@ para otro WAF, con sus propios negativos:
 | Métrica (corpus externo CRS, familias 930/941/942) | Valor |
 |---|---|
 | Tests importados | 1379 (1135 en alcance, 12 excluidos y declarados) |
-| Ataques detectados | 219 / 1135 (**19.3%**) |
+| Ataques detectados | 238 / 1135 (**21.0%**) |
 | Negativos de CRS bloqueados (FP) | 9 / 232 (3.9%) |
 
-Ese 19.3% no es una meta: es la **línea base** de un corpus diseñado para un
+Ese 21.0% no es una meta: es la **línea base** de un corpus diseñado para un
 WAF de 500+ reglas y payloads mucho más ofuscados, y el workflow la vigila para
-que no baje. Publicarlo entero es el punto: un 100% propio y un 19.3% ajeno, los
+que no baje. Publicarlo entero es el punto: un 100% propio y un 21.0% ajeno, los
 dos medidos y los dos con guarda en CI.
 
 El detalle, incluidos los payloads que se escapan y por qué, está en
@@ -94,18 +106,24 @@ para Vercel (`vercel --prod`) y Docker: [`demo/`](demo/).
 
 | Escenario | µs/petición | µs añadidos |
 |---|---|---|
-| sin middleware (base) | 12.56 | — |
-| solo cabeceras | 29.89 | +17.32 |
-| inspección (query + cabeceras + body) | 70.59 | +58.03 |
-| rate limit solo | 31.62 | +19.06 |
-| completo (inspección + rate limit) | 71.10 | +58.54 |
-| request atacante (403 temprano) | 48.63 | +36.07 |
+| sin middleware (base) | 12.87 | — |
+| solo cabeceras | 32.06 | +19.19 |
+| inspección (query + cabeceras + body) | 89.92 | +77.05 |
+| rate limit solo | 35.09 | +22.22 |
+| completo (inspección + rate limit) | 93.00 | +80.13 |
+| request atacante (403 temprano) | 58.18 | +45.31 |
+
+Las once familias de 0.3.1 (NoSQL, comandos, SSRF, SSTI, CRLF, Log4Shell y
+proto-pollución además de las cuatro anteriores) cuestan ~21 µs más por
+petición que la tabla de v0.3.0: son 31 regex más que evaluar, y es el precio de
+cubrir esas familias sin WAF externo. Microsegundos absolutos: lo que importa es
+que la comparación entre escenarios siga siendo reproducible.
 
 ## Documentación
 
 Guía completa con [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
-en [`docs/`](docs/): uso, detección y medición, seguridad, referencia de API y
-desarrollo. En local: `mkdocs serve`. Se publica en
+en [`docs/`](docs/): uso, detección y medición, modelo de amenazas, seguridad,
+referencia de API y desarrollo. En local: `mkdocs serve`. Se publica en
 <https://eche-dev.github.io/Gatekeeper/> en cada push a `main` (build
 `--strict` en CI: un enlace roto rompe el workflow).
 
@@ -122,7 +140,7 @@ escenarios y detectar regresiones.
   a consultas parametrizadas, a validación de entradas ni a un WAF.
 - `multipart/form-data` y bodies binarios no se inspeccionan (las subidas de archivos pasan intactas; parser en v0.4).
 - Cada valor del body se analiza por separado: un ataque repartido en varios campos no se detecta.
-- Entidades HTML **nombradas** (`&lt;script`): pendientes de medición.
+- Los operadores `$gt`/`$lt`/`$in` de Mongo quedan fuera de la firma NoSQL a propósito (los usan los filtros legítimos); `localhost` y `127.0.0.1` no cuentan como SSRF (OAuth de desarrollo).
 - Con `rate_backend="memory"` y varios workers, el límite efectivo se multiplica: usa Redis.
 - Si Redis no responde, `rate_fail_open=True` (por defecto) sigue admitiendo peticiones; ponlo a `False` si prefieres 503.
 - `trust_proxy=False` por defecto; actívalo solo detrás de un proxy de confianza. Con `trust_proxy=True` el XFF se lee de derecha a izquierda (`ips[-trusted_proxies]`); añade `trusted_proxy_cidrs` si la app es alcanzable por otro camino.
@@ -139,7 +157,7 @@ escenarios y detectar regresiones.
 | `rate_fail_open` | `True` | política si Redis no responde: admitir o 503 |
 | `inspect_requests` / `inspect_body` | `True` | inspección de query y de body |
 | `monitor_only` | `False` | registrar sin bloquear |
-| `disabled_rules` | `∅` | `sqli`, `xss`, `path_traversal`, `sensitive_files` o tus reglas |
+| `disabled_rules` | `∅` | `sqli`, `xss`, `path_traversal`, `sensitive_files`, `nosql`, `cmdi`, `ssrf`, `ssti`, `crlf`, `log4shell`, `proto_pollution` o tus reglas |
 | `custom_rules` | `∅` | `{nombre: regex}` o lista `{name, pattern}` |
 | `max_body_size` | `1 MiB` | límite del body inspeccionado |
 | `allow_paths` | `[]` | globs exentos de inspección |

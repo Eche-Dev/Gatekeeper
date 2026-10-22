@@ -5,8 +5,10 @@
 **En alcance** — lo que Gatekeeper intenta mitigar:
 
 - Fuerza bruta y abuso de API a nivel de IP (rate limiting).
-- Inyección SQLi y XSS con firma reconocible en query y body.
-- Path traversal y lectura de ficheros sensibles (`/etc/shadow`, `.env`, claves SSH).
+- Once familias de inyección con firma reconocible en query, cabeceras
+  inspeccionadas y body textual: SQLi, XSS, path traversal, ficheros
+  sensibles, NoSQL, comandos del sistema, SSRF, SSTI, CRLF, Log4Shell y
+  proto-pollución de JavaScript.
 - Content sniffing y secuestro de framing (cabeceras).
 
 **Fuera de alcance** — para lo que NO sirve, dicho claro:
@@ -15,6 +17,10 @@
 - Ataques al propio servidor ASGI, a la red o a la base de datos.
 - Validación semántica de entradas (eso es de tu app).
 - Firma de peticiones, CSRF tokens, gestión de secretos.
+- Ataques repartidos entre campos o dentro de bodies multipart.
+
+El desglose **familia a familia, con la frontera de falsos positivos de cada
+una**, está en [Modelo de amenazas](amenazas.md).
 
 Gatekeeper es una capa más de defensa en profundidad. Tu app sigue necesitando
 consultas parametrizadas y validación.

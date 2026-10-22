@@ -31,6 +31,7 @@ nav:
   - Instalación: instalacion.md
   - Uso: uso.md
   - Detección y medición: deteccion.md
+  - Modelo de amenazas: amenazas.md
   - Seguridad: seguridad.md
   - Referencia (API): api.md
   - Desarrollo: desarrollo.md
