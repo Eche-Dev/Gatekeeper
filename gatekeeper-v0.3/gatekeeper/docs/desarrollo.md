@@ -109,4 +109,41 @@ casos benignos que no deben saltar.
 1. `CHANGELOG.md` (Keep a Changelog) y versión en `pyproject.toml`.
 2. Batería completa verde (el checklist del PR).
 3. `git tag vX.Y.Z && git push --tags` → publica docs.
-4. PyPI es una decisión explícita del mantenedor, no un paso automático.
+4. Crear la release en GitHub → dispara el workflow `publicar.yml`, que
+   valida y publica en PyPI.
+
+### Publicar en PyPI (Trusted Publishing)
+
+**No hay ningún token de PyPI en los secretos del repo.** GitHub demuestra su
+identidad a PyPI con OIDC y PyPI emite un token de publicación de un solo uso.
+Lo único que puede publicar con tu nombre es quien pueda modificar el repo.
+
+El workflow valida antes de publicar: que la versión del tag coincida con
+`pyproject.toml`, que el paquete importe y que la CLI funcione. Para probarlo
+sin publicar nada, desde la pestaña Actions: **Publicar en PyPI → Run workflow →
+`dry_run` = true**.
+
+Configuración inicial (una sola vez, a mano):
+
+1. Crear el proyecto `gatekeeper-asgi` en PyPI.
+2. Añadir un publisher **GitHub Actions** con repositorio `Eche-Dev/Gatekeeper`
+   y workflow `publicar.yml`.
+3. La primera versión hay que subirla a mano con un token de API (OIDC no crea
+   el proyecto en PyPI, solo publica en uno que ya existe) y borrar el token
+   después.
+
+### Auditar dependencias
+
+`pip-audit` corre en el job `audit` de CI sobre el runtime y el entorno de
+desarrollo, en venvs limpios. En local, lo mismo:
+
+```bash
+python -m venv /tmp/audit && /tmp/audit/bin/pip install dist/*.whl
+/tmp/audit/bin/pip install pip-audit
+/tmp/audit/bin/pip freeze | grep -v '^-e ' | grep -vi gatekeeper-asgi > /tmp/req.txt
+/tmp/audit/bin/pip-audit --strict -r /tmp/req.txt
+```
+
+Se filtra el paquete local porque hasta la primera publicación no está en PyPI
+y `--strict` sale con error por eso, que no es una vulnerabilidad sino que el
+paquete aún no existe.

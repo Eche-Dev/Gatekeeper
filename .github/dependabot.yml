@@ -4,17 +4,38 @@
 # tocan. Cadencia mensual para no abrir PRs por cada minuto.
 version: 2
 updates:
+  # Las actions están fijadas a SHA completo en los workflows (un tag es una
+  # promesa móvil: quien mantiene la action puede re-apuntar `v7` a otro commit
+  # después de tu revisión). Esta entrada es lo que hace que eso sea sostenible:
+  # Dependabot lee el comentario `# v7` que sigue al SHA y sigue ofreciendo
+  # actualizaciones, así que el pin no te deja atrapado en una versión vieja.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      # Una sola PR para todas las actions. Por separado son cinco PRs que
+      # compiten por los mismos checks y además llegan en momentos distintos.
+      actions:
+        patterns: ["*"]
 
+  # Una sola entrada para todo el paquete. Antes había dos (esta y la de
+  # `/demo`) y, como `demo/` está DENTRO de este directorio, dependabot
+  # notificaba la misma actualización dos veces: una PR pedía fastapi>=0.146.0 y
+  # la otra >=0.148.0, y acababan compitiendo por el merge.
   - package-ecosystem: pip
     directory: /gatekeeper-v0.3/gatekeeper
     schedule:
       interval: monthly
+    groups:
+      # Las dependencias de la demo y las de desarrollo en una PR: son cambios
+      # de una línea y probarlas juntas tiene más sentido que por separado.
+      dependencias:
+        patterns: ["*"]
+        update-types:
+          - minor
+          - patch
 
-  - package-ecosystem: pip
-    directory: /gatekeeper-v0.3/gatekeeper/demo
-    schedule:
-      interval: monthly
+  # NOTA: no hay entrada para `/gatekeeper-v0.3/gatekeeper/demo` a propósito.
+  # Sus dependencias (fastapi, uvicorn) viven en ese requirements.txt, que ya
+  # queda cubierto por la entrada de arriba.
