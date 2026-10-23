@@ -95,6 +95,12 @@ Informe generado:
     un censo. La conclusión honesta es "estas 109 técnicas y estos 90 patrones
     se comportan así", no "la detección es completa".
 
+!!! tip "La única forma de saberlo con tu tráfico"
+    Los corpus son sintéticos. Para ver si Gatekeeper bloquea **tu** tráfico
+    legítimo hace falta observarlo en modo monitor durante un tiempo: es el
+    procedimiento de [Medir con tráfico real](trafico-real.md), con sus
+    requisitos de autorización y qué se puede publicar.
+
 ## El corpus externo (OWASP CRS)
 
 [coreruleset/coreruleset](https://github.com/coreruleset/coreruleset)

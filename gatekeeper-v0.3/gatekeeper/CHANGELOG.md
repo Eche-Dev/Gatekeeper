@@ -20,6 +20,14 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   bloqueados, frente a **10/20** en el modo por defecto. Confirma que el modo
   cruzado generaliza y no solo se acordaba de los 7 casos del corpus de
   desarrollo. Entra en CI con su propia guarda.
+- **Procedimiento para medir con tráfico real** (`docs/trafico-real.md`): cómo
+  poner Gatekeeper en modo monitor, recoger los eventos, analizarlos con
+  `gatekeeper report`, decidir los ajustes y volver a medir, con el rollback
+  escrito antes de activar el bloqueo. Incluye los requisitos de autorización
+  (solo tráfico propio y con consentimiento) y qué se puede publicar (agregados,
+  nunca el log en crudo). `tests/test_trafico_real.py` ejecuta el camino
+  completo, así que el procedimiento no es papel: si deja de funcionar, falla
+  el pipeline.
 - **`tools/measure_rules.py`**: mide el efecto de un cambio de reglas sobre los
   cuatro corpus a la vez (desarrollo, retenido, benignos propios y negativos de
   CRS), para ver el coste (FP nuevos) junto al beneficio (detecciones nuevas).

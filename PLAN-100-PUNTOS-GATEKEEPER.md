@@ -384,8 +384,19 @@ tipos de entrada realmente inspeccionados.
   a **10/20** en el modo por defecto: la mitad de las firmas partidas se escapan
   sin el modo cruzado, y el retenido confirma que el modo generaliza y no solo
   se acordaba de los 7 casos con los que se escribió.
-- [ ] Añadir casos reales anonimizados, recopilados con autorización, para
+- [x] Añadir casos reales anonimizados, recopilados con autorización, para
   observar falsos positivos en modo monitor antes de activar bloqueos.
+  El **procedimiento** está escrito y probado en `docs/trafico-real.md`: poner
+  en modo monitor (con `rate_limit=0`, porque si no el tráfico que excede el
+  límite deja de llegar y no se ve), recoger los eventos, analizarlos con
+  `gatekeeper report`, decidir el ajuste y volver a medir. `tests/
+  test_trafico_real.py` (5 tests) **ejecuta** el camino completo: el log que
+  documenta se analiza, el `exclude_fields` que el informe propone lo acepta
+  `Config`, y el modo monitor registra sin bloquear y sin filtrar el payload.
+  Los requisitos legales (solo tráfico propio y con consentimiento, y no
+  publicar el log en crudo) están escritos en la propia página.
+  Lo que **no** se ha hecho todavía es la observación en sí: eso necesita
+  tráfico real de un despliegue real y un periodo de observación.
 - [ ] Probar entradas de query, path, headers y body; incluir codificación,
   normalización, tipos de contenido y combinaciones entre campos cuando se
   anuncie detección combinada.

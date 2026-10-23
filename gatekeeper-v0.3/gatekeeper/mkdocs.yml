@@ -33,6 +33,7 @@ nav:
   - Uso: uso.md
   - Despliegue: despliegue.md
   - Detección y medición: deteccion.md
+  - Medir con tráfico real: trafico-real.md
   - Modelo de amenazas: amenazas.md
   - Seguridad: seguridad.md
   - Referencia (API): api.md
