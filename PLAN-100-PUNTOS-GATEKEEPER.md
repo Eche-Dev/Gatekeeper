@@ -186,20 +186,27 @@ bloqueos.
   Los ejemplos existen y se ejecutan de verdad: `tests/test_docs_examples.py`
   los incluye en la corrida de `pytest`, que CI ejecuta (`pytest --cov=gatekeeper
   --cov-fail-under=90`), así que un ejemplo roto tumba el pipeline.
-- [ ] Añadir una guía rápida copiable que valide una petición permitida y una
+- [x] Añadir una guía rápida copiable que valide una petición permitida y una
   bloqueada localmente.
-  No existe una guía "copiar y pegar" con los dos curl de verificación; la
-  demo (`demo/`) cumple la función pero no está en la documentación principal.
-- [ ] Documentar ejemplos de despliegue de un proceso, varios workers, Docker y
+  Hecho en `docs/inicio-rapido.md`: instalar, añadir el middleware, y los dos
+  comandos `curl` que verifican 200 (petición normal) y 403 (ataque), con qué
+  revisar si el ataque pasa. Los dos códigos de respuesta están **verificados
+  por tests** (`tests/test_inicio_rapido.py`), no solo escritos: si el
+  middleware deja de dar 403, la guía deja de ser cierta y falla el pipeline.
+- [x] Documentar ejemplos de despliegue de un proceso, varios workers, Docker y
   proxy inverso; explicar qué valores cambian según el entorno.
-  Parcial: Docker está en `demo/` y Redis entre workers se explica en
-  `docs/uso.md`; falta la guía por topología (1 proceso, N workers, Docker,
-  proxy inverso) en un solo sitio.
-- [ ] Explicar con claridad cómo configurar IP del cliente y proxies confiables.
+  Hecho en `docs/despliegue.md`: una sección por topología (un proceso, varios
+  workers, Docker/Kubernetes, proxy inverso), una matriz de decisión y un
+  checklist de producción. Las afirmaciones de seguridad que hace (el límite
+  en memoria se multiplica con los workers, el XFF se ignora si el peer no es
+  de confianza, `allow_paths` exime de inspección pero no de rate limit) están
+  fijadas por tests en `tests/test_despliegue.py`.
+- [x] Explicar con claridad cómo configurar IP del cliente y proxies confiables.
   No recomendar confiar en `X-Forwarded-For` sin limitar quién puede enviarlo.
-  Parcial: el comportamiento está documentado en `docs/api.md` y
-  `docs/seguridad.md` y el código lo lee de derecha a izquierda, pero no hay
-  una sección de "configurar un proxy inverso" paso a paso.
+  Hecho en `docs/despliegue.md`: por qué el XFF se lee de derecha a izquierda,
+  la tabla de `trusted_proxies` por topología y por qué activar `trust_proxy`
+  sin `trusted_proxy_cidrs` con la app accesible sin proxy es un agujero.
+
 - [x] Proporcionar configuraciones de ejemplo conservadora y distribuida, sin
   ocultar las diferencias entre rate limit en memoria y Redis.
   `examples/gatekeeper.yaml` cubre ambas (corregido y validado por tests) y
@@ -294,10 +301,15 @@ real sin confiar accidentalmente en el cliente.
   fail-open o fail-closed, según el riesgo de la aplicación.
   `docs/uso.md` y `docs/seguridad.md` lo explican y el middleware implementa
   ambos caminos; los dos tienen test.
-- [ ] Aclarar la cadena de confianza de proxies, CIDR permitidos y comportamiento
+- [x] Aclarar la cadena de confianza de proxies, CIDR permitidos y comportamiento
   cuando el peer no es confiable.
-  El código está bien (XFF de derecha a izquierda, CIDR de proxies) y hay
-  regresiones, pero falta la guía de configuración paso a paso.
+  Hecho en `docs/despliegue.md` (sección "Detrás de un proxy inverso"), con
+  la configuración mínima, el ejemplo de nginx, la tabla de `trusted_proxies`
+  por topología y la explicación de por qué el XFF se lee de derecha a
+  izquierda. Verificado por `tests/test_despliegue.py`: el peer no confiable
+  hace que el XFF se ignore, el peer de confianza permite bloquear y limitar
+  por la IP real, y una cadena inconsistente no adivina.
+
 - [ ] Verificar límites de memoria y consumo con cuerpos grandes, cuerpos
   fragmentados y entradas de gran volumen.
   Parcial: `max_body_size` corta el body acumulado y hay test de body
@@ -399,14 +411,19 @@ responsable de vulnerabilidades.
    fail-closed) ya tienen test, y los ejemplos de la documentación se ejecutan
    en CI. Falta Redis real con varios workers, límites de memoria/volumen y
    la interacción con servidores de producción.
-4. **Producto utilizable — siguiente paso:** publicar una guía rápida copiable
-   (una petición permitida y una bloqueada) y una guía de configuración segura
-   para proxy, Redis, modo monitor y producción, con los valores que cambian
-   por topología.
+4. **Producto utilizable — completada (2026-10-24):** guía rápida copiable
+   (`docs/inicio-rapido.md`) y guía de despliegue por topología
+   (`docs/despliegue.md`), con los valores que cambian por topología y la
+   cadena de confianza de proxies. Ambas páginas tienen tests que comprueban
+   que lo que prometen es lo que el middleware hace.
 5. **Evidencia de detección y release:** crear evaluación retenida, validar
    tráfico benigno autorizado y reportar límites; completar revisión de
    seguridad, paquete limpio, versión etiquetada, publicación y política de
    soporte.
+6. **Confianza operacional pendiente:** Redis real con varios workers (hoy se
+   usa `fakeredis`, que no reproduce el reparto entre procesos), límites de
+   memoria y volumen, e interacción con servidores de producción.
+
 
 
 ## Regla para asignar la puntuación final

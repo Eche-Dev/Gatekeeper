@@ -33,7 +33,14 @@ app.add_middleware(GatekeeperMiddleware, config=Config(rate_limit=100, rate_wind
 
 Hay una **demo** con playground de payloads y GIF de una sesión real en
 [`gatekeeper-v0.3/gatekeeper/demo/`](gatekeeper-v0.3/gatekeeper/demo/)
-(despliegue en un comando con Vercel o Docker).
+
+Para comprobar en tu propia máquina que bloquea lo que debe, la
+[guía de inicio rápido](gatekeeper-v0.3/gatekeeper/docs/inicio-rapido.md) te da
+los dos `curl` que verifican que una petición normal da 200 y un ataque da 403.
+Para decidir **dónde** desplegarlo, la
+[guía de despliegue](gatekeeper-v0.3/gatekeeper/docs/despliegue.md) dice qué
+valor cambia en cada topología (un proceso, varios workers, Docker, proxy
+inverso).
 
 ## Qué mide (no qué promete)
 

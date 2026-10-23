@@ -157,6 +157,12 @@ referencia de API y desarrollo. En local: `mkdocs serve`. Se publica en
 <https://eche-dev.github.io/Gatekeeper/> en cada push a `main` (build
 `--strict` en CI: un enlace roto rompe el workflow).
 
+¿Acabas de llegar? Empieza por la
+[guía de inicio rápido](docs/inicio-rapido.md): dos comandos `curl` verifican
+que una petición normal da 200 y un ataque da 403. Y si decides **dónde**
+desplegarlo, la [guía de despliegue](docs/despliegue.md) dice qué valor cambia
+en cada topología (un proceso, varios workers, Docker, proxy inverso).
+
 Contribuir: [CONTRIBUTING.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/CONTRIBUTING.md)
 · [Código de conducta](https://github.com/Eche-Dev/Gatekeeper/blob/main/CODE_OF_CONDUCT.md)
 · Plantillas de issues y PR en la raíz del repo.

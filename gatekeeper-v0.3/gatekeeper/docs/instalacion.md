@@ -4,6 +4,12 @@
     Gatekeeper no está publicado en PyPI todavía: se publicará cuando el
     proyecto se decida completo. Por ahora se instala desde el repositorio.
 
+!!! tip "¿Solo quieres verlo funcionar?"
+    Si tu objetivo es comprobar que Gatekeeper bloquea lo que debe en cinco
+    minutos, empieza por la [guía de inicio rápido](inicio-rapido.md): instala,
+    añade el middleware y lanza los dos comandos que verifican que un ataque
+    recibe 403.
+
 ## Desde el repositorio
 
 === "pip"
@@ -61,4 +67,5 @@ rm consumidor.py
 
 ---
 
-Siguiente: [Uso →](uso.md)
+Siguiente: [Uso →](uso.md) · [Despliegue →](despliegue.md)
+

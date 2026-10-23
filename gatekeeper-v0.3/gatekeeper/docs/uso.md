@@ -239,4 +239,5 @@ async def health() -> dict[str, str]:
 
 ---
 
-Siguiente: [Detección y medición →](deteccion.md)
+Siguiente: [Despliegue →](despliegue.md) · [Detección y medición →](deteccion.md)
+

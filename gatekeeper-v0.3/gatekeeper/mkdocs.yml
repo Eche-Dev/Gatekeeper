@@ -28,8 +28,10 @@ theme:
     - content.action.edit
 nav:
   - Inicio: index.md
+  - Inicio rápido: inicio-rapido.md
   - Instalación: instalacion.md
   - Uso: uso.md
+  - Despliegue: despliegue.md
   - Detección y medición: deteccion.md
   - Modelo de amenazas: amenazas.md
   - Seguridad: seguridad.md
