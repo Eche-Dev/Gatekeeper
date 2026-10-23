@@ -28,6 +28,11 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 - `examples/gatekeeper.yaml` no era YAML válido: el valor `redis_prefix:
   gatekeeper:rl:` sin comillas rompía el parser (`ScannerError`). Ahora va
   entrecomillado y el ejemplo se carga de verdad en los tests.
+- `tests/test_docs_examples.py` fallaba en CI: los ejemplos de FastAPI de la
+  documentación se ejecutan de verdad, pero FastAPI no estaba en el extra
+  `dev` que instala el pipeline (el paquete solo depende de Starlette). FastAPI
+  se añade al extra `dev` y, si no estuviera, los ejemplos que lo necesitan se
+  omiten con un motivo explícito en vez de romper la suite.
 
 ## [0.3.1] - 2026-10-22
 

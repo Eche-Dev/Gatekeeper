@@ -65,6 +65,10 @@ dev = [
   "pyyaml>=6",
   "redis>=5.0",
   "fakeredis[lua]>=2.24",
+  # FastAPI NO es dependencia del paquete (solo Starlette), pero los ejemplos de
+  # la documentacion usan FastAPI y `tests/test_docs_examples.py` los ejecuta.
+  # Sin esto, esos ejemplos no se podrian validar en CI.
+  "fastapi",
 ]
 
 [tool.hatch.build.targets.wheel]

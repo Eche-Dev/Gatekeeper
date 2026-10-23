@@ -18,6 +18,21 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# FastAPI no es dependencia del paquete (solo Starlette), pero varios ejemplos de
+# la documentacion lo usan. Si no esta instalado, esos ejemplos no se pueden
+# ejecutar: se omiten con un motivo claro en lugar de romper la suite.
+try:  # pragma: no cover - depende del entorno
+    import fastapi  # noqa: F401
+
+    TIENE_FASTAPI = True
+except ImportError:  # pragma: no cover - depende del entorno
+    TIENE_FASTAPI = False
+
+REQUIERE_FASTAPI = pytest.mark.skipif(
+    not TIENE_FASTAPI,
+    reason="FastAPI no esta instalado (esta en el extra 'dev', no en el paquete)",
+)
+
 # Fragmentos que dependen de contexto externo (una app ya construida, un
 # servidor uvicorn, una variable del entorno). Son ilustrativos, no programas.
 _INDICIOS_DE_FRAGMENTO = (
@@ -95,6 +110,8 @@ def test_programas_completos_de_la_docs_se_ejecutan(md: Path):
     for i, bloque in enumerate(_bloques_python(md)):
         if not _es_programa_completo(bloque):
             continue
+        if "fastapi" in bloque and not TIENE_FASTAPI:
+            continue  # ejemplo de FastAPI sin FastAPI instalado: no se puede ejecutar
         proc = subprocess.run(
             [sys.executable, "-c", bloque],
             capture_output=True,
@@ -107,6 +124,7 @@ def test_programas_completos_de_la_docs_se_ejecutan(md: Path):
         )
 
 
+@REQUIERE_FASTAPI
 def test_ejemplo_vulnerable_vs_protected_se_importa():
     sys.path.insert(0, str(ROOT))
     from examples.vulnerable_vs_protected import protected, vulnerable  # noqa: PLC0415
