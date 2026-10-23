@@ -1,0 +1,190 @@
+{
+  "description": "Corpus del modo opt-in inspect_cross_carrier=True",
+  "payloads": [
+    {
+      "id": "cross-atk-001",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/search?q=1%20UNION",
+      "body": "SELECT password FROM users",
+      "content_type": "text/plain",
+      "note": "UNION en la query, SELECT en el body de texto"
+    },
+    {
+      "id": "cross-atk-002",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/search?q=1%20UNION",
+      "body": "ALL SELECT NULL,version()",
+      "content_type": "text/plain",
+      "note": "UNION ALL SELECT repartido"
+    },
+    {
+      "id": "cross-atk-003",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/search?q=union",
+      "body": "select password from users",
+      "content_type": "text/plain",
+      "note": "version en minusculas"
+    },
+    {
+      "id": "cross-atk-004",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/items?id=1%20UNION",
+      "body": "{\"cols\": \"SELECT username, password FROM users\"}",
+      "content_type": "application/json",
+      "note": "SELECT en un valor JSON"
+    },
+    {
+      "id": "cross-atk-005",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/items?id=1%20UNION",
+      "body": "cols=SELECT+username+FROM+users",
+      "content_type": "application/x-www-form-urlencoded",
+      "note": "SELECT en un formulario"
+    },
+    {
+      "id": "cross-atk-006",
+      "expect": "attack",
+      "rule": "nosql",
+      "target": "/search?q=%7B%22%24",
+      "body": "ne]: null",
+      "content_type": "text/plain",
+      "note": "operador NoSQL partido entre query y body"
+    },
+    {
+      "id": "cross-atk-007",
+      "expect": "attack",
+      "rule": "crlf",
+      "target": "/s?q=%0d%0a",
+      "body": "Set-Cookie: a=b",
+      "content_type": "text/plain",
+      "note": "inyeccion de cabecera repartida"
+    }
+  ],
+  "benign_payloads": [
+    {
+      "id": "cross-ben-001",
+      "expect": "benign",
+      "target": "/search?q=hello",
+      "body": "{\"comment\": \"great article, thanks\"}",
+      "content_type": "application/json",
+      "note": "comentario normal"
+    },
+    {
+      "id": "cross-ben-002",
+      "expect": "benign",
+      "target": "/search?q=union+station",
+      "body": "{\"comment\": \"which platform do I take to select seats?\"}",
+      "content_type": "application/json",
+      "note": "union y select en contexto natural, repartidos"
+    },
+    {
+      "id": "cross-ben-003",
+      "expect": "benign",
+      "target": "/users?order=asc&page=2",
+      "body": "{\"name\": \"Maria\", \"email\": \"maria@example.com\"}",
+      "content_type": "application/json",
+      "note": "paginacion mas alta de usuario"
+    },
+    {
+      "id": "cross-ben-004",
+      "expect": "benign",
+      "target": "/orders?status=open",
+      "body": "{\"items\": [{\"sku\": \"A-1\", \"qty\": 2}, {\"sku\": \"B-7\", \"qty\": 1}]}",
+      "content_type": "application/json",
+      "note": "pedido normal"
+    },
+    {
+      "id": "cross-ben-005",
+      "expect": "benign",
+      "target": "/login",
+      "body": "username=admin&password=hunter2",
+      "content_type": "application/x-www-form-urlencoded",
+      "note": "login por formulario"
+    },
+    {
+      "id": "cross-ben-006",
+      "expect": "benign",
+      "target": "/login?next=%2Fdashboard",
+      "body": "username=admin&password=hunter2",
+      "content_type": "application/x-www-form-urlencoded",
+      "note": "login con redireccion"
+    },
+    {
+      "id": "cross-ben-007",
+      "expect": "benign",
+      "target": "/posts?tag=sql",
+      "body": "{\"title\": \"How to drop a table in SQLAlchemy\", \"body\": \"Use metadata.drop_all()\"}",
+      "content_type": "application/json",
+      "note": "articulo tecnico sin punto y coma"
+    },
+    {
+      "id": "cross-ben-008",
+      "expect": "benign",
+      "target": "/search?q=select",
+      "body": "{\"filter\": \"all users from Spain\"}",
+      "content_type": "application/json",
+      "note": "select en la query y from en el body, sin estructura SQL"
+    },
+    {
+      "id": "cross-ben-009",
+      "expect": "benign",
+      "target": "/files?dir=photos",
+      "body": "{\"name\": \"2024/06/image.png\"}",
+      "content_type": "application/json",
+      "note": "ruta de fichero partida"
+    },
+    {
+      "id": "cross-ben-010",
+      "expect": "benign",
+      "target": "/api/v1/items?limit=10",
+      "body": "{\"price\": {\"gt\": 10}}",
+      "content_type": "application/json",
+      "note": "filtro de precio sin operadores Mongo"
+    },
+    {
+      "id": "cross-ben-011",
+      "expect": "benign",
+      "target": "/notes?lang=en",
+      "body": "Remember to buy milk, eggs and bread.",
+      "content_type": "text/plain",
+      "note": "nota de texto"
+    },
+    {
+      "id": "cross-ben-012",
+      "expect": "benign",
+      "target": "/feedback?rating=5",
+      "body": "O'Reilly books are great; very helpful.",
+      "content_type": "text/plain",
+      "note": "comilla simple y punto y coma en prosa"
+    },
+    {
+      "id": "cross-ben-013",
+      "expect": "benign",
+      "target": "/search?q=1",
+      "body": "{\"quantity\": 1, \"note\": \"order 1 and order 2\"}",
+      "content_type": "application/json",
+      "note": "numeros sueltos"
+    },
+    {
+      "id": "cross-ben-014",
+      "expect": "benign",
+      "target": "/webhooks?source=billing",
+      "body": "{\"event\": \"invoice.paid\", \"amount\": 1999}",
+      "content_type": "application/json",
+      "note": "webhook normal"
+    },
+    {
+      "id": "cross-ben-015",
+      "expect": "benign",
+      "target": "/profile?edit=true",
+      "body": "{\"bio\": \"Developer, coffee lover, and union member.\"}",
+      "content_type": "application/json",
+      "note": "union como sustantivo en body"
+    }
+  ]
+}

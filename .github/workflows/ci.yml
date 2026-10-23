@@ -32,6 +32,8 @@ jobs:
       - run: pytest --cov=gatekeeper --cov-fail-under=90
       - name: Tasa de detección y falsos positivos contra el corpus
         run: python tools/evaluate.py --check
+      - name: Tasa de detección y falsos positivos (modo cruzado)
+        run: python tools/evaluate_cross.py --check
       - name: Procedencia del corpus externo de CRS
         run: python tools/import_crs.py --check
 
