@@ -28,20 +28,28 @@ path traversal en query, cabeceras y body, y eventos de auditoría en el logger
 
 ## Qué mide (no qué promete)
 
-Dos corpus con guarda en CI — uno propio, otro escrito por gente distinta:
+Tres corpus con guarda en CI — uno propio, uno **retenido** y otro escrito por
+gente distinta:
 
-| Métrica | Corpus propio (159 ataques / 81 benignos) | OWASP CRS externo (1379 tests) |
-|---|---|---|
-| Ataques detectados | **100.0%** (159/159) | **40.4%** (459/1135) |
-| Falsos positivos sin documentar | **0** (5 documentados) | 4.7% (11/232 negativos de CRS, línea base) |
-| Falsos negativos sin documentar | 0 | — (muestra en el informe) |
+| Métrica | Corpus propio (159 ataques / 81 benignos) | **Retenido** (109 / 90) | OWASP CRS externo (1379 tests) |
+|---|---|---|---|
+| Ataques detectados | **100.0%** (159/159) | **94.5%** (103/109) | **41.0%** (465/1135) |
+| Falsos positivos sin documentar | **0** (5 documentados) | **0** (4 documentados) | 4.7% (11/232 negativos de CRS, línea base) |
+| Falsos negativos sin documentar | 0 | 0 (6 documentados) | — (muestra en el informe) |
 
 Las cifras no incluyen el modo opt-in `inspect_cross_carrier=True`.
-El 40.4% del corpus externo no es una meta: es la **línea base** de un corpus
+El 41.0% del corpus externo no es una meta: es la **línea base** de un corpus
 diseñado para un WAF de 500+ reglas y mucho más ofuscado, y el workflow la
-vigila para que no baje. Ver [Detección y medición](deteccion.md),
-[Modelo de amenazas](amenazas.md) y
-[corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md).
+vigila para que no baje.
+
+El corpus **retenido** es la medida que no se puede maquillar: se escribió una
+vez sin mirar las firmas de las reglas y desde entonces solo se mide. Por eso
+da un número más bajo (94,5%) que el de desarrollo (100%): esa diferencia es
+información, no un defecto. Ver
+[Detección y medición](deteccion.md),
+[Modelo de amenazas](amenazas.md),
+[corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md) y
+[corpus/HELDOUT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/HELDOUT.md).
 
 ## Demo
 

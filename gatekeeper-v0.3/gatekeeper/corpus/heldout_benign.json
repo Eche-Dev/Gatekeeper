@@ -1,0 +1,462 @@
+{
+  "description": "Trafico legitimo RETENIDO: se usa para medir, no para ajustar. Separate del corpus de desarrollo (benign.json) para no medir lo que ya se sabe. Ver corpus/HELDOUT.md.",
+  "provenance": "Redactado para este proyecto. Casos de trafico real de aplicaciones (busquedas, filtros, formularios, parametrizacion) que NO deben bloquearse. Escritos sin consultar las firmas de las reglas de Gatekeeper.",
+  "held_out": true,
+  "rules_frozen_at": "v0.3.1",
+  "payloads": [
+    {
+      "id": "hob-001",
+      "payload": "/catalogo?categoria=herramientas&pagina=3",
+      "note": "filtros con paginacion"
+    },
+    {
+      "id": "hob-002",
+      "payload": "/buscar?q=precio+menor+que+100",
+      "note": "comparacion numerica en texto"
+    },
+    {
+      "id": "hob-003",
+      "payload": "/pedidos?estado=enviado&desde=2026-01-01&hasta=2026-02-01",
+      "note": "rango de fechas"
+    },
+    {
+      "id": "hob-004",
+      "payload": "/usuarios?orden=asc&pagina=2",
+      "note": "orden y paginacion"
+    },
+    {
+      "id": "hob-005",
+      "payload": "/productos?nombre=llave+inglesa+12",
+      "note": "busqueda con numero"
+    },
+    {
+      "id": "hob-006",
+      "payload": "/blog?etiqueta=union+de+eventos+2026",
+      "note": "union en contexto natural"
+    },
+    {
+      "id": "hob-007",
+      "payload": "/blog?etiqueta=select+de+articulos",
+      "note": "select en contexto natural"
+    },
+    {
+      "id": "hob-008",
+      "payload": "/blog?q=como+configurar+un+proxy+inverso",
+      "note": "busqueda sobre el tema de proxies"
+    },
+    {
+      "id": "hob-009",
+      "payload": "/blog?q=que+es+un+cookie+de+sesion",
+      "note": "busqueda sobre cookies"
+    },
+    {
+      "id": "hob-010",
+      "payload": "/blog?q=diferencia+entre+select+y+where+en+sql",
+      "note": "explicacion de SQL"
+    },
+    {
+      "id": "hob-011",
+      "payload": "/blog?q=proteccion+contra+sql+injection+en+python",
+      "note": "busqueda sobre seguridad"
+    },
+    {
+      "id": "hob-012",
+      "payload": "/api/config?version=2&env=production",
+      "note": "parametros de configuracion"
+    },
+    {
+      "id": "hob-013",
+      "payload": "/api/v2/users?include=profile,settings",
+      "note": "lista de campos"
+    },
+    {
+      "id": "hob-014",
+      "payload": "/download?file=informe_2026.pdf",
+      "note": "descarga de fichero"
+    },
+    {
+      "id": "hob-015",
+      "payload": "/perfil?avatar=foto_perfil.png",
+      "note": "imagen de perfil"
+    },
+    {
+      "id": "hob-016",
+      "payload": "/perfil?bio=Desarrollador+backend+en+Madrid",
+      "note": "biografia de usuario"
+    },
+    {
+      "id": "hob-017",
+      "payload": "/login?redirect=/dashboard",
+      "note": "parametro de redireccion"
+    },
+    {
+      "id": "hob-018",
+      "payload": "/oauth/callback?code=abc123&state=xyz",
+      "note": "callback de OAuth"
+    },
+    {
+      "id": "hob-019",
+      "payload": "/api/items?filter[status]=active",
+      "note": "filtro con corchetes"
+    },
+    {
+      "id": "hob-020",
+      "payload": "/api/items?sort=name&order=desc",
+      "note": "ordenacion"
+    },
+    {
+      "id": "hob-021",
+      "payload": "/api/items?limit=50&offset=100",
+      "note": "limite y desplazamiento"
+    },
+    {
+      "id": "hob-022",
+      "payload": "/api/search?q=precio%3D100%20o%20precio%3D200",
+      "note": "signo igual en consulta"
+    },
+    {
+      "id": "hob-023",
+      "payload": "/api/search?q=a%20and%20b",
+      "note": "and en texto"
+    },
+    {
+      "id": "hob-024",
+      "payload": "/api/search?q=orden%20by%20precio",
+      "note": "order by en texto"
+    },
+    {
+      "id": "hob-025",
+      "payload": "/api/search?q=agrupar%20por%20categoria",
+      "note": "group by en espanol"
+    },
+    {
+      "id": "hob-026",
+      "payload": "/docs/tutorial/como-funciona-el-cache",
+      "note": "ruta de documentacion"
+    },
+    {
+      "id": "hob-027",
+      "payload": "/assets/js/app.bundle.js",
+      "note": "fichero de assets"
+    },
+    {
+      "id": "hob-028",
+      "payload": "/assets/img/logo.png",
+      "note": "imagen de assets"
+    },
+    {
+      "id": "hob-029",
+      "payload": "/templates/base.html",
+      "note": "plantilla"
+    },
+    {
+      "id": "hob-030",
+      "payload": "/static/css/estilos.min.css",
+      "note": "hoja de estilos"
+    },
+    {
+      "id": "hob-031",
+      "payload": "/reportes/ventas_2026_q1.csv",
+      "note": "informe en CSV"
+    },
+    {
+      "id": "hob-032",
+      "payload": "/api/metrics?window=24h",
+      "note": "ventana temporal"
+    },
+    {
+      "id": "hob-033",
+      "payload": "/api/prometheus?query=up",
+      "note": "consulta de metricas"
+    },
+    {
+      "id": "hob-034",
+      "payload": "/health",
+      "note": "endpoint de salud"
+    },
+    {
+      "id": "hob-035",
+      "payload": "/api/v1/transactions?status=pending",
+      "note": "estado de transaccion"
+    },
+    {
+      "id": "hob-036",
+      "payload": "/notas?titulo=como+configurar+redis+con+docker",
+      "note": "nota tecnica sobre redis"
+    },
+    {
+      "id": "hob-037",
+      "payload": "/notas?q=rate+limit+por+ip+en+nginx",
+      "note": "nota sobre rate limiting"
+    },
+    {
+      "id": "hob-038",
+      "payload": "/notas?q=json+web+token+en+headers",
+      "note": "nota sobre JWT"
+    },
+    {
+      "id": "hob-039",
+      "payload": "/notas?q=script+de+ventas+en+javascript",
+      "note": "script en contexto natural"
+    },
+    {
+      "id": "hob-040",
+      "payload": "/notas?q=tag+html+y+atributos",
+      "note": "tag html en contexto natural"
+    },
+    {
+      "id": "hob-041",
+      "payload": "/notas?q=el+archivo+config.yaml+del+proyecto",
+      "note": "nombre de fichero de config"
+    },
+    {
+      "id": "hob-042",
+      "payload": "/notas?q=la+carpeta+.env+en+gitignore",
+      "note": "env en contexto de desarrollo"
+    },
+    {
+      "id": "hob-043",
+      "payload": "/notas?q=protocolo+http+headers+content-type",
+      "note": "cabeceras http"
+    },
+    {
+      "id": "hob-044",
+      "payload": "/api/export?format=csv&columns=name,email",
+      "note": "exportacion"
+    },
+    {
+      "id": "hob-045",
+      "payload": "/api/notifications?since=2026-01-01T00:00:00Z",
+      "note": "timestamp ISO"
+    },
+    {
+      "id": "hob-046",
+      "payload": "/api/geo?lat=40.4168&lon=-3.7038",
+      "note": "coordenadas"
+    },
+    {
+      "id": "hob-047",
+      "payload": "/api/math?value=10&multiplier=3",
+      "note": "parametros numericos"
+    },
+    {
+      "id": "hob-048",
+      "payload": "/api/math?formula=a%2Bb",
+      "note": "formula simple"
+    },
+    {
+      "id": "hob-049",
+      "payload": "/api/test?input=1%3D1",
+      "note": "comparacion en parametro de prueba",
+      "known_fp": "endpoint de pruebas que devuelve payloads como valor: bloquearlo es correcto"
+    },
+    {
+      "id": "hob-050",
+      "payload": "/api/test?input=%27%20or%20%271%27%3D%271%27",
+      "note": "payload de inyeccion como valor de test",
+      "known_fp": "endpoint de pruebas que devuelve payloads como valor: bloquearlo es correcto"
+    },
+    {
+      "id": "hob-051",
+      "payload": "/api/test?input=%3Cscript%3Ealert(1)%3C/script%3E",
+      "note": "payload xss como valor de test",
+      "known_fp": "endpoint de pruebas que devuelve payloads como valor: bloquearlo es correcto"
+    },
+    {
+      "id": "hob-052",
+      "payload": "/api/test?input=..%2F..%2Fetc%2Fpasswd",
+      "note": "payload de traversal como valor de test",
+      "known_fp": "endpoint de pruebas que devuelve payloads como valor: bloquearlo es correcto"
+    },
+    {
+      "id": "hob-053",
+      "payload": "/pricing?plan=pro&seats=25&billing=monthly",
+      "note": "plan de precios"
+    },
+    {
+      "id": "hob-054",
+      "payload": "/api/webhooks?url=https%3A%2F%2Fexample.com%2Fhook",
+      "note": "url de webhook"
+    },
+    {
+      "id": "hob-055",
+      "payload": "/api/webhooks?url=https%3A%2F%2Fexample.com%2Fhook%3Fid%3D1",
+      "note": "url con query"
+    },
+    {
+      "id": "hob-056",
+      "payload": "/blog/2026/01/15/como-configurar-el-pool-de-conexiones",
+      "note": "slug de articulo"
+    },
+    {
+      "id": "hob-057",
+      "payload": "/api/users?email=john.doe%40example.com",
+      "note": "email"
+    },
+    {
+      "id": "hob-058",
+      "payload": "/api/users?q=Jos%C3%A9%20Mar%C3%ADa",
+      "note": "acentos y enye"
+    },
+    {
+      "id": "hob-059",
+      "payload": "/api/users?q=北京",
+      "note": "texto en chino"
+    },
+    {
+      "id": "hob-060",
+      "payload": "/api/emoji?q=%F0%9F%9A%80",
+      "note": "emoji"
+    },
+    {
+      "id": "hob-061",
+      "payload": "/api/lang?locale=es-ES&theme=dark",
+      "note": "idioma y tema"
+    },
+    {
+      "id": "hob-062",
+      "payload": "/api/currency?from=EUR&to=USD&amount=100",
+      "note": "conversion de moneda"
+    },
+    {
+      "id": "hob-063",
+      "payload": "/api/orders?created_at=2026-02-14T10:30:00",
+      "note": "fecha de creacion"
+    },
+    {
+      "id": "hob-064",
+      "payload": "/api/orders?total=19.99&tax=21%",
+      "note": "importes"
+    },
+    {
+      "id": "hob-065",
+      "payload": "/api/products?categories[]=tools&categories[]=paint",
+      "note": "array de categorias"
+    },
+    {
+      "id": "hob-066",
+      "payload": "/api/products?min_price=10&max_price=100",
+      "note": "rango de precios"
+    },
+    {
+      "id": "hob-067",
+      "payload": "/sitemap.xml",
+      "note": "sitemap"
+    },
+    {
+      "id": "hob-068",
+      "payload": "/robots.txt",
+      "note": "robots"
+    },
+    {
+      "id": "hob-069",
+      "payload": "/favicon.ico",
+      "note": "favicon"
+    },
+    {
+      "id": "hob-070",
+      "payload": "/api/orders/12345/items?format=json",
+      "note": "subrecurso con id"
+    },
+    {
+      "id": "hob-071",
+      "payload": "/api/auth/token?grant_type=client_credentials",
+      "note": "oauth token"
+    },
+    {
+      "id": "hob-072",
+      "payload": "/api/pagination?page=2&per_page=50&total_pages=10",
+      "note": "paginacion completa"
+    },
+    {
+      "id": "hob-073",
+      "payload": "/support/faq/how-to-reset-password",
+      "note": "slug de faq"
+    },
+    {
+      "id": "hob-074",
+      "payload": "/api/reports/sales-by-region?year=2026&month=03",
+      "note": "informe por region"
+    },
+    {
+      "id": "hob-075",
+      "payload": "/api/files?path=docs/readme.md",
+      "note": "ruta de fichero en la app"
+    },
+    {
+      "id": "hob-076",
+      "payload": "/api/files?path=src/index.ts",
+      "note": "fichero de codigo referenciado"
+    },
+    {
+      "id": "hob-077",
+      "payload": "/blog?q=como+usar+la+funcion+cast+en+sql",
+      "note": "cast en contexto natural"
+    },
+    {
+      "id": "hob-078",
+      "payload": "/blog?q=diferencia+entre+if+y+switch+en+python",
+      "note": "if en contexto natural"
+    },
+    {
+      "id": "hob-079",
+      "payload": "/blog?q=el+metodo+group+en+java+collections",
+      "note": "group en contexto natural"
+    },
+    {
+      "id": "hob-080",
+      "payload": "/blog?q=analise+de+un+dataset+con+pandas",
+      "note": "analise en contexto natural"
+    },
+    {
+      "id": "hob-081",
+      "payload": "/api/audit?action=login&user_id=42&result=ok",
+      "note": "evento de auditoria"
+    },
+    {
+      "id": "hob-082",
+      "payload": "/api/flags?feature_new_checkout=true&rollout=10",
+      "note": "feature flags"
+    },
+    {
+      "id": "hob-083",
+      "payload": "/api/webhooks?event=order.created&signature=abc123",
+      "note": "evento de webhook"
+    },
+    {
+      "id": "hob-084",
+      "payload": "/api/inventory?sku=ABC-123&warehouse=WH-01",
+      "note": "sku y almacen"
+    },
+    {
+      "id": "hob-085",
+      "payload": "/api/shipping?zip=28001&country=ES",
+      "note": "codigo postal"
+    },
+    {
+      "id": "hob-086",
+      "payload": "/api/support?subject=Consulta+sobre+facturaci%C3%B3n&body=Hola",
+      "note": "consulta de soporte"
+    },
+    {
+      "id": "hob-087",
+      "payload": "/api/search?q=%22comillas+dobles%22+en+una+busqueda",
+      "note": "comillas dobles en busqueda"
+    },
+    {
+      "id": "hob-088",
+      "payload": "/api/search?q=100%25+de+descuento",
+      "note": "porcentaje"
+    },
+    {
+      "id": "hob-089",
+      "payload": "/api/search?q=precio+entre+10+y+20+euros",
+      "note": "rango en texto"
+    },
+    {
+      "id": "hob-090",
+      "payload": "/api/search?q=c%C3%B3mo+configurar+docker+compose",
+      "note": "acento en busqueda"
+    }
+  ]
+}

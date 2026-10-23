@@ -16,6 +16,7 @@ no se mezclan y ambos casos están testeados.
 """
 from __future__ import annotations
 
+import math
 import time
 import uuid
 from collections import deque
@@ -43,6 +44,14 @@ return 0
 
 # Segundos enteros que faltan para que la petición más antigua salga de la
 # ventana (0 si no hay peticiones registradas).
+#
+# La petición más antigua sale cuando `now - oldest >= window` (ZREMRANGEBYSCORE
+# borra con límite INCLUSIVO), así que faltan `window - (now - oldest)` segundos.
+# Se redondea hacia arriba porque `Retry-After` es un entero de segundos: con
+# una ventana de 60 s y una petición recién registrada devuelve 60, no 61.
+#
+# Esta fórmula es la misma que la de MemoryBackend.retry_after: los dos backends
+# deben devolver el mismo número, o cambiar de backend cambiaría la cabecera.
 _RETRY_AFTER = """
 local key = KEYS[1]
 local window = tonumber(ARGV[1])
@@ -52,9 +61,9 @@ local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
 if #oldest == 0 then
   return 0
 end
-local left = window - (now - tonumber(oldest[2])) + 1
-if left < 1 then
-  return 1
+local left = window - (now - tonumber(oldest[2]))
+if left <= 0 then
+  return 0
 end
 return math.ceil(left)
 """
@@ -110,10 +119,24 @@ class MemoryBackend:
         return True
 
     async def retry_after(self, key: str) -> int:
+        """Segundos que el cliente debe esperar (`Retry-After`).
+
+        La petición más antigua sale de la ventana cuando `now - q[0] >= window`
+        (el límite de la ventana es inclusivo). Faltan `window - (now - q[0])`
+        segundos, redondeados hacia ARRIBA porque `Retry-After` es un entero
+        de segundos: si faltan 0,3 s, el cliente espera 1 s, no 0.
+
+        Con una ventana de 60 s y una petición recién registrada, esto devuelve
+        60 (no 61): el valor es lo que dice la cabecera, no un contador
+        desplazado.
+        """
         q = self._hits.get(key)
         if not q:
             return 0
-        return max(1, int(self.window - (self.clock() - q[0])) + 1)
+        restante = self.window - (self.clock() - q[0])
+        if restante <= 0:
+            return 0
+        return int(math.ceil(restante))
 
 
 class RedisBackend:

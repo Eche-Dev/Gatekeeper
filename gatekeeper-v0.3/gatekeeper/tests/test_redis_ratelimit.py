@@ -67,9 +67,10 @@ def test_retry_after_counts_seconds_left():
     async def scenario():
         backend, t, _ = make_backend()
         assert await backend.allow("a")
-        assert await backend.retry_after("a") == 11
+        # Ventana de 10 s -> `Retry-After: 10`. Antes devolvía 11.
+        assert await backend.retry_after("a") == 10
         t[0] += 6.0
-        assert await backend.retry_after("a") == 5
+        assert await backend.retry_after("a") == 4
 
     run(scenario())
 

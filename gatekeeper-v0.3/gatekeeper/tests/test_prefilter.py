@@ -35,6 +35,12 @@ def _textos() -> list[str]:
     benignos = json.loads((CORPUS / "benign.json").read_text(encoding="utf-8"))
     textos += [a["payload"] for a in ataques["payloads"]]
     textos += [b["payload"] for b in benignos["payloads"]]
+    # El corpus RETENIDO tambien entra: sus payloads son los que mensuran si
+    # las reglas generalizan, asi que el pre filtro tiene que cubrirlos igual.
+    retenido_a = json.loads((CORPUS / "heldout_attacks.json").read_text(encoding="utf-8"))
+    retenido_b = json.loads((CORPUS / "heldout_benign.json").read_text(encoding="utf-8"))
+    textos += [a["payload"] for a in retenido_a["payloads"]]
+    textos += [b["payload"] for b in retenido_b["payloads"]]
     crs = json.loads((CORPUS / "crs_payloads.json").read_text(encoding="utf-8"))
     for item in crs["payloads"]:
         uri = item.get("uri") or ""
@@ -50,8 +56,9 @@ TEXTOS = _textos()
 
 
 def test_corpus_no_esta_vacio():
-    # 159 ataques + 81 benignos + 1379 solicitudes CRS y sus cabeceras.
-    assert len(TEXTOS) == 1787, f"el corpus se ha cargado mal: {len(TEXTOS)}"
+    # 159 ataques + 81 benignos + 109 retenidos + 90 retenidos benignos
+    # + 1379 solicitudes CRS y sus cabeceras.
+    assert len(TEXTOS) == 1986, f"el corpus se ha cargado mal: {len(TEXTOS)}"
 
 
 @pytest.mark.parametrize("texto", TEXTOS)
@@ -104,3 +111,47 @@ def test_los_prefiltros_se_pueden_desactivar():
     texto = "1' OR '1'='1"
     assert scan_detailed(texto, use_prefilter=False)[0] == "sqli"
     assert scan_detailed(texto, use_prefilter=True)[0] == "sqli"
+
+
+@pytest.mark.parametrize(
+    "payload,regla",
+    [
+        ("1 GROUP BY 3-- -", "sqli"),
+        ("1 HAVING 1=1-- -", "sqli"),
+        ("1 INTO OUTFILE '/tmp/x'", "sqli"),
+        ("1 AND IF(1=1,1,0)", "sqli"),
+        ("1 PROCEDURE ANALYSE()", "sqli"),
+        ("/var/log/nginx/access.log", "sensitive_files"),
+        ("/var/run/docker.sock", "sensitive_files"),
+        ("/var/lib/postgresql/data/pg_hba.conf", "sensitive_files"),
+        ("/cgi-bin/.htpasswd", "sensitive_files"),
+        ('{"$or": [{"a": 1}]}', "nosql"),
+        ('{"$exists": true}', "nosql"),
+        ("${T(java.lang.Runtime).getRuntime().exec('id')}", "ssti"),
+        ('{"constructor": {"prototype": {"admin": true}}}', "proto_pollution"),
+    ],
+)
+def test_el_prefiltro_no_pierde_detecciones_en_textos_largos(payload, regla):
+    """REGRESION: el pre filtro solo se aplica a partir de 128 caracteres.
+
+    Una firma nueva sin su literal en `PREFILTER_LITERALS` funciona en los
+    corpus cortos y desaparece en los largos: el pre filtro descarta la familia
+    antes de que la regla llegue a evaluarse. Los corpus no lo detectan porque
+    casi todos sus payloads son cortos.
+
+    Este test mete el payload detras de 200 caracteres de relleno, que es lo
+    que hace un atacante (o un bot) cuando quiere colarse.
+    """
+    relleno = "A" * 200
+    largo = relleno + payload
+
+    sin = scan_detailed(largo, use_prefilter=False)
+    con = scan_detailed(largo, use_prefilter=True)
+
+    assert sin is not None, f"el payload {payload!r} no se detecta ni sin pre filtro"
+    assert sin[0] == regla, f"{payload!r} deberia dar {regla}, dio {sin[0]}"
+    assert con == sin, (
+        f"el pre filtro perdio la deteccion de {payload!r} en texto largo: "
+        f"con pre filtro {con}, sin pre filtro {sin}. "
+        "Falta el literal de la familia en PREFILTER_LITERALS."
+    )

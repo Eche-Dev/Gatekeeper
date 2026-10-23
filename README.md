@@ -33,19 +33,32 @@ app.add_middleware(GatekeeperMiddleware, config=Config(rate_limit=100, rate_wind
 
 Hay una **demo** con playground de payloads y GIF de una sesión real en
 [`gatekeeper-v0.3/gatekeeper/demo/`](gatekeeper-v0.3/gatekeeper/demo/)
-(despliegue en un comando con Vercel o Docker).
+
+Para comprobar en tu propia máquina que bloquea lo que debe, la
+[guía de inicio rápido](gatekeeper-v0.3/gatekeeper/docs/inicio-rapido.md) te da
+los dos `curl` que verifican que una petición normal da 200 y un ataque da 403.
+Para decidir **dónde** desplegarlo, la
+[guía de despliegue](gatekeeper-v0.3/gatekeeper/docs/despliegue.md) dice qué
+valor cambia en cada topología (un proceso, varios workers, Docker, proxy
+inverso).
 
 ## Qué mide (no qué promete)
 
-Dos corpus, uno propio y otro externo, ambos con guarda en CI:
+Tres corpus, todos con guarda en CI:
 
-| Métrica | Corpus propio (159 + 81) | OWASP CRS externo (1379 tests) |
-|---|---|---|
-| Ataques detectados | **100.0%** (159/159) | **40.4%** (459/1135, familias 930/941/942) |
-| Falsos positivos sin documentar | **0** | 4.7% (11/232 negativos de CRS, línea base) |
+| Métrica | Corpus propio (159 + 81) | **Retenido** (109 + 90) | OWASP CRS externo (1379 tests) |
+|---|---|---|---|
+| Ataques detectados | **100.0%** (159/159) | **94.5%** (103/109) | **41.0%** (465/1135, familias 930/941/942) |
+| Falsos positivos sin documentar | **0** | **0** | 4.7% (11/232 negativos de CRS, línea base) |
+
+El **retenido** se escribió una vez sin mirar las firmas de las reglas y desde
+entonces solo se mide: por eso da un número más bajo que el propio (94,5% frente
+a 100%). Esa diferencia es información, no un defecto — es lo que separa "las
+reglas detectan esto" de "las reglas detectan lo que se escribieron para ellas".
 
 El detalle y los payloads que escapan están en
-[corpus/REPORT.md](gatekeeper-v0.3/gatekeeper/corpus/REPORT.md). La evaluación
+[corpus/REPORT.md](gatekeeper-v0.3/gatekeeper/corpus/REPORT.md) y
+[corpus/HELDOUT.md](gatekeeper-v0.3/gatekeeper/corpus/HELDOUT.md). La evaluación
 opt-in query/body se publica por separado en
 [corpus/CROSS_REPORT.md](gatekeeper-v0.3/gatekeeper/corpus/CROSS_REPORT.md);
 no se mezcla con estas cifras ni es una evaluación retenida. Publicar el número

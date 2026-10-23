@@ -53,7 +53,7 @@ app.add_middleware(GatekeeperMiddleware, config=Config(rate_limit=100, rate_wind
 
 ## Qué mide (no qué promete)
 
-Se miden dos corpus. El primero es nuestro, redactado y con procedencia
+Se miden tres corpus. El primero es nuestro, redactado y con procedencia
 documentada ([corpus/](corpus/)):
 
 | Métrica (corpus propio) | Valor |
@@ -69,7 +69,23 @@ comandos del sistema, SSRF, SSTI, CRLF, Log4Shell y proto-pollución. El
 desglose con la frontera de falsos positivos de cada una está en
 [docs/amenazas.md](docs/amenazas.md).
 
-El segundo es **ajeno**: los tests de regresión de
+El segundo es el **retenido**: un corpus escrito una vez, sin mirar las
+firmas de las reglas, y desde entonces solo medido. Es el que dice si las
+reglas generalizan o solo se acuerdan de los casos con los que se escribieron:
+
+| Métrica (corpus retenido) | Valor |
+|---|---|
+| Ataques detectados | 103 / 109 (**94.5%**) |
+| Falsos negativos sin documentar | 0 (6 documentados con su motivo) |
+| Peticiones legítimas bloqueadas sin documentar | **0** / 90 |
+| Falsos positivos documentados (límites aceptados) | 4 |
+
+Que dé 94,5% y no 100% es lo esperado: el corpus propio se puede usar para
+ajustar las reglas y el retenido no. La metodología, y los fallos que este
+corpus encontró en las reglas, están en
+[corpus/HELDOUT.md](corpus/HELDOUT.md).
+
+El tercero es **ajeno**: los tests de regresión de
 [OWASP Core Rule Set](https://github.com/coreruleset/coreruleset) (Apache-2.0,
 commit `30cb436`, importado con `tools/import_crs.py`), que escribió otra gente
 para otro WAF, con sus propios negativos:
@@ -77,12 +93,12 @@ para otro WAF, con sus propios negativos:
 | Métrica (corpus externo CRS, familias 930/941/942) | Valor |
 |---|---|
 | Tests importados | 1379 (1135 en alcance, 12 excluidos y declarados) |
-| Ataques detectados | 459 / 1135 (**40.4%**) |
+| Ataques detectados | 465 / 1135 (**41.0%**) |
 | Negativos de CRS bloqueados (FP) | 11 / 232 (4.7%) |
 
-Ese 40.4% no es una meta: es la **línea base** de un corpus diseñado para un
+Ese 41.0% no es una meta: es la **línea base** de un corpus diseñado para un
 WAF de 500+ reglas y payloads mucho más ofuscados, y el workflow la vigila para
-que no baje. Publicarlo entero es el punto: un 100% propio y un 40.4% ajeno, los
+que no baje. Publicarlo entero es el punto: un 100% propio y un 41.0% ajeno, los
 dos medidos y los dos con guarda en CI.
 Estas cifras miden los escaneos individuales; no incluyen
 `inspect_cross_carrier=True`.
@@ -156,6 +172,12 @@ en [`docs/`](docs/): uso, detección y medición, modelo de amenazas, seguridad,
 referencia de API y desarrollo. En local: `mkdocs serve`. Se publica en
 <https://eche-dev.github.io/Gatekeeper/> en cada push a `main` (build
 `--strict` en CI: un enlace roto rompe el workflow).
+
+¿Acabas de llegar? Empieza por la
+[guía de inicio rápido](docs/inicio-rapido.md): dos comandos `curl` verifican
+que una petición normal da 200 y un ataque da 403. Y si decides **dónde**
+desplegarlo, la [guía de despliegue](docs/despliegue.md) dice qué valor cambia
+en cada topología (un proceso, varios workers, Docker, proxy inverso).
 
 Contribuir: [CONTRIBUTING.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/CONTRIBUTING.md)
 · [Código de conducta](https://github.com/Eche-Dev/Gatekeeper/blob/main/CODE_OF_CONDUCT.md)

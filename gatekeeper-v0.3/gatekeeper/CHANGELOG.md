@@ -6,6 +6,31 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [Sin publicar]
 
 ### Añadido
+- **Corpus retenido (held-out)**: `corpus/heldout_attacks.json` (109 ataques) y
+  `corpus/heldout_benign.json` (90 peticiones legítimas), con su evaluador
+  `tools/evaluate_heldout.py`, su informe `corpus/HELDOUT_REPORT.md` y la
+  metodología en `corpus/HELDOUT.md`. Es un corpus escrito **una vez, sin
+  mirar las firmas de las reglas**, y desde entonces solo medido: mide si las
+  reglas generalizan, no si se acuerdan de los casos con los que se escribieron.
+  Resultado: **103/109 (94,5%)** de detección y **0** falsos positivos sin
+  documentar sobre tráfico legítimo. Entra en CI con su propia guarda.
+- **Corpus retenido del modo cruzado** (`corpus/heldout_cross.json`, 20 ataques
+  y 20 benignos), evaluado con `tools/evaluate_cross.py --heldout`: **20/20**
+  ataques bloqueados en modo `inspect_cross_carrier=True` y **0/20** benignos
+  bloqueados, frente a **10/20** en el modo por defecto. Confirma que el modo
+  cruzado generaliza y no solo se acordaba de los 7 casos del corpus de
+  desarrollo. Entra en CI con su propia guarda.
+- **Procedimiento para medir con tráfico real** (`docs/trafico-real.md`): cómo
+  poner Gatekeeper en modo monitor, recoger los eventos, analizarlos con
+  `gatekeeper report`, decidir los ajustes y volver a medir, con el rollback
+  escrito antes de activar el bloqueo. Incluye los requisitos de autorización
+  (solo tráfico propio y con consentimiento) y qué se puede publicar (agregados,
+  nunca el log en crudo). `tests/test_trafico_real.py` ejecuta el camino
+  completo, así que el procedimiento no es papel: si deja de funcionar, falla
+  el pipeline.
+- **`tools/measure_rules.py`**: mide el efecto de un cambio de reglas sobre los
+  cuatro corpus a la vez (desarrollo, retenido, benignos propios y negativos de
+  CRS), para ver el coste (FP nuevos) junto al beneficio (detecciones nuevas).
 - Detección opt-in de firmas repartidas entre ruta/query y valores textuales del
   body mediante `Config(inspect_cross_carrier=True)`. Está desactivada por
   defecto por el posible aumento de falsos positivos; se recomienda validar en
@@ -15,16 +40,72 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   bloqueados y 0/15 benignos bloqueados, con guarda en CI (`--check`).
   Se publica aparte y **no se mezcla** con las métricas del modo individual.
   Es un corpus de desarrollo, no retenido ni representativo de tráfico real.
-- Pruebas de los límites de confianza del body y del rate limit
+- **Guía de inicio rápido** (`docs/inicio-rapido.md`): instalar, añadir el
+  middleware y los dos `curl` que verifican que una petición normal devuelve
+  200 y un ataque devuelve 403, con qué revisar si el ataque pasa.
+- **Guía de despliegue por topología** (`docs/despliegue.md`): un proceso,
+  varios workers, Docker/Kubernetes y proxy inverso, con la matriz de decisión
+  de valores, el checklist de producción y el orden de reversión.
+- **Pruebas de los límites de confianza del body y del rate limit**
   (`tests/test_limites_body_ratelimit.py`): límite exacto y excedido, body
   fragmentado, `Content-Length` ausente o mentiroso, desconexión del cliente a
   mitad del body, tipos de contenido no inspeccionados, concurrencia en el
   backend en memoria y política de fallo de Redis (fail-open y fail-closed).
+- **Pruebas que verifican lo que la documentación promete**
+  (`tests/test_inicio_rapido.py`, `tests/test_despliegue.py`): los códigos de
+  respuesta de la guía rápida, y las afirmaciones de seguridad de la guía de
+  despliegue (el límite en memoria se multiplica con los workers, el XFF se
+  ignora si el peer no es de confianza, `allow_paths` exime de inspección pero
+  no de rate limit).
 - Comprobación en CI de que los ejemplos de la documentación se ejecutan
   (`tests/test_docs_examples.py`): bloques `python` de `README.md` y `docs/`
   válidos y ejecutables, más el ejemplo `examples/gatekeeper.yaml`.
+- **Pruebas de rate limiting contra un Redis real** (`tests/test_redis_real.py`,
+  13 tests) y un job de CI que levanta un Redis de verdad (`redis:7.2-alpine`).
+  Comprueban lo que `fakeredis` no puede simular: que el límite es **global
+  entre workers** (50 workers contra la misma IP se admiten exactamente los 10
+  del límite, ni uno se cuela), que el contador **sobrevive a un reinicio** del
+  proceso, que las IPs distintas tienen contadores separados, que el script Lua
+  se ejecuta de verdad, que las claves expiran y que Redis caído da 503 con
+  `rate_fail_open=False` y se audita con `rate_fail_open=True`. Si no hay Redis
+  disponible, los tests se omiten con un motivo claro.
+
+
 
 ### Corregido
+- **Falso positivo sobre trafico legitimo: blogs con fecha en la ruta.** La
+  regla `\d{4}/\d{2}/\d{2}/` (buscaba volcados con fecha) saltaba con
+  **cualquier** ruta con fecha, incluidos los slugs de los blogs
+  (`/blog/2026/01/15/titulo`): habria bloqueado articulos legitimos en
+  cualquier blog. El corpus de desarrollo no lo detecto porque no tenia ni
+  un caso con fecha en la ruta; lo encontro el corpus retenido. Ahora la
+  ruta tiene que parecer un volcado (`backup/2024/01/15/`, `.../2024/01/15/x.sql`).
+- **Las firmas nuevas se perdian en textos largos.** El pre filtro de
+  familias solo se aplica a partir de 128 caracteres, asi que una firma sin
+  su literal en `PREFILTER_LITERALS` funcionaba en los corpus cortos y
+  **desaparecia en los largos**: el pre filtro descartaba la familia antes
+  de evaluarla. Los corpus no lo detectaban porque casi todos sus payloads
+  son cortos. Anadidos los literales que faltaban y una regresion que mete
+  cada payload detras de 200 caracteres de relleno.
+- **`...//` (tres puntos) se escapaba del path traversal.** El lookbehind
+  `(?<![.\w])` impedia que `..` casara tras un punto, y asi
+  `...//...//etc/passwd` pasaba. Ahora hay un patron para la variante de
+  tres puntos.
+- **Redis < 6 no funcionaba.** El cliente `redis-py` moderno (8.x) hace
+  handshake RESP3 por defecto, y un Redis 5.x o 6.0 no lo entiende: la primera
+  petición fallaba con `unknown command HELLO` y, con la política por defecto
+  (`rate_fail_open=True`), **todas las peticiones pasaban sin rate limit en
+  silencio**. Gatekeeper ahora fuerza RESP2 al conectar, que es lo que permite
+  hablar con cualquier Redis >= 5.0 (el mínimo que promete el extra `[redis]`).
+  La ventana deslizante solo usa `EVAL`/`ZADD`/`ZRANGE`, así que RESP3 no
+  aportaba nada.
+- **`Retry-After` devolvía un segundo de más.** Con una ventana de 60 s, la
+  cabecera decía `Retry-After: 61`. Además, el backend en memoria y el script
+  Lua de Redis **no coincidían** entre sí (truncaban frente a redondear hacia
+  arriba), así que cambiar de backend cambiaba la respuesta. Ahora ambos
+  devuelven el mismo valor, y es el correcto: los segundos que faltan para
+  que la petición más antigua salga de la ventana, redondeados hacia arriba
+  porque `Retry-After` es un entero de segundos.
 - `examples/gatekeeper.yaml` no era YAML válido: el valor `redis_prefix:
   gatekeeper:rl:` sin comillas rompía el parser (`ScannerError`). Ahora va
   entrecomillado y el ejemplo se carga de verdad en los tests.

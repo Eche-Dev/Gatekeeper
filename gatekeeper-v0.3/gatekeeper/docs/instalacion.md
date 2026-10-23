@@ -4,6 +4,12 @@
     Gatekeeper no está publicado en PyPI todavía: se publicará cuando el
     proyecto se decida completo. Por ahora se instala desde el repositorio.
 
+!!! tip "¿Solo quieres verlo funcionar?"
+    Si tu objetivo es comprobar que Gatekeeper bloquea lo que debe en cinco
+    minutos, empieza por la [guía de inicio rápido](inicio-rapido.md): instala,
+    añade el middleware y lanza los dos comandos que verifican que un ataque
+    recibe 403.
+
 ## Desde el repositorio
 
 === "pip"
@@ -36,6 +42,15 @@ pip install "gatekeeper-asgi[redis]"
 El núcleo solo depende de `starlette` (cualquier versión ≥ 0.37; FastAPI ya la
 incluye).
 
+!!! info "Versiones de Redis admitidas"
+    Con el extra `[redis]` hace falta un **Redis 5.0 o superior** (probado
+    contra Redis 5.0 y 7.2). Gatekeeper fuerza el protocolo **RESP2** al
+    conectar: el cliente `redis-py` moderno hace handshake RESP3 por defecto y
+    un Redis 5.x o 6.0 no lo entiende (`unknown command HELLO`). La ventana
+    deslizante solo usa `EVAL`/`ZADD`/`ZRANGE`, así que RESP2 no le quita
+    nada. Si usas un Redis gestionado (ElastiCache, MemoryDB, Upstash),
+    cualquiera de esos servicios habla RESP2 sin problema.
+
 ## Requisitos
 
 - **Python 3.10 o superior.** El CI prueba 3.10, 3.11 y 3.12; el mantenimiento
@@ -61,4 +76,5 @@ rm consumidor.py
 
 ---
 
-Siguiente: [Uso →](uso.md)
+Siguiente: [Uso →](uso.md) · [Despliegue →](despliegue.md)
+

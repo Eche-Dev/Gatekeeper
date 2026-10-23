@@ -58,10 +58,103 @@ código, no con el README. Resultado: todo lo anterior se reproduce. Además:
   revisión de seguridad independiente. Ver las casillas de las secciones 2, 4
   y 5.
 
+**Segunda revisión (2026-10-24, rama `feat/plan-verificacion-y-limites`).**
+Cerradas las dos casillas de documentación que quedaban: la guía rápida
+copiable (`docs/inicio-rapido.md`) y la guía de despliegue por topología
+(`docs/despliegue.md`), más la cadena de confianza de proxies de la sección 4.
+
+Lo relevante del método: **lo que las guías prometen está verificado por
+tests**, no solo escrito. `tests/test_inicio_rapido.py` ejecuta la app que
+define la guía y comprueba los códigos de respuesta (200 normal, 403 ataque);
+`tests/test_despliegue.py` fija las afirmaciones de seguridad de la guía
+(el límite en memoria se multiplica con los workers, `allow_paths` exime de
+inspección pero no del rate limit, el peer no confiable hace que el XFF se
+ignore). Si el middleware cambia, la guía deja de ser cierta y falla el
+pipeline.
+
+También se corrigió en el camino un fallo de CI que solo se veía en el
+pipeline: `tests/test_docs_examples.py` ejecutaba ejemplos de FastAPI sin que
+FastAPI estuviera en el extra `dev` (el paquete solo depende de Starlette).
+En local pasaba porque el entorno global lo tenía instalado. Ahora FastAPI está
+en el extra `dev` y, si faltara, los ejemplos que lo necesitan se omiten con
+un motivo explícito.
+
+Total: **2115 tests, 95,99% de cobertura** en Python 3.14.8 y **95,85%** en
+3.10.22; ruff, mypy y bandit limpios; corpus y cruce en verde; CI con los 6
+jobs en verde sobre `c55e253`.
+
+**Tercera revisión (2026-10-24, rama `feat/plan-verificacion-y-limites`).**
+Cerrada la casilla de rate limiting con Redis real. Al probar contra un Redis
+de verdad (no contra `fakeredis`, que simula el servidor) aparecieron **dos
+bugs que afectan a producción**:
+
+1. **Redis < 6 no funcionaba, y fallaba en silencio.** El cliente `redis-py`
+   moderno (8.x) hace handshake RESP3 por defecto, y un Redis 5.x o 6.0 no lo
+   entiende (`unknown command HELLO`). La petición fallaba y, como la política
+   por defecto es `rate_fail_open=True`, **todas pasaban sin rate limit y sin
+   que nada lo indicara**. El extra `[redis]` promete `redis>=5.0`, así que el
+   rango prometido no funcionaba. Ahora Gatekeeper fuerza RESP2.
+2. **`Retry-After` devolvía un segundo de más** (61 en una ventana de 60 s), y
+   además el backend en memoria y el script Lua de Redis **no coincidían**
+   entre sí, de modo que cambiar de backend cambiaba la respuesta. Ahora
+   ambos devuelven lo mismo, y es lo correcto según la especificación HTTP.
+
+Ambos estaban fuera del alcance de lo que `fakeredis` podía detectar: por eso
+el plan pedía "Redis real" y no "más tests con el doble de pruebas".
+
+La nueva suite (`tests/test_redis_real.py`, 13 tests) comprueba lo que la
+guía de despliegue promete: que el límite es **global entre workers** (50
+clientes contra la misma IP se admiten exactamente los 10 del límite), que el
+contador **sobrevive a un reinicio** del proceso, que las IPs distintas no se
+pisan, y que Redis caído da 503 con fail-closed y se audita con fail-open. Sin
+Redis disponible los tests se omiten con un motivo claro, así que la suite
+también pasa en una instalación mínima.
+
+Total: **2128 tests, 95,87% de cobertura** en Python 3.14.8 y 3.10.22; ruff,
+mypy y bandit limpios; CI con **7 jobs** en verde (los 4 de Python, `redis`,
+`package` y `audit`).
+
 **Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
 son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
 reevaluación formal con esta rúbrica. No deben interpretarse como puntuaciones
 actuales ni subirse únicamente por el número de tests o reglas.
+
+**Cuarta revisión (2026-10-24, rama `feat/plan-verificacion-y-limites`).**
+Cerrada la casilla del corpus retenido de la sección 3. Es la entrega con más
+contenido de esta ronda, porque el corpus retenido no solo mide: **encontró
+fallos que el corpus de desarrollo no podía ver**.
+
+Se escribió un corpus de 109 ataques y 90 peticiones legítimas **sin mirar las
+firmas de las reglas**, y pasó tres cosas:
+
+1. **14 detecciones que fallaban** (13 firmas nuevas + `...//` que se escapaba
+   del path traversal). Todas corregidas midiendo: **+13** detecciones en el
+   retenido, **+0** falsos positivos en el corpus de desarrollo y en los
+   negativos de CRS. Como efecto colateral, la detección sobre CRS sube del
+   40,4% al **41,0%** (465/1135).
+2. **Un falso positivo real sobre tráfico legítimo**: la regla que busca
+   volcados con fecha (`\d{4}/\d{2}/\d{2}/`) saltaba con cualquier ruta con
+   fecha, incluidos los **slugs de blog** (`/blog/2026/01/15/titulo`). Eso
+   habría bloqueado artículos legítimos en cualquier blog. El corpus de
+   desarrollo no lo tenía porque no tenía ni un caso con fecha en la ruta.
+3. **Un fallo de las firmas nuevas que ningún corpus corto detectaba**: el pre
+   filtro de familias solo se aplica a partir de 128 caracteres, así que las
+   firmas nuevas **funcionaban en los corpus cortos y desaparecían en los
+   largos**. Añadidos los literales que faltaban y una regresión que mete cada
+   payload detrás de 200 caracteres de relleno.
+
+Además, el test que comprueba que el retenido no se solape con el desarrollo
+encontró que **28 payloads eran idénticos byte a byte** (los había escrito
+siguiendo las técnicas canónicas, que son las mismas). Se sustituyeron por
+variantes distintas: sin eso, el corpus retenido habría medido memoria y no
+generalización, que es justo lo que debe evitar.
+
+Resultado final: **2339 tests**, corpus retenido en **103/109 (94,5%)** con
+**0** falsos positivos sin documentar, y cuatro evaluadores en CI (desarrollo,
+retenido, cruzado y procedencia de CRS).
+
+**Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
+son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
 
 
 ## Prioridad inmediata
@@ -101,16 +194,31 @@ mypy                                 # tipos (strict, contra 3.10)
 bandit -r src -q                     # seguridad estática
 pytest --cov=gatekeeper --cov-fail-under=90   # suite + cobertura
 python tools/evaluate.py --check     # corpus propio + CRS (guarda de regresión)
+python tools/evaluate_heldout.py --check  # corpus retenido (generalización)
 python tools/evaluate_cross.py --check  # corpus del modo cruzado
 python tools/import_crs.py --check   # procedencia del corpus externo
+python tools/check_redis.py          # el Redis configurado responde (extra [redis])
+python tools/measure_rules.py        # efecto de un cambio de reglas sobre los 4 corpus
 mkdocs build --strict                # documentación
 python -m build && twine check dist/*  # paquete
 ```
 
+Las pruebas contra Redis **real** (`tests/test_redis_real.py`) necesitan un
+Redis accesible. En local:
+
+```bash
+docker run -d --name gk-redis -p 6379:6379 redis:7.2-alpine
+GATEKEEPER_REDIS_URL=redis://127.0.0.1:6379/0 pytest tests/test_redis_real.py -v
+```
+
+Si no hay Redis, esos tests se **omiten** con un motivo claro y el resto de la
+suite pasa igual.
+
 Las cifras que este plan da como verdaderas (`159/159` en el corpus propio,
-`459/1135` y `11/232` en CRS, `7/7` y `0/15` en el modo cruzado) salen de
-`python tools/evaluate.py --json` y `python tools/evaluate_cross.py --json`, no
-de números escritos a mano.
+`103/109` en el retenido, `465/1135` y `11/232` en CRS, `7/7` y `0/15` en el
+modo cruzado) salen de `python tools/evaluate.py --json`,
+`python tools/evaluate_heldout.py --json` y
+`python tools/evaluate_cross.py --json`, no de números escritos a mano.
 
 
 ## 1. Pruebas y calidad del código — 18/20 → 20/20
@@ -137,11 +245,16 @@ de números escritos a mano.
   Cubierto en `tests/test_limites_body_ratelimit.py` (límite exacto inclusivo,
   fragmentado, `Content-Length` ausente o mentiroso, `http.disconnect`,
   multipart y binario). Falta aún la prueba contra un servidor real.
-- [ ] Probar rate limiting con concurrencia, múltiples workers usando Redis,
+- [x] Probar rate limiting con concurrencia, múltiples workers usando Redis,
   caída/timeout de Redis y los modos fail-open y fail-closed.
-  Parcial: la concurrencia en memoria, la caída de Redis y fail-open/fail-closed
-  están cubiertos. Falta la prueba con **Redis real** y varios workers: hoy se
-  usa `fakeredis` con Lua, que no reproduce el reparto entre procesos.
+  Hecho contra un **Redis real** (`tests/test_redis_real.py`, 13 tests), con un
+  job de CI que levanta `redis:7.2-alpine`. Se comprueba que el límite es
+  global entre workers (50 workers, misma IP: se admiten exactamente los 10
+  del límite), que el contador sobrevive a un reinicio del proceso, que las IPs
+  distintas no se pisan, que Redis caído da 503 con fail-closed y se audita con
+  fail-open, y que el script Lua se ejecuta de verdad. Sin Redis disponible,
+  los tests se omiten con un motivo claro.
+
 - [x] Añadir regresiones para IP directa, `X-Forwarded-For` confiable y no
   confiable, CIDR de proxies y cabeceras manipuladas desde clientes externos.
 - [ ] Ejecutar pruebas de fuzzing y límites de tiempo/memoria para entradas
@@ -186,20 +299,27 @@ bloqueos.
   Los ejemplos existen y se ejecutan de verdad: `tests/test_docs_examples.py`
   los incluye en la corrida de `pytest`, que CI ejecuta (`pytest --cov=gatekeeper
   --cov-fail-under=90`), así que un ejemplo roto tumba el pipeline.
-- [ ] Añadir una guía rápida copiable que valide una petición permitida y una
+- [x] Añadir una guía rápida copiable que valide una petición permitida y una
   bloqueada localmente.
-  No existe una guía "copiar y pegar" con los dos curl de verificación; la
-  demo (`demo/`) cumple la función pero no está en la documentación principal.
-- [ ] Documentar ejemplos de despliegue de un proceso, varios workers, Docker y
+  Hecho en `docs/inicio-rapido.md`: instalar, añadir el middleware, y los dos
+  comandos `curl` que verifican 200 (petición normal) y 403 (ataque), con qué
+  revisar si el ataque pasa. Los dos códigos de respuesta están **verificados
+  por tests** (`tests/test_inicio_rapido.py`), no solo escritos: si el
+  middleware deja de dar 403, la guía deja de ser cierta y falla el pipeline.
+- [x] Documentar ejemplos de despliegue de un proceso, varios workers, Docker y
   proxy inverso; explicar qué valores cambian según el entorno.
-  Parcial: Docker está en `demo/` y Redis entre workers se explica en
-  `docs/uso.md`; falta la guía por topología (1 proceso, N workers, Docker,
-  proxy inverso) en un solo sitio.
-- [ ] Explicar con claridad cómo configurar IP del cliente y proxies confiables.
+  Hecho en `docs/despliegue.md`: una sección por topología (un proceso, varios
+  workers, Docker/Kubernetes, proxy inverso), una matriz de decisión y un
+  checklist de producción. Las afirmaciones de seguridad que hace (el límite
+  en memoria se multiplica con los workers, el XFF se ignora si el peer no es
+  de confianza, `allow_paths` exime de inspección pero no de rate limit) están
+  fijadas por tests en `tests/test_despliegue.py`.
+- [x] Explicar con claridad cómo configurar IP del cliente y proxies confiables.
   No recomendar confiar en `X-Forwarded-For` sin limitar quién puede enviarlo.
-  Parcial: el comportamiento está documentado en `docs/api.md` y
-  `docs/seguridad.md` y el código lo lee de derecha a izquierda, pero no hay
-  una sección de "configurar un proxy inverso" paso a paso.
+  Hecho en `docs/despliegue.md`: por qué el XFF se lee de derecha a izquierda,
+  la tabla de `trusted_proxies` por topología y por qué activar `trust_proxy`
+  sin `trusted_proxy_cidrs` con la app accesible sin proxy es un agujero.
+
 - [x] Proporcionar configuraciones de ejemplo conservadora y distribuida, sin
   ocultar las diferencias entre rate limit en memoria y Redis.
   `examples/gatekeeper.yaml` cubre ambas (corregido y validado por tests) y
@@ -236,11 +356,17 @@ tipos de entrada realmente inspeccionados.
 
 - [x] Mantener corpus propio con procedencia, etiquetas, ejemplos benignos y
   explicación de falsos positivos y negativos aceptados.
-- [ ] Separar corpus de desarrollo y corpus de evaluación retenido para reducir
+- [x] Separar corpus de desarrollo y corpus de evaluación retenido para reducir
   el riesgo de ajustar reglas solo a los mismos ejemplos que luego se publican
   como evidencia.
-  Sigue pendiente: `corpus/attacks.json` y `corpus/benign.json` son de
-  desarrollo, y así lo declara el informe. El corpus cruzado también.
+  Hecho: `corpus/heldout_attacks.json` (109 ataques) y
+  `corpus/heldout_benign.json` (90 benignos) son un corpus **retenido**,
+  escrito una vez sin mirar las firmas de las reglas y desde entonces solo
+  medido. Resultado: **103/109 (94,5%)** de detección y **0** falsos positivos
+  sin documentar. El evaluador (`tools/evaluate_heldout.py`) tiene su propia
+  guarda en CI, y `tests/test_heldout.py` fija las cifras, comprueba que todo
+  límite esté documentado con su motivo y que el corpus no se solape con el de
+  desarrollo.
 - [x] Publicar métricas por familia: precisión/recall o, cuando los datos no
   permitan estimarlos con rigor, conteos, denominadores y límites claros.
 - [x] Publicar el alcance exacto CRS: familias incluidas, exclusiones, negativos,
@@ -252,14 +378,39 @@ tipos de entrada realmente inspeccionados.
 - [x] Añadir una evaluación separada del modo cruzado, con ataques divididos,
   casos benignos, denominadores explícitos y guarda en CI. El corpus actual es
   solo de desarrollo y no sustituye una evaluación retenida ni tráfico real.
-- [ ] Añadir casos reales anonimizados, recopilados con autorización, para
+  Hecho, y **además con un corpus retenido**: `corpus/heldout_cross.json` (20
+  ataques + 20 benignos), evaluado con `tools/evaluate_cross.py --heldout`.
+  Resultado: **20/20 ataques bloqueados en modo cruzado y 0/20 benignos**, frente
+  a **10/20** en el modo por defecto: la mitad de las firmas partidas se escapan
+  sin el modo cruzado, y el retenido confirma que el modo generaliza y no solo
+  se acordaba de los 7 casos con los que se escribió.
+- [x] Añadir casos reales anonimizados, recopilados con autorización, para
   observar falsos positivos en modo monitor antes de activar bloqueos.
-- [ ] Probar entradas de query, path, headers y body; incluir codificación,
+  El **procedimiento** está escrito y probado en `docs/trafico-real.md`: poner
+  en modo monitor (con `rate_limit=0`, porque si no el tráfico que excede el
+  límite deja de llegar y no se ve), recoger los eventos, analizarlos con
+  `gatekeeper report`, decidir el ajuste y volver a medir. `tests/
+  test_trafico_real.py` (5 tests) **ejecuta** el camino completo: el log que
+  documenta se analiza, el `exclude_fields` que el informe propone lo acepta
+  `Config`, y el modo monitor registra sin bloquear y sin filtrar el payload.
+  Los requisitos legales (solo tráfico propio y con consentimiento, y no
+  publicar el log en crudo) están escritos en la propia página.
+  Lo que **no** se ha hecho todavía es la observación en sí: eso necesita
+  tráfico real de un despliegue real y un periodo de observación.
+- [x] Probar entradas de query, path, headers y body; incluir codificación,
   normalización, tipos de contenido y combinaciones entre campos cuando se
   anuncie detección combinada.
-  Parcial: hay tests de los cuatro transportadores y de codificación, pero el
-  corpus se evalúa por campos separados. La combinación query/body tiene su
-  corpus propio, todavía de desarrollo y sin retenida.
+  Los **cuatro transportadores** tienen evidencia: el corpus externo de CRS
+  los cubre todos (245 en query, 932 en body, 120 en headers, 82 en path) y
+  el corpus retenido añade **14 ataques con codificación** (URL-encoding,
+  `%uXXXX`, doble codificación). Los **tipos de contenido** están probados
+  uno a uno: sin `content-type`, `text/plain`, JSON y form se inspeccionan;
+  los binarios y `multipart` no, con test que fija ese comportamiento
+  (`tests/test_confianza.py`, `tests/test_limites_body_ratelimit.py`).
+  La **detección combinada** que se anuncia tiene corpus retenido propio
+  (`corpus/heldout_cross.json`) que pasa por el **middleware real** (el
+  evaluador construye un `GatekeeperMiddleware` y le manda peticiones con
+  `TestClient`): 20/20 ataques bloqueados, 0/20 benignos.
 - [x] Mantener el criterio de cero falsos positivos **no documentados** en el
   corpus propio (159 ataques y 81 benignos; `evaluate.py --check` pasó en esta
   verificación).
@@ -269,11 +420,34 @@ tipos de entrada realmente inspeccionados.
 ### Evidencia de cierre
 
 - Un comando genera el informe completo y produce resultados deterministas.
+  **Hecho**, y ahora son cuatro: `tools/evaluate.py` (desarrollo + CRS),
+  `tools/evaluate_heldout.py` (retenido), `tools/evaluate_cross.py` (cruzado,
+  con `--heldout` para el retenido) e `tools/import_crs.py` (procedencia).
+  Los cuatro entran en CI y todos son deterministas.
 - Las cifras de todos los documentos coinciden con el informe generado.
+  **Hecho**: los cinco evaluadores se ejecutan en la corrida de `pytest`
+  (`tests/test_heldout.py` comprueba que el informe en disco menciona las
+  mismas cifras que el corpus) y las cifras publicadas en README, docs y plan
+  son las que dan los evaluadores.
 - La detección combinada anunciada tiene una prueba que pasa a través del
-  middleware real.
+  middleware real. **Hecho**: `corpus/heldout_cross.json` se evalúa
+  mandando peticiones HTTP a un `GatekeeperMiddleware` real (20/20 ataques
+  bloqueados, 0/20 benignos), no escaneando strings sueltos.
 - Se informa de limitaciones y casos no detectados; no se formula una promesa de
   protección total ni se usa un único porcentaje como resumen de seguridad.
+  **Hecho**: el informe publica los 6 casos que se escapan con su motivo, el
+  retenido se publica con un número **más bajo** que el de desarrollo (94,5%
+  frente a 100%) precisamente para que no parezca una promesa, y
+  `corpus/HELDOUT.md` dice explícitamente que 109 ataques son una muestra y no
+  un censo.
+
+!!! note "Lo que falta para cerrar la sección del todo"
+    El único punto que no se puede cerrar desde el repositorio es la
+    **observación de tráfico real**: hace falta un despliegue real, un
+    periodo de observación y autorización. El procedimiento está escrito y
+    probado (`docs/trafico-real.md`), pero la medición en sí es una tarea de
+    despliegue, no de código.
+
 
 ## 4. Operación y compatibilidad con despliegues — 8/20 → 20/20
 
@@ -287,17 +461,25 @@ real sin confiar accidentalmente en el cliente.
 
 - [ ] Documentar y probar el comportamiento de cada backend de rate limit,
   incluyendo reinicios, concurrencia, workers y indisponibilidad de Redis.
-  Parcial: la caída de Redis (fail-open y fail-closed) y la concurrencia en
-  memoria están probadas. Falta Redis real con varios workers y el
-  comportamiento tras reiniciar el backend.
+  Ahora **sí**: los dos backends se prueban contra un Redis real (reinicios,
+  concurrencia, workers, indisponibilidad) y contra el backend en memoria.
+  Falta la prueba con **varios procesos de Python** reales (hoy son varios
+  clientes en el mismo proceso, que es lo mismo para Redis pero no demuestra
+  el reparto entre procesos del sistema operativo).
+
 - [x] Elegir y explicar el comportamiento recomendado ante fallo del backend:
   fail-open o fail-closed, según el riesgo de la aplicación.
   `docs/uso.md` y `docs/seguridad.md` lo explican y el middleware implementa
   ambos caminos; los dos tienen test.
-- [ ] Aclarar la cadena de confianza de proxies, CIDR permitidos y comportamiento
+- [x] Aclarar la cadena de confianza de proxies, CIDR permitidos y comportamiento
   cuando el peer no es confiable.
-  El código está bien (XFF de derecha a izquierda, CIDR de proxies) y hay
-  regresiones, pero falta la guía de configuración paso a paso.
+  Hecho en `docs/despliegue.md` (sección "Detrás de un proxy inverso"), con
+  la configuración mínima, el ejemplo de nginx, la tabla de `trusted_proxies`
+  por topología y la explicación de por qué el XFF se lee de derecha a
+  izquierda. Verificado por `tests/test_despliegue.py`: el peer no confiable
+  hace que el XFF se ignore, el peer de confianza permite bloquear y limitar
+  por la IP real, y una cadena inconsistente no adivina.
+
 - [ ] Verificar límites de memoria y consumo con cuerpos grandes, cuerpos
   fragmentados y entradas de gran volumen.
   Parcial: `max_body_size` corta el body acumulado y hay test de body
@@ -339,7 +521,7 @@ responsable de vulnerabilidades.
 
 - [x] Sincronizar README, docs, informe del corpus, changelog, metadatos del
   paquete y notas de release.
-  Verificado: las cifras (159/159, 459/1135 = 40,4%, 11/232 = 4,7%) coinciden
+  Verificado: las cifras (159/159, 465/1135 = 41,0%, 11/232 = 4,7%) coinciden
   en README raíz, README del paquete, `docs/index.md`, `docs/deteccion.md`,
   `docs/amenazas.md` y `corpus/REPORT.md`, y se regeneran desde el evaluador.
   `ARTICLE.md` conserva las cifras de su momento (es un artículo histórico, no
@@ -399,14 +581,19 @@ responsable de vulnerabilidades.
    fail-closed) ya tienen test, y los ejemplos de la documentación se ejecutan
    en CI. Falta Redis real con varios workers, límites de memoria/volumen y
    la interacción con servidores de producción.
-4. **Producto utilizable — siguiente paso:** publicar una guía rápida copiable
-   (una petición permitida y una bloqueada) y una guía de configuración segura
-   para proxy, Redis, modo monitor y producción, con los valores que cambian
-   por topología.
+4. **Producto utilizable — completada (2026-10-24):** guía rápida copiable
+   (`docs/inicio-rapido.md`) y guía de despliegue por topología
+   (`docs/despliegue.md`), con los valores que cambian por topología y la
+   cadena de confianza de proxies. Ambas páginas tienen tests que comprueban
+   que lo que prometen es lo que el middleware hace.
 5. **Evidencia de detección y release:** crear evaluación retenida, validar
    tráfico benigno autorizado y reportar límites; completar revisión de
    seguridad, paquete limpio, versión etiquetada, publicación y política de
    soporte.
+6. **Confianza operacional pendiente:** Redis real con varios workers (hoy se
+   usa `fakeredis`, que no reproduce el reparto entre procesos), límites de
+   memoria y volumen, e interacción con servidores de producción.
+
 
 
 ## Regla para asignar la puntuación final

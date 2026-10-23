@@ -56,6 +56,51 @@ de búsqueda, `javascript:` en prosa, `%252e%252e%252f` al hablar de codificaci�
 `__proto__` en una búsqueda sobre proto-pollución). Colisionan con la firma por
 construcción — la regla es que **un límite se documenta, no se esconde**.
 
+## El corpus retenido (held-out)
+
+!!! info "Por qué existe un corpus aparte"
+    El corpus de desarrollo se puede usar para **ajustar** las reglas: cada
+    firma nueva se escribe para el caso que la motivó. Al final, su 100% mide
+    memoria, no generalización.
+
+    El corpus retenido se escribió **una vez**, sin mirar las firmas de las
+    reglas, y desde entonces solo se **mide**. Es la diferencia entre
+    "las reglas detectan esto" y "las reglas detectan lo que se escribieron
+    para ellas".
+
+| Métrica | Desarrollo | **Retenido** |
+|---|---|---|
+| Ataques detectados | 159/159 (100%) | **103/109 (94,5%)** |
+| Falsos positivos sin documentar | 0 | **0** / 90 |
+| Falsos negativos documentados | 0 | 6 |
+| Falsos positivos documentados | 5 | 4 |
+
+!!! success "Por qué el retenido da 94,5% y no 100%"
+    Porque es **más difícil a propósito**: incluye técnicas que las reglas no
+    cubren, y esas están marcadas con su motivo (`documented_miss`). Un 100%
+    aquí significaría que el corpus retenido se ajustó, que es exactamente lo
+    que no debe pasar.
+
+    El umbral de CI está en **85%**, no en 100%, por la misma razón: es una
+    guarda de regresión, no una promesa.
+
+Metodología completa (cómo se escribió, qué reglas de uso tiene y qué fallos
+encontró):
+[corpus/HELDOUT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/HELDOUT.md).
+Informe generado:
+[corpus/HELDOUT_REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/HELDOUT_REPORT.md).
+
+!!! warning "El corpus retenido no es una promesa de que no haya más"
+    Mide sobre **109 ataques y 90 peticiones legítimas**. Es una muestra, no
+    un censo. La conclusión honesta es "estas 109 técnicas y estos 90 patrones
+    se comportan así", no "la detección es completa".
+
+!!! tip "La única forma de saberlo con tu tráfico"
+    Los corpus son sintéticos. Para ver si Gatekeeper bloquea **tu** tráfico
+    legítimo hace falta observarlo en modo monitor durante un tiempo: es el
+    procedimiento de [Medir con tráfico real](trafico-real.md), con sus
+    requisitos de autorización y qué se puede publicar.
+
 ## El corpus externo (OWASP CRS)
 
 [coreruleset/coreruleset](https://github.com/coreruleset/coreruleset)
@@ -67,12 +112,12 @@ y 942 (SQLi)** — se importan a `corpus/crs_payloads.json` con `tools/import_cr
 | Métrica (CRS) | Valor |
 |---|---|
 | Tests importados | 1379 (1135 en alcance) |
-| Ataques detectados | 459 / 1135 (**40.4%**) |
+| Ataques detectados | 465 / 1135 (**41.0%**) |
 | Negativos de CRS bloqueados | 11 / 232 (4.7%) |
 | Excluidos y declarados | 12 (cabeceras fuera de `inspect_headers` y bodies binarios) |
 
-!!! success "Por qué se publica el 40.4%"
-    Un 100% propio junto a un 40.4% ajeno es la señal de que la medición es
+!!! success "Por qué se publica el 41.0%"
+    Un 100% propio junto a un 41.0% ajeno es la señal de que la medición es
     honesta. El corpus de CRS está diseñado para un WAF de 500+ reglas que
     acepta los falsos positivos que Gatekeeper no acepta; aquí su número es una
     **línea base con guarda de regresión**, no una promesa. Y los 11 FP de CRS

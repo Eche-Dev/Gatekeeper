@@ -33,8 +33,10 @@ def test_retry_after_follows_the_window():
     t = [0.0]
     rl = MemoryBackend(1, 10, clock=lambda: t[0])
     assert run(rl.allow("a"))
-    assert run(rl.retry_after("a")) == 11  # la más antigua sale en 10 s
+    # La más antigua sale en 10 s: `Retry-After` son 10 segundos, no 11.
+    # Antes devolvía 11, un segundo de más de la ventana real.
+    assert run(rl.retry_after("a")) == 10
     t[0] = 6.0
-    assert run(rl.retry_after("a")) == 5
+    assert run(rl.retry_after("a")) == 4
     t[0] = 20.0
     assert run(rl.allow("a"))  # la ventana ya pasó
