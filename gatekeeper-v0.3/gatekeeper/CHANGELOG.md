@@ -10,6 +10,24 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   body mediante `Config(inspect_cross_carrier=True)`. Está desactivada por
   defecto por el posible aumento de falsos positivos; se recomienda validar en
   `monitor_only`. No está incluida en las cifras de evaluación existentes.
+- **Evaluación separada del modo cruzado** (`tools/evaluate_cross.py`, corpus
+  `corpus/cross.json`, informe `corpus/CROSS_REPORT.md`): 7/7 ataques divididos
+  bloqueados y 0/15 benignos bloqueados, con guarda en CI (`--check`).
+  Se publica aparte y **no se mezcla** con las métricas del modo individual.
+  Es un corpus de desarrollo, no retenido ni representativo de tráfico real.
+- Pruebas de los límites de confianza del body y del rate limit
+  (`tests/test_limites_body_ratelimit.py`): límite exacto y excedido, body
+  fragmentado, `Content-Length` ausente o mentiroso, desconexión del cliente a
+  mitad del body, tipos de contenido no inspeccionados, concurrencia en el
+  backend en memoria y política de fallo de Redis (fail-open y fail-closed).
+- Comprobación en CI de que los ejemplos de la documentación se ejecutan
+  (`tests/test_docs_examples.py`): bloques `python` de `README.md` y `docs/`
+  válidos y ejecutables, más el ejemplo `examples/gatekeeper.yaml`.
+
+### Corregido
+- `examples/gatekeeper.yaml` no era YAML válido: el valor `redis_prefix:
+  gatekeeper:rl:` sin comillas rompía el parser (`ScannerError`). Ahora va
+  entrecomillado y el ejemplo se carga de verdad en los tests.
 
 ## [0.3.1] - 2026-10-22
 
