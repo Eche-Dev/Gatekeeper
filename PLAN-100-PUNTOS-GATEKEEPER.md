@@ -58,6 +58,31 @@ código, no con el README. Resultado: todo lo anterior se reproduce. Además:
   revisión de seguridad independiente. Ver las casillas de las secciones 2, 4
   y 5.
 
+**Segunda revisión (2026-10-24, rama `feat/plan-verificacion-y-limites`).**
+Cerradas las dos casillas de documentación que quedaban: la guía rápida
+copiable (`docs/inicio-rapido.md`) y la guía de despliegue por topología
+(`docs/despliegue.md`), más la cadena de confianza de proxies de la sección 4.
+
+Lo relevante del método: **lo que las guías prometen está verificado por
+tests**, no solo escrito. `tests/test_inicio_rapido.py` ejecuta la app que
+define la guía y comprueba los códigos de respuesta (200 normal, 403 ataque);
+`tests/test_despliegue.py` fija las afirmaciones de seguridad de la guía
+(el límite en memoria se multiplica con los workers, `allow_paths` exime de
+inspección pero no del rate limit, el peer no confiable hace que el XFF se
+ignore). Si el middleware cambia, la guía deja de ser cierta y falla el
+pipeline.
+
+También se corrigió en el camino un fallo de CI que solo se veía en el
+pipeline: `tests/test_docs_examples.py` ejecutaba ejemplos de FastAPI sin que
+FastAPI estuviera en el extra `dev` (el paquete solo depende de Starlette).
+En local pasaba porque el entorno global lo tenía instalado. Ahora FastAPI está
+en el extra `dev` y, si faltara, los ejemplos que lo necesitan se omiten con
+un motivo explícito.
+
+Total: **2115 tests, 95,99% de cobertura** en Python 3.14.8 y **95,85%** en
+3.10.22; ruff, mypy y bandit limpios; corpus y cruce en verde; CI con los 6
+jobs en verde sobre `c55e253`.
+
 **Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
 son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
 reevaluación formal con esta rúbrica. No deben interpretarse como puntuaciones
