@@ -72,7 +72,7 @@ El desglose completo por familia, con su frontera de falsos positivos, está en
 
 ## Requisitos
 
-- Python 3.10–3.12 (probado también en 3.14)
+- Python 3.10–3.13 (probado también localmente en 3.14)
 - [Starlette](https://www.starlette.io/) ≥ 0.37 — FastAPI lo trae ya
 
 !!! success "Tipado real"

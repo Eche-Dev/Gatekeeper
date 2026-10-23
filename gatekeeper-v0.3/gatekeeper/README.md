@@ -1,7 +1,7 @@
 # Gatekeeper
 
 ![CI](https://github.com/Eche-Dev/Gatekeeper/actions/workflows/ci.yml/badge.svg)
-![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.12-blue)
+![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.13-blue)
 ![mypy](https://img.shields.io/badge/mypy-strict-2a6db2)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 

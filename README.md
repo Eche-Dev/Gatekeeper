@@ -41,12 +41,15 @@ Dos corpus, uno propio y otro externo, ambos con guarda en CI:
 
 | Métrica | Corpus propio (159 + 81) | OWASP CRS externo (1379 tests) |
 |---|---|---|
-| Ataques detectados | **100.0%** (159/159) | **34.7%** (394/1135, familias 930/941/942) |
-| Falsos positivos sin documentar | **0** | — (3.9% sobre los negativos de CRS, línea base) |
+| Ataques detectados | **100.0%** (159/159) | **40.4%** (459/1135, familias 930/941/942) |
+| Falsos positivos sin documentar | **0** | 4.7% (11/232 negativos de CRS, línea base) |
 
 El detalle y los payloads que escapan están en
-[corpus/REPORT.md](gatekeeper-v0.3/gatekeeper/corpus/REPORT.md). Publicar el
-número bajo del corpus ajeno es tan importante como el alto del propio.
+[corpus/REPORT.md](gatekeeper-v0.3/gatekeeper/corpus/REPORT.md). La evaluación
+opt-in query/body se publica por separado en
+[corpus/CROSS_REPORT.md](gatekeeper-v0.3/gatekeeper/corpus/CROSS_REPORT.md);
+no se mezcla con estas cifras ni es una evaluación retenida. Publicar el número
+bajo del corpus ajeno es tan importante como el alto del propio.
 
 ## Documentación
 

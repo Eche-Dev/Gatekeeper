@@ -8,7 +8,7 @@ cd Gatekeeper/gatekeeper-v0.3/gatekeeper
 pip install -e ".[dev]"
 ```
 
-Python 3.10+ (el CI prueba 3.10–3.12). El proyecto vive en
+Python 3.10+ (el CI prueba 3.10–3.13). El proyecto vive en
 `gatekeeper-v0.3/gatekeeper/`; `v0.1` y `v0.2` son históricas.
 
 ## Comandos

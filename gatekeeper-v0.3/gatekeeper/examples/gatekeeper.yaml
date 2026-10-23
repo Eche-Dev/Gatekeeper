@@ -3,7 +3,7 @@ rate_limit: 100          # peticiones por ventana y por IP (0 = desactivado)
 rate_window: 60          # segundos
 rate_backend: memory     # memory (un proceso) | redis (compartido entre workers)
 redis_url: redis://localhost:6379/0
-redis_prefix: gatekeeper:rl:
+redis_prefix: 'gatekeeper:rl:'   # entrecomillado: sin comillas los ':' rompen el YAML
 rate_fail_open: true     # si Redis no responde: true -> admite, false -> 503
 monitor_only: false      # true: solo registra, no bloquea (útil para medir falsos positivos)
 inspect_cross_carrier: false  # combina ruta/query + valores textuales del body; probar primero en monitor_only

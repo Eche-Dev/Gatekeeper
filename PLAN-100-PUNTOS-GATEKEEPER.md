@@ -17,28 +17,52 @@ el checkout y confirmar el commit efectivo de `main`.
 
 ## Estado de continuación — 2026-10-23
 
-**Hito integrado:** PR #20, [detección opt-in entre query y body](https://github.com/Eche-Dev/Gatekeeper/pull/20),
-se integró en `main`. La opción `inspect_cross_carrier=True` está desactivada
-por defecto, combina ruta/query con valores textuales inspeccionables del body,
-respeta `exclude_fields` y mantiene las claves JSON y cabeceras fuera de la
-combinación. CRS permanece integrado como corpus de benchmark; sus datos no se
-eliminaron ni se usan como motor o dependencia de ejecución.
+**Base verificada:** `main` en `a725cc5` (PR #22), igual a `origin/main`.
+El CI de GitHub para ese commit terminó correctamente (run
+[39987161952](https://github.com/Eche-Dev/Gatekeeper/actions/runs/39987161952)).
 
-**Evidencia local de esa entrega:** 2066 tests pasaron con 96% de cobertura;
-Ruff, mypy, Bandit, evaluación de corpus, validación de importación CRS y
-`mkdocs build --strict` pasaron. El benchmark ahora entrega el body real al
-middleware, pero sus latencias son medidas locales directas sobre ASGI, no un
-SLA ni una medición de producción.
+**Hitos integrados:** PR #20 añadió el cruce opt-in entre query y body. PR #22
+añadió `corpus/cross.json`, su evaluador separado y una guarda en CI. El modo
+cruzado detectó 7/7 ataques divididos y bloqueó 0/15 casos benignos del corpus
+de desarrollo. Es una muestra pequeña, no retenida ni representativa de tráfico
+real; no se mezcla con las métricas de escaneo individual ni demuestra ausencia
+de falsos positivos en producción. `inspect_cross_carrier` sigue desactivado por
+defecto.
 
-**Métricas regeneradas:** corpus propio 159/159 ataques y 0 falsos positivos no
-documentados; corpus CRS 459/1135 (40,4%) y 11/232 negativos marcados (4,7%).
-Estas cifras corresponden a escaneos individuales: todavía no miden el modo
-cruzado. No describir 40,4% como porcentaje general de protección.
+**Verificación local en Windows, Python 3.14.8:** `ruff check .`, `mypy`,
+`bandit -r src -q`, `python tools/evaluate.py --check`,
+`python tools/evaluate_cross.py --check`, `python tools/import_crs.py --check`,
+`mkdocs build --strict`, `python -m build` y `twine check dist/*` pasaron.
+`pytest --cov=gatekeeper --cov-fail-under=90`: 2066 tests pasaron, cobertura
+total 95,57%. La matriz CI de Python 3.10–3.13 pasa en GitHub; localmente solo
+se ejecutó Python 3.14.8.
 
-**Para retomar con OpenCode:** actualizar el checkout principal antes de tocar
-código. El checkout donde se creó esta hoja estaba en `e14bbd1`, antes de la
-integración de la PR #20; confirmar el nuevo `origin/main` y trabajar desde esa
-base. No hay que volver a implementar el hito ya integrado.
+**Revisión de verificación (2026-10-23, posterior a esa entrada).** Se volvió a
+ejecutar todo el conjunto sobre `a725cc5` y se contrastó cada casilla con el
+código, no con el README. Resultado: todo lo anterior se reproduce. Además:
+
+- Se detectó y corrigió un bug real: `examples/gatekeeper.yaml` no era YAML
+  válido (`redis_prefix: gatekeeper:rl:` sin comillas rompía el parser). El
+  ejemplo que el plan exige que sea copiable no se podía cargar.
+- Se añadió `tests/test_limites_body_ratelimit.py` (11 tests) y
+  `tests/test_docs_examples.py` (20 tests): los primeros cubren los límites de
+  confianza del body y del rate limit que el plan pedía; los segundos hacen que
+  los ejemplos de la documentación se ejecuten en CI (van dentro de la corrida
+  de `pytest`, que el workflow ya invoca).
+- Total tras los cambios: **2097 tests, 95,85% de cobertura**, ruff/mypy/bandit
+  limpios, corpus y cruce en verde, wheel construido e instalado en un venv
+  limpio con los extras `redis` y `yaml`.
+- Pendiente real detectado: el código y los tests están en mucho mejor estado
+  que lo que el plan reconocía, pero siguen sin existir la guía rápida
+  copiable, la guía de despliegue por topología, la evaluación retenida y la
+  revisión de seguridad independiente. Ver las casillas de las secciones 2, 4
+  y 5.
+
+**Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
+son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
+reevaluación formal con esta rúbrica. No deben interpretarse como puntuaciones
+actuales ni subirse únicamente por el número de tests o reglas.
+
 
 ## Prioridad inmediata
 
@@ -55,14 +79,39 @@ Las tareas inmediatas de la auditoría original ya se completaron en la PR #20:
 - [x] **Registrar evidencia reproducible de validación.** Los comandos y
   resultados locales están en la descripción de la PR #20, que quedó integrada.
 
-**Siguiente tarea recomendada:** crear una evaluación separada para
-`inspect_cross_carrier=True`, con ataques divididos entre query/body y casos
-benignos representativos. Publicar detecciones y falsos positivos con
-denominadores explícitos; mantenerlos separados de las métricas actuales y no
-cambiar el valor por defecto sin evidencia. Después, continuar con la guía rápida
-copiable, configuración segura para proxy/Redis y ejecución de ejemplos en CI.
-No subir las puntuaciones de auditoría hasta cumplir los criterios de evidencia
-de cada dimensión.
+**Siguiente tarea recomendada:** mejorar la facilidad de integración: publicar
+una guía rápida copiable y una guía de configuración segura para proxy/Redis
+por topología. Los ejemplos ya se ejecutan en CI desde la revisión del
+2026-10-23. Después, ampliar las pruebas operativas (Redis real con varios
+workers, límites de memoria y volumen, servidores de producción). La evaluación
+retenida y el tráfico benigno autorizado siguen siendo necesarios antes de una
+conclusión de preparación para release. No activar el modo cruzado por defecto ni
+subir las puntuaciones sin cumplir la evidencia de cada dimensión.
+
+## Cómo verificar el estado (comandos)
+
+Todo lo que este plan afirma como comprobado se reproduce con estos comandos,
+desde `gatekeeper-v0.3/gatekeeper`:
+
+```bash
+pip install -e ".[dev]"
+
+ruff check .                          # lint
+mypy                                 # tipos (strict, contra 3.10)
+bandit -r src -q                     # seguridad estática
+pytest --cov=gatekeeper --cov-fail-under=90   # suite + cobertura
+python tools/evaluate.py --check     # corpus propio + CRS (guarda de regresión)
+python tools/evaluate_cross.py --check  # corpus del modo cruzado
+python tools/import_crs.py --check   # procedencia del corpus externo
+mkdocs build --strict                # documentación
+python -m build && twine check dist/*  # paquete
+```
+
+Las cifras que este plan da como verdaderas (`159/159` en el corpus propio,
+`459/1135` y `11/232` en CRS, `7/7` y `0/15` en el modo cruzado) salen de
+`python tools/evaluate.py --json` y `python tools/evaluate_cross.py --json`, no
+de números escritos a mano.
+
 
 ## 1. Pruebas y calidad del código — 18/20 → 20/20
 
@@ -79,23 +128,36 @@ de cada dimensión.
 
 ### Trabajo
 
-- [ ] Mantener Ruff, mypy, Bandit, cobertura y tests de corpus como checks
+- [x] Mantener Ruff, mypy, Bandit, cobertura y tests de corpus como checks
   obligatorios en CI.
-- [ ] Añadir pruebas ASGI de extremo a extremo para query, path, headers, body,
+- [x] Añadir pruebas ASGI de extremo a extremo para query, path, headers, body,
   respuestas 403/413/429/503, `monitor_only` y cabeceras de seguridad.
-- [ ] Probar body por streaming sin `Content-Length`, límite exacto, límite
+- [x] Probar body por streaming sin `Content-Length`, límite exacto, límite
   excedido, desconexión del cliente y tipos de contenido no inspeccionados.
+  Cubierto en `tests/test_limites_body_ratelimit.py` (límite exacto inclusivo,
+  fragmentado, `Content-Length` ausente o mentiroso, `http.disconnect`,
+  multipart y binario). Falta aún la prueba contra un servidor real.
 - [ ] Probar rate limiting con concurrencia, múltiples workers usando Redis,
   caída/timeout de Redis y los modos fail-open y fail-closed.
-- [ ] Añadir regresiones para IP directa, `X-Forwarded-For` confiable y no
+  Parcial: la concurrencia en memoria, la caída de Redis y fail-open/fail-closed
+  están cubiertos. Falta la prueba con **Redis real** y varios workers: hoy se
+  usa `fakeredis` con Lua, que no reproduce el reparto entre procesos.
+- [x] Añadir regresiones para IP directa, `X-Forwarded-For` confiable y no
   confiable, CIDR de proxies y cabeceras manipuladas desde clientes externos.
 - [ ] Ejecutar pruebas de fuzzing y límites de tiempo/memoria para entradas
   grandes y patrones configurables. Documentar que las regex del usuario pueden
   tener riesgos distintos de las reglas integradas.
-- [ ] Probar el artefacto wheel/sdist en un entorno virtual limpio y verificar
+  Parcial: `tests/test_fuzz.py` cubre propiedades con Hypothesis sobre las
+  funciones puras, pero no hay límites de tiempo/memoria ni fuzzing de las regex
+  de usuario.
+- [x] Probar el artefacto wheel/sdist en un entorno virtual limpio y verificar
   instalación, importación, extras opcionales y metadatos.
+  Verificado en local (venv limpio: instalación, `import gatekeeper`, extras
+  `redis` y `yaml`, metadatos) y en CI por el job `package`. Falta la
+  instalación desde PyPI, que exige publicar antes.
 - [ ] Añadir una revisión de seguridad independiente antes de declarar una
   versión estable; resolver o aceptar de forma explícita cada hallazgo.
+
 
 ### Evidencia de cierre
 
@@ -119,21 +181,40 @@ bloqueos.
 
 - [ ] Publicar e instalar la versión desde PyPI, una vez comprobados nombre,
   disponibilidad, metadatos, wheel y sdist.
-- [ ] Mantener ejemplos mínimos y probados para FastAPI y Starlette, incluyendo
+- [x] Mantener ejemplos mínimos y probados para FastAPI y Starlette, incluyendo
   instalación, middleware, reglas propias, modo monitor y Redis.
+  Los ejemplos existen y se ejecutan de verdad: `tests/test_docs_examples.py`
+  los incluye en la corrida de `pytest`, que CI ejecuta (`pytest --cov=gatekeeper
+  --cov-fail-under=90`), así que un ejemplo roto tumba el pipeline.
 - [ ] Añadir una guía rápida copiable que valide una petición permitida y una
   bloqueada localmente.
+  No existe una guía "copiar y pegar" con los dos curl de verificación; la
+  demo (`demo/`) cumple la función pero no está en la documentación principal.
 - [ ] Documentar ejemplos de despliegue de un proceso, varios workers, Docker y
   proxy inverso; explicar qué valores cambian según el entorno.
+  Parcial: Docker está en `demo/` y Redis entre workers se explica en
+  `docs/uso.md`; falta la guía por topología (1 proceso, N workers, Docker,
+  proxy inverso) en un solo sitio.
 - [ ] Explicar con claridad cómo configurar IP del cliente y proxies confiables.
   No recomendar confiar en `X-Forwarded-For` sin limitar quién puede enviarlo.
-- [ ] Proporcionar configuraciones de ejemplo conservadora y distribuida, sin
+  Parcial: el comportamiento está documentado en `docs/api.md` y
+  `docs/seguridad.md` y el código lo lee de derecha a izquierda, pero no hay
+  una sección de "configurar un proxy inverso" paso a paso.
+- [x] Proporcionar configuraciones de ejemplo conservadora y distribuida, sin
   ocultar las diferencias entre rate limit en memoria y Redis.
-- [ ] Documentar códigos de respuesta, eventos de log, límites de inspección y
+  `examples/gatekeeper.yaml` cubre ambas (corregido y validado por tests) y
+  `docs/uso.md` explicita la diferencia memoria/Redis por workers.
+- [x] Documentar códigos de respuesta, eventos de log, límites de inspección y
   cómo diagnosticar falsos positivos.
+  `docs/api.md` (códigos), `docs/uso.md` (auditoría y `gatekeeper report`),
+  `docs/amenazas.md` (qué se inspecciona y qué no).
 - [ ] Mantener compatibilidad comprobada con versiones soportadas de Python,
   FastAPI y Starlette; documentar la matriz probada.
+  CI prueba Python 3.10–3.13 y `docs/seguridad.md` lista versiones, pero no hay
+  una matriz explícita de FastAPI/Starlette probada.
 - [ ] Definir política de compatibilidad de API y versionado semántico.
+  El CHANGELOG declara SemVer, pero no hay política escrita de deprecaciones.
+
 
 ### Evidencia de cierre
 
@@ -158,22 +239,31 @@ tipos de entrada realmente inspeccionados.
 - [ ] Separar corpus de desarrollo y corpus de evaluación retenido para reducir
   el riesgo de ajustar reglas solo a los mismos ejemplos que luego se publican
   como evidencia.
-- [ ] Publicar métricas por familia: precisión/recall o, cuando los datos no
+  Sigue pendiente: `corpus/attacks.json` y `corpus/benign.json` son de
+  desarrollo, y así lo declara el informe. El corpus cruzado también.
+- [x] Publicar métricas por familia: precisión/recall o, cuando los datos no
   permitan estimarlos con rigor, conteos, denominadores y límites claros.
 - [x] Publicar el alcance exacto CRS: familias incluidas, exclusiones, negativos,
   falsos positivos y commit de origen. No comparar ese porcentaje con la
   cobertura de un WAF completo.
 - [x] Asegurar que las métricas publicadas del modo individual se regeneran
-  desde el evaluador y coinciden en README, documentación e informe. El modo
-  cruzado aún no tiene evaluación propia y no se incluye en esas cifras.
+  desde el evaluador y coinciden en README, documentación e informe. La
+  evaluación cruzada es separada y no se incluye en esas cifras.
+- [x] Añadir una evaluación separada del modo cruzado, con ataques divididos,
+  casos benignos, denominadores explícitos y guarda en CI. El corpus actual es
+  solo de desarrollo y no sustituye una evaluación retenida ni tráfico real.
 - [ ] Añadir casos reales anonimizados, recopilados con autorización, para
   observar falsos positivos en modo monitor antes de activar bloqueos.
 - [ ] Probar entradas de query, path, headers y body; incluir codificación,
   normalización, tipos de contenido y combinaciones entre campos cuando se
   anuncie detección combinada.
-- [ ] Mantener el criterio de cero falsos positivos **no documentados** en el
-  corpus propio. Informar por separado todos los falsos positivos documentados.
-- [ ] Establecer umbrales de regresión por corpus, con justificación y proceso
+  Parcial: hay tests de los cuatro transportadores y de codificación, pero el
+  corpus se evalúa por campos separados. La combinación query/body tiene su
+  corpus propio, todavía de desarrollo y sin retenida.
+- [x] Mantener el criterio de cero falsos positivos **no documentados** en el
+  corpus propio (159 ataques y 81 benignos; `evaluate.py --check` pasó en esta
+  verificación).
+- [x] Establecer umbrales de regresión por corpus, con justificación y proceso
   para actualizar el corpus sin ocultar deterioros.
 
 ### Evidencia de cierre
@@ -197,22 +287,39 @@ real sin confiar accidentalmente en el cliente.
 
 - [ ] Documentar y probar el comportamiento de cada backend de rate limit,
   incluyendo reinicios, concurrencia, workers y indisponibilidad de Redis.
-- [ ] Elegir y explicar el comportamiento recomendado ante fallo del backend:
+  Parcial: la caída de Redis (fail-open y fail-closed) y la concurrencia en
+  memoria están probadas. Falta Redis real con varios workers y el
+  comportamiento tras reiniciar el backend.
+- [x] Elegir y explicar el comportamiento recomendado ante fallo del backend:
   fail-open o fail-closed, según el riesgo de la aplicación.
+  `docs/uso.md` y `docs/seguridad.md` lo explican y el middleware implementa
+  ambos caminos; los dos tienen test.
 - [ ] Aclarar la cadena de confianza de proxies, CIDR permitidos y comportamiento
   cuando el peer no es confiable.
+  El código está bien (XFF de derecha a izquierda, CIDR de proxies) y hay
+  regresiones, pero falta la guía de configuración paso a paso.
 - [ ] Verificar límites de memoria y consumo con cuerpos grandes, cuerpos
   fragmentados y entradas de gran volumen.
-- [ ] Documentar qué tipos de body no se inspeccionan, incluidos multipart y
+  Parcial: `max_body_size` corta el body acumulado y hay test de body
+  fragmentado, pero no hay medición de memoria ni prueba de volumen alto.
+- [x] Documentar qué tipos de body no se inspeccionan, incluidos multipart y
   contenido binario, y cuáles son las consecuencias.
-- [ ] Confirmar que los logs nunca incluyen payloads sensibles y documentar qué
+  `docs/amenazas.md` lo documenta y ahora hay tests que fijan ese
+  comportamiento (multipart y binario no se inspeccionan).
+- [x] Confirmar que los logs nunca incluyen payloads sensibles y documentar qué
   metadatos sí se registran, retención y recomendaciones de acceso.
+  Hay test que comprueba que la auditoría no lleva el payload; se documenta
+  qué metadatos se registran. La recomendación de retención y acceso es
+  explícita en `docs/seguridad.md`.
 - [ ] Definir métricas/observabilidad de bloqueos, límites, errores de Redis,
   respuestas 413 y modo monitor, sin exponer datos sensibles.
+  Falta: hay eventos de auditoría, pero no un catálogo de métricas ni
+  Prometheus/OTel.
 - [ ] Probar la interacción con aplicaciones ASGI comunes y servidores de
   producción soportados; documentar topologías comprobadas.
 - [ ] Proporcionar un procedimiento de despliegue gradual: monitor, revisión de
   alertas, ajuste y activación de bloqueo, con instrucciones de reversión.
+
 
 ### Evidencia de cierre
 
@@ -230,23 +337,44 @@ responsable de vulnerabilidades.
 
 ### Trabajo
 
-- [ ] Sincronizar README, docs, informe del corpus, changelog, metadatos del
+- [x] Sincronizar README, docs, informe del corpus, changelog, metadatos del
   paquete y notas de release.
-- [ ] Verificar el nombre del proyecto, número de versión, licencia, URL,
+  Verificado: las cifras (159/159, 459/1135 = 40,4%, 11/232 = 4,7%) coinciden
+  en README raíz, README del paquete, `docs/index.md`, `docs/deteccion.md`,
+  `docs/amenazas.md` y `corpus/REPORT.md`, y se regeneran desde el evaluador.
+  `ARTICLE.md` conserva las cifras de su momento (es un artículo histórico, no
+  una referencia actual). El CHANGELOG "Sin publicar" recogía la detección
+  cruzada pero no su evaluación: corregido.
+- [x] Verificar el nombre del proyecto, número de versión, licencia, URL,
   clasificadores de Python y extras publicados.
+  `gatekeeper-asgi` 0.3.1, MIT (SPDX, PEP 639), `requires-python >=3.10`,
+  extras `yaml`/`redis`/`dev`. Verificado con `twine check` y con el metadato
+  instalado en un venv limpio. Falta comprobar que el nombre esté libre en
+  PyPI antes de publicar.
 - [ ] Publicar en PyPI con un proceso de release reproducible y revisar el
   artefacto instalado desde PyPI en un entorno limpio.
+  El workflow `publicar.yml` con Trusted Publishing ya está escrito, pero el
+  proyecto todavía no existe en PyPI: requiere el alta manual que el propio
+  workflow documenta.
 - [ ] Etiquetar versiones y mantener notas de migración para cambios de API,
   configuración, reglas y defaults.
+  El CHANGELOG sigue SemVer y hay notas por versión; falta publicar tags y
+  documentar el proceso de migración.
 - [ ] Publicar una matriz explícita de compatibilidad y una lista de limitaciones
   conocidas.
 - [ ] Revisar la guía de instalación y quickstart desde cero; comprobar comandos
   y enlaces.
-- [ ] Mantener SECURITY.md con canal privado de reporte, alcance, tiempos de
+  Parcial: los ejemplos de código se ejecutan ahora en CI
+  (`tests/test_docs_examples.py`), pero no hay guía rápida "copiar y pegar" y
+  los enlaces externos no se comprueban automáticamente.
+- [x] Mantener SECURITY.md con canal privado de reporte, alcance, tiempos de
   respuesta razonables y proceso de divulgación.
+  Existe `SECURITY.md` en la raíz y en el paquete, con canal y alcance.
 - [ ] Definir política de soporte: versiones mantenidas, compatibilidad y cómo
   reportar errores o falsos positivos.
+  Falta la política explícita de versiones mantenidas.
 - [ ] Retirar o identificar claramente scripts temporales, reportes de análisis
+
   puntuales y artefactos que puedan confundirse con una interfaz estable.
 
 ### Evidencia de cierre
@@ -259,18 +387,27 @@ responsable de vulnerabilidades.
 
 1. **Confiabilidad inmediata — completada en PR #20:** conectar la detección
    query/body como opt-in, corregir el 413 documentado, regenerar las métricas y
-   sincronizar la documentación. Falta medir el modo cruzado por separado.
-2. **Medición del cruce:** crear un conjunto de evaluación separado para el modo
-   opt-in, con ataques divididos y peticiones benignas; informar resultados sin
-   mezclarlos con las métricas de escaneo individual.
-3. **Producto utilizable:** publicar una guía rápida y configuración segura para
-   proxy, Redis, modo monitor y producción.
-4. **Confianza operacional:** agregar pruebas de integración, streaming, proxy,
-   concurrencia y fallos de Redis.
+   sincronizar la documentación.
+2. **Medición inicial del cruce — completada en PR #22:** evaluación separada
+   para el modo opt-in, con ataques divididos y peticiones benignas; resultados
+   con denominadores explícitos y sin mezclarlos con el escaneo individual. La
+   muestra no es retenida ni representa tráfico real; ampliar esa evidencia
+   sigue pendiente.
+3. **Confianza operacional — completada parcialmente (2026-10-23):** los límites
+   de confianza del body (límite exacto, fragmentado, `Content-Length`
+   mentiroso, desconexión) y la política de fallo de Redis (fail-open y
+   fail-closed) ya tienen test, y los ejemplos de la documentación se ejecutan
+   en CI. Falta Redis real con varios workers, límites de memoria/volumen y
+   la interacción con servidores de producción.
+4. **Producto utilizable — siguiente paso:** publicar una guía rápida copiable
+   (una petición permitida y una bloqueada) y una guía de configuración segura
+   para proxy, Redis, modo monitor y producción, con los valores que cambian
+   por topología.
 5. **Evidencia de detección y release:** crear evaluación retenida, validar
    tráfico benigno autorizado y reportar límites; completar revisión de
    seguridad, paquete limpio, versión etiquetada, publicación y política de
    soporte.
+
 
 ## Regla para asignar la puntuación final
 
