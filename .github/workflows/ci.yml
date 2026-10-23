@@ -37,6 +37,62 @@ jobs:
       - name: Procedencia del corpus externo de CRS
         run: python tools/import_crs.py --check
 
+  # Rate limiting contra un Redis REAL, no contra fakeredis.
+  #
+  # `fakeredis` ejecuta el script Lua de verdad, pero SIMULA el servidor: no
+  # reproduce el reparto entre procesos, ni los reinicios, ni el comportamiento
+  # cuando Redis cae. Este job levanta un Redis de verdad (servicio `redis` de
+  # GitHub Actions) y ejecuta `tests/test_redis_real.py`, que comprueba la
+  # garantia que la guia de despliegue promete: con Redis, el limite es global
+  # entre workers, no por proceso.
+  #
+  # Es un job aparte (y no una matriz) porque el servicio Redis se levanta una
+  # vez por job: multiplicarlo por las 4 versiones de Python no anade
+  # cobertura, solo tiempo de runner.
+  redis:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        # La imagen oficial, fijada por version: `redis:latest` puede cambiar
+        # de comportamiento entre Push y la siguiente ejecucion del workflow.
+        image: redis:7.2-alpine
+        ports:
+          - 6379:6379
+        # El test abre y cierra conexiones; `--save ""` evita que Redis intente
+        # volcar a disco (en CI no hace falta y ralentiza).
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: gatekeeper-v0.3/gatekeeper
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: Rate limiting contra Redis real
+        env:
+          GATEKEEPER_REDIS_URL: redis://127.0.0.1:6379/0
+        run: pytest tests/test_redis_real.py -v
+      - name: El servicio Redis responde
+        run: |
+          python - <<'PY'
+          import os
+          import redis
+          client = redis.Redis.from_url(
+              os.environ["GATEKEEPER_REDIS_URL"],
+              socket_connect_timeout=5,
+              socket_timeout=5,
+              protocol=2,
+          )
+          print("PING ->", client.ping())
+          print("VERSION ->", client.info("server")["redis_version"])
+          PY
+
   # NO hay job de latencia en CI, y es una decisión con datos, no una pereza.
   # Se intentó un guard de regresión (`benchmarks/latency.py --check`) y se
   # descartó tras medir: en un runner de CPU compartida el ruido de la máquina

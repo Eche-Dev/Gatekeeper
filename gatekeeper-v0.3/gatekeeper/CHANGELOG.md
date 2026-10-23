@@ -35,9 +35,34 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 - Comprobación en CI de que los ejemplos de la documentación se ejecutan
   (`tests/test_docs_examples.py`): bloques `python` de `README.md` y `docs/`
   válidos y ejecutables, más el ejemplo `examples/gatekeeper.yaml`.
+- **Pruebas de rate limiting contra un Redis real** (`tests/test_redis_real.py`,
+  13 tests) y un job de CI que levanta un Redis de verdad (`redis:7.2-alpine`).
+  Comprueban lo que `fakeredis` no puede simular: que el límite es **global
+  entre workers** (50 workers contra la misma IP se admiten exactamente los 10
+  del límite, ni uno se cuela), que el contador **sobrevive a un reinicio** del
+  proceso, que las IPs distintas tienen contadores separados, que el script Lua
+  se ejecuta de verdad, que las claves expiran y que Redis caído da 503 con
+  `rate_fail_open=False` y se audita con `rate_fail_open=True`. Si no hay Redis
+  disponible, los tests se omiten con un motivo claro.
+
 
 
 ### Corregido
+- **Redis < 6 no funcionaba.** El cliente `redis-py` moderno (8.x) hace
+  handshake RESP3 por defecto, y un Redis 5.x o 6.0 no lo entiende: la primera
+  petición fallaba con `unknown command HELLO` y, con la política por defecto
+  (`rate_fail_open=True`), **todas las peticiones pasaban sin rate limit en
+  silencio**. Gatekeeper ahora fuerza RESP2 al conectar, que es lo que permite
+  hablar con cualquier Redis >= 5.0 (el mínimo que promete el extra `[redis]`).
+  La ventana deslizante solo usa `EVAL`/`ZADD`/`ZRANGE`, así que RESP3 no
+  aportaba nada.
+- **`Retry-After` devolvía un segundo de más.** Con una ventana de 60 s, la
+  cabecera decía `Retry-After: 61`. Además, el backend en memoria y el script
+  Lua de Redis **no coincidían** entre sí (truncaban frente a redondear hacia
+  arriba), así que cambiar de backend cambiaba la respuesta. Ahora ambos
+  devuelven el mismo valor, y es el correcto: los segundos que faltan para
+  que la petición más antigua salga de la ventana, redondeados hacia arriba
+  porque `Retry-After` es un entero de segundos.
 - `examples/gatekeeper.yaml` no era YAML válido: el valor `redis_prefix:
   gatekeeper:rl:` sin comillas rompía el parser (`ScannerError`). Ahora va
   entrecomillado y el ejemplo se carga de verdad en los tests.

@@ -162,11 +162,16 @@ de números escritos a mano.
   Cubierto en `tests/test_limites_body_ratelimit.py` (límite exacto inclusivo,
   fragmentado, `Content-Length` ausente o mentiroso, `http.disconnect`,
   multipart y binario). Falta aún la prueba contra un servidor real.
-- [ ] Probar rate limiting con concurrencia, múltiples workers usando Redis,
+- [x] Probar rate limiting con concurrencia, múltiples workers usando Redis,
   caída/timeout de Redis y los modos fail-open y fail-closed.
-  Parcial: la concurrencia en memoria, la caída de Redis y fail-open/fail-closed
-  están cubiertos. Falta la prueba con **Redis real** y varios workers: hoy se
-  usa `fakeredis` con Lua, que no reproduce el reparto entre procesos.
+  Hecho contra un **Redis real** (`tests/test_redis_real.py`, 13 tests), con un
+  job de CI que levanta `redis:7.2-alpine`. Se comprueba que el límite es
+  global entre workers (50 workers, misma IP: se admiten exactamente los 10
+  del límite), que el contador sobrevive a un reinicio del proceso, que las IPs
+  distintas no se pisan, que Redis caído da 503 con fail-closed y se audita con
+  fail-open, y que el script Lua se ejecuta de verdad. Sin Redis disponible,
+  los tests se omiten con un motivo claro.
+
 - [x] Añadir regresiones para IP directa, `X-Forwarded-For` confiable y no
   confiable, CIDR de proxies y cabeceras manipuladas desde clientes externos.
 - [ ] Ejecutar pruebas de fuzzing y límites de tiempo/memoria para entradas
@@ -319,9 +324,12 @@ real sin confiar accidentalmente en el cliente.
 
 - [ ] Documentar y probar el comportamiento de cada backend de rate limit,
   incluyendo reinicios, concurrencia, workers y indisponibilidad de Redis.
-  Parcial: la caída de Redis (fail-open y fail-closed) y la concurrencia en
-  memoria están probadas. Falta Redis real con varios workers y el
-  comportamiento tras reiniciar el backend.
+  Ahora **sí**: los dos backends se prueban contra un Redis real (reinicios,
+  concurrencia, workers, indisponibilidad) y contra el backend en memoria.
+  Falta la prueba con **varios procesos de Python** reales (hoy son varios
+  clientes en el mismo proceso, que es lo mismo para Redis pero no demuestra
+  el reparto entre procesos del sistema operativo).
+
 - [x] Elegir y explicar el comportamiento recomendado ante fallo del backend:
   fail-open o fail-closed, según el riesgo de la aplicación.
   `docs/uso.md` y `docs/seguridad.md` lo explican y el middleware implementa

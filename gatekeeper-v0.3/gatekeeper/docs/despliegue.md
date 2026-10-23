@@ -55,6 +55,16 @@ lleguen a la vez no pueden colarse por encima del límite (un pipeline de varios
 comandos sí lo permitiría). El cliente es `redis.asyncio`, así que no bloquea el
 event loop.
 
+!!! info "Hace falta Redis 5.0 o superior"
+    Gatekeeper fuerza el protocolo **RESP2** al conectar. El cliente `redis-py`
+    moderno (8.x) hace handshake RESP3 por defecto, y un Redis 5.x o 6.0 no lo
+    entiende: falla con `unknown command HELLO` en la primera petición. Con
+    RESP2 forzado, Gatekeeper habla con cualquier Redis ≥ 5.0. Probado contra
+    Redis 5.0 y 7.2.
+
+    La ventana deslizante solo usa `EVAL`, `ZADD` y `ZRANGE`: RESP3 no le
+    aporta nada, así que no se pierde ninguna función.
+
 !!! warning "Redis es una dependencia crítica"
     Con `rate_backend="redis"`, si Redis no responde el middleware **no puede
     contar**. Decide tú qué pasa con `rate_fail_open`:
@@ -68,6 +78,17 @@ event loop.
     silencio. Para un servicio público, `True` con alertas configuradas suele
     ser la elección menos mala; para un panel de administración o un endpoint
     con coste por petición, `False`.
+
+!!! success "La garantía del límite global, verificada"
+    Con Redis, el límite es **global**, no por worker. Está comprobado contra
+    un Redis real en CI (`tests/test_redis_real.py`):
+
+    - 50 workers distintos contra la misma IP: se admiten exactamente 10 con
+      `rate_limit=10`. Ni uno se cuela.
+    - El contador **sobrevive a un reinicio** del proceso: está en Redis, no en
+      la memoria del worker. Con el backend en memoria, un reinicio pondría el
+      contador a cero y el límite se podría evadir reiniciando.
+    - Dos IPs distintas tienen contadores separados.
 
 ### Varias réplicas de Kubernetes
 

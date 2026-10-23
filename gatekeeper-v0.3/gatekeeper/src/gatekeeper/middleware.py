@@ -44,6 +44,12 @@ def build_limiter(config: Config) -> RateLimitBackend | None:
             config.redis_url,
             socket_connect_timeout=2.0,
             socket_timeout=2.0,
+            # RESP2 explícito: el cliente redis-py moderno (8.x) hace handshake
+            # RESP3 por defecto y un Redis < 6 no lo entiende ("unknown command
+            # HELLO"). Forzando RESP2, Gatekeeper habla con cualquier Redis
+            # >= 5.0, que es lo que promete el extra [redis]. La ventana
+            # deslizante solo usa EVAL/ZADD/ZRANGE: no necesita RESP3.
+            protocol=2,
         ),
         config.rate_limit,
         config.rate_window,
