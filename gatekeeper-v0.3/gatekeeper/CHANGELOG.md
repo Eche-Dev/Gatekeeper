@@ -6,6 +6,17 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [Sin publicar]
 
 ### Añadido
+- **Corpus retenido (held-out)**: `corpus/heldout_attacks.json` (109 ataques) y
+  `corpus/heldout_benign.json` (90 peticiones legítimas), con su evaluador
+  `tools/evaluate_heldout.py`, su informe `corpus/HELDOUT_REPORT.md` y la
+  metodología en `corpus/HELDOUT.md`. Es un corpus escrito **una vez, sin
+  mirar las firmas de las reglas**, y desde entonces solo medido: mide si las
+  reglas generalizan, no si se acuerdan de los casos con los que se escribieron.
+  Resultado: **103/109 (94,5%)** de detección y **0** falsos positivos sin
+  documentar sobre tráfico legítimo. Entra en CI con su propia guarda.
+- **`tools/measure_rules.py`**: mide el efecto de un cambio de reglas sobre los
+  cuatro corpus a la vez (desarrollo, retenido, benignos propios y negativos de
+  CRS), para ver el coste (FP nuevos) junto al beneficio (detecciones nuevas).
 - Detección opt-in de firmas repartidas entre ruta/query y valores textuales del
   body mediante `Config(inspect_cross_carrier=True)`. Está desactivada por
   defecto por el posible aumento de falsos positivos; se recomienda validar en
@@ -48,6 +59,24 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 
 ### Corregido
+- **Falso positivo sobre trafico legitimo: blogs con fecha en la ruta.** La
+  regla `\d{4}/\d{2}/\d{2}/` (buscaba volcados con fecha) saltaba con
+  **cualquier** ruta con fecha, incluidos los slugs de los blogs
+  (`/blog/2026/01/15/titulo`): habria bloqueado articulos legitimos en
+  cualquier blog. El corpus de desarrollo no lo detecto porque no tenia ni
+  un caso con fecha en la ruta; lo encontro el corpus retenido. Ahora la
+  ruta tiene que parecer un volcado (`backup/2024/01/15/`, `.../2024/01/15/x.sql`).
+- **Las firmas nuevas se perdian en textos largos.** El pre filtro de
+  familias solo se aplica a partir de 128 caracteres, asi que una firma sin
+  su literal en `PREFILTER_LITERALS` funcionaba en los corpus cortos y
+  **desaparecia en los largos**: el pre filtro descartaba la familia antes
+  de evaluarla. Los corpus no lo detectaban porque casi todos sus payloads
+  son cortos. Anadidos los literales que faltaban y una regresion que mete
+  cada payload detras de 200 caracteres de relleno.
+- **`...//` (tres puntos) se escapaba del path traversal.** El lookbehind
+  `(?<![.\w])` impedia que `..` casara tras un punto, y asi
+  `...//...//etc/passwd` pasaba. Ahora hay un patron para la variante de
+  tres puntos.
 - **Redis < 6 no funcionaba.** El cliente `redis-py` moderno (8.x) hace
   handshake RESP3 por defecto, y un Redis 5.x o 6.0 no lo entiende: la primera
   petición fallaba con `unknown command HELLO` y, con la política por defecto

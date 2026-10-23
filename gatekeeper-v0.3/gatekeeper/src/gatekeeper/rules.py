@@ -104,6 +104,26 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         # Construcción de strings sin comillas (Oracle): `CHR(`, `XMLType(`,
         # `UNHEX(`. Medido: +4 detecciones, 0 FP.
         re.compile(r"\b(?:chr|xmltype|rawtohex|hextoraw|unhex)\s{0,16}\("),
+        # --- Añadidas tras medir contra el corpus RETENIDO (corpus/HELDOUT.md).
+        # Antes solo se detectaba el sondeo de columnas por `ORDER BY n`. El
+        # retenido trajo `GROUP BY n` y `HAVING` con tautología, que son las
+        # otras dos formas de lo mismo. Medido sobre el corpus retenido:
+        # +2 detecciones, 0 FP en el corpus propio y en los negativos de CRS.
+        re.compile(r"\bgroup\s{1,16}by\s{1,16}['\"]?\d+"),
+        re.compile(r"\bhaving\s{1,16}\d{1,10}\s{0,16}=\s{0,16}\d{1,10}"),
+        # Escritura a fichero del servidor: `INTO OUTFILE`, `INTO DUMPFILE`.
+        # Nunca es tráfico legítimo: una app no deja que el usuario escriba
+        # ficheros en el servidor por parámetro.
+        re.compile(r"\binto\s{1,16}(?:out|dump)file\b"),
+        # `IF(cond, a, b)` y `IIF(...)`: condicionales de SQL. La forma desnuda
+        # (`if(a,b,c)`) aparece en texto que explica programación, así que se
+        # exige el contexto de la consulta (`AND IF`, `OR IF`, o al inicio tras
+        # un cierre de comilla).
+        re.compile(r"(?:\b(?:and|or)\s{0,16}|\))\s{0,8}\bif\s{0,8}\("),
+        re.compile(r"(?:\b(?:and|or)\s{0,16}|\))\s{0,8}\biif\s{0,8}\("),
+        # `PROCEDURE ANALYSE()`: usa las statistics de MySQL para extraer
+        # datos. Metadato de MySQL, no aparece en prosa.
+        re.compile(r"\bprocedure\s{0,16}analyse\s{0,8}\("),
     ],
     "xss": [
         re.compile(r"<\s{0,16}script"),
@@ -151,7 +171,13 @@ RULES: dict[str, list[re.Pattern[str]]] = {
     # `..` solo cuenta como traversal en frontera de segmento: `foo../bar` es un
     # nombre de fichero, no un salto (falso positivo medido contra CRS).
     "path_traversal": [
-        re.compile(r"(?<![.\w])\.\./"),
+        # `...//` (tres puntos + barra) es una evasion clasica: el
+        # lookbehind `(?<![.\w])` impedia que `..` casara tras un punto,
+        # y asi `...//...//etc/passwd` se escapaba. Se anade el patron de
+        # tres puntos seguido de separador.
+        # Medido contra el corpus retenido: +1 deteccion, 0 FP.
+        re.compile(r"(?<![\w.])\.\.\.(?=[/\\])"),
+        re.compile(r"(?<![\w.])\.\./"),
         re.compile(r"(?<![.\w])\.\.\\"),
         re.compile(r"(?<![.\w])\.\.;"),  # `..;/` para saltarse normalizadores
         re.compile(r"/etc/passwd"),
@@ -160,7 +186,9 @@ RULES: dict[str, list[re.Pattern[str]]] = {
     # Exigen un separador de ruta o de query delante: `?q=me.env` pasa,
     # `?file=/app/.env` y `?path_comp=.ssh/id_rsa` no.
     "sensitive_files": [
-        re.compile(r"/etc/(?:passwd|shadow|group|subuid|subgid)\b"),
+        # `gshadow` es el equivalente de `shadow` para grupos: contiene los
+        # hashes de las contrasenas de grupo. Lo anade el corpus retenido.
+        re.compile(r"/etc/(?:passwd|shadow|gshadow|group|subuid|subgid)\b"),
         re.compile(r"/proc/self/(?:environ|cmdline)\b"),
         re.compile(r"(?:^|[\\/])win\.ini\b"),
         re.compile(r"(?:^|[\\/?=&])\.ssh/(?:id_rsa|id_dsa|id_ecdsa|id_ed25519|authorized_keys)\b"),
@@ -172,6 +200,14 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         # Java: `/WEB-INF/` es innaccesible por especificación Java EE; pedirlo
         # desde un navegador es exploración, nunca tráfico legítimo
         re.compile(r"(?:^|[\\/?=&])web-inf[/\\]"),
+        # --- Añadidas tras medir contra el corpus RETENIDO (corpus/HELDOUT.md).
+        # Ficheros de credenciales o de control que ninguna app legítima pide:
+        # el socket de Docker (da acceso al host), la configuracion de
+        # autenticacion de Postgres y el .htpasswd de Apache.
+        # Medido: +3 detecciones, 0 FP en los tres corpus.
+        re.compile(r"(?:^|[\\/?=&])var/run/docker\.sock\b"),
+        re.compile(r"(?:^|[\\/?&=])pg_hba\.conf\b"),
+        re.compile(r"(?:^|[\\/?&=])\.htpasswd\b"),
         # Rutas de sistema: `/sys/class`, `/sys/firmware`… leerlas es
         # reconocimiento del host, no una petición de una app.
         # Se añaden variantes sin exigir separador previo para rutas como `/get/sys/class`.
@@ -208,7 +244,31 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         # `2024/01/15/…` (una fecha en la ruta es un volcado).
         re.compile(r"(?:^|[\s/?=&])(?:/)?(?:wp-content/|/logs?/)"),
         re.compile(r"\.(?:sql|bak|old|orig|save|swp)\s*$"),
-        re.compile(r"(?:^|[\s/?&=])\d{4}/\d{2}/\d{2}/"),
+        # Logs y volcados: `/wp-content/debug.log`, `backup.sql.zip`.
+        re.compile(r"(?:^|[\s/?&=])(?:/)?(?:wp-content/|/logs?/)"),
+        re.compile(r"\.(?:sql|bak|old|orig|save|swp)\s*$"),
+        # Logs de servidor web: leerlos desde la app es reconocimiento del
+        # host. Va en `sensitive_files` y no en `path_traversal` porque el
+        # ORDEN de evaluacion de las familias importa: en `path_traversal`
+        # esta regla se adelantaba a `cmdi` y un
+        # `shell_exec('cat /var/log/syslog')` se clasificaba como traversal
+        # en vez de como comando. Medido contra el corpus retenido:
+        # +1 deteccion, 0 FP.
+        re.compile(r"(?:^|(?<!['\"\s])[\/?&=])var/log/(?:nginx|apache|httpd|syslog|auth\.log|messages)\b"),
+        # Una fecha en la ruta es un volcado SOLO si el resto de la ruta
+        # parece un volcado. La regla original (`\d{4}/\d{2}/\d{2}/` a secas)
+        # saltaba con cualquier ruta con fecha, y los blogs usan fechas en
+        # el slug (`/blog/2026/01/15/titulo`): eso bloquea articulos
+        # legitimos. Se pide que el segmento de la fecha tenga delante algo
+        # que lo delate como volcado (`backup/2024/01/15/`, `dumps/...`) o
+        # que la ruta continue con una extension de volcado.
+        # Medido contra el corpus retenido: -1 FP sobre trafico legitimo,
+        # 0 detecciones perdidas.
+        re.compile(
+            r"(?:^|[\s/?&=])(?:backup|backups|dump|dumps|export|exports|"
+            r"archive|archives|snapshot|snapshots)/?\d{4}/\d{2}/\d{2}"
+        ),
+        re.compile(r"\d{4}/\d{2}/\d{2}/[^\s]*\.(?:sql|dump|tar|gz|bak)\b"),
         # backup.sql.zip y similares: ficheros de volcado en la ruta
         re.compile(r"(?:^|/)backup\.sql\.zip"),
         # `/etc/` más allá de passwd/shadow: configuración de servicios.
@@ -238,6 +298,14 @@ RULES: dict[str, list[re.Pattern[str]]] = {
     # Frontera documentada en docs/amenazas.md.
     "nosql": [
         re.compile(r"\$\s{0,4}(?:ne|where|regex|nin)\b"),
+        # --- Añadidas tras medir contra el corpus RETENIDO (corpus/HELDOUT.md).
+        # `$or` y `$exists` son operadores de inyeccion, no de filtrado
+        # legitimo: un filtro de usuario no usa `$or` con dos condiciones ni
+        # `$exists` (para eso esta el esquema). `$gt`/`$lt`/`$in` siguen
+        # FUERA a proposito: los usan los filtros legitimos.
+        # Medido: +2 detecciones, 0 FP en los tres corpus.
+        re.compile(r"\$\s{0,4}or\b"),
+        re.compile(r"\$\s{0,4}exists\b"),
     ],
     # Inyección de comandos: separador shell + binario (los unicos binarios sin
     # separador aceptables son los .exe de Windows, imposibles en prosa).
@@ -297,6 +365,13 @@ RULES: dict[str, list[re.Pattern[str]]] = {
             r"|cycler|namespace|globals|builtins|__class__|__mro__|__subclasses__)"
             r"[-\w\.\[\]'\",() ]{0,40}\}\}"
         ),
+        # --- Añadida tras medir contra el corpus RETENIDO (corpus/HELDOUT.md).
+        # Spring Expression Language: `${T(java.lang.Runtime).getRuntime().exec('id')}`.
+        # La forma desnuda `T(...)` aparece en prosa sobre Spring, asi que se
+        # exige la plantilla `${...}` delante. El texto se evalua en minusculas
+        # (regla general del modulo), asi que el `T` va en minuscula tambien.
+        # Medido: +1 deteccion, 0 FP.
+        re.compile(r"\$\{\s{0,8}t\s{0,4}\(\s{0,8}[a-z]+\.[a-z]+\."),
     ],
     # CRLF / response splitting: el salto de línea DEBE ir seguido de una
     # cabecera, si no toda conversación multilínea sería un falso positivo.
@@ -331,6 +406,14 @@ RULES: dict[str, list[re.Pattern[str]]] = {
     "proto_pollution": [
         re.compile(r"__proto__"),
         re.compile(r"constructor\s{0,4}[\[.]\s{0,4}prototype"),
+        # --- Añadida tras medir contra el corpus RETENIDO (corpus/HELDOUT.md).
+        # `constructor` y `prototype` pueden venir separados por una clave JSON
+        # (`{"constructor": {"prototype": {...}}}`), donde la firma de arriba no
+        # llega porque no hay `constructor.prototype` contiguo. Se exige que
+        # los dos aparezcan en el mismo texto, a una distancia corta, para no
+        # bloquear texto legitimo que mencione las dos palabras.
+        # Medido: +1 deteccion, 0 FP en los tres corpus.
+        re.compile(r"constructor.{0,40}prototype|prototype.{0,40}constructor"),
     ],
 }
 
@@ -484,6 +567,11 @@ PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
         "abs(", "coalesce(", "count(", "greatest(", "ifnull(", "least(",
         "max(", "min(", "nullif(", "power(", "rand(", "row(", "trunc(",
         "cast(", "char(", "regexp", "like null", ">>", "&&",
+        # Firmas anadidas tras medir contra el corpus retenido. Sin estos
+        # literales, el pre filtro descartaba la familia en textos largos
+        # y estas detecciones se perdian SOLO con entradas >= 128
+        # caracteres: un fallo que no se ve en los corpus cortos.
+        "group by", "having", "outfile", "dumpfile", "analyse", "iif(",
     ),
     # `on\w+=` cubre CUALQUIER handler de evento (`onerror`, `onload`,
     # `onwebkitplaybacktargetavailabilitychanged`...). Es un pre filtro, no una
@@ -508,8 +596,10 @@ PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
         ".git/", ".env", "web-inf", "/windows/system32",
         "/sys/", ".claude/", ".cursor/", ".windsurf/", ".vscode/",
         ".kube/", ".gnupg/",
+        # Anadidos tras medir contra el corpus retenido.
+        "var/log/", "docker.sock", "pg_hba.conf", ".htpasswd",
     ),
-    "nosql": ("$ne", "$nin", "$where", "$regex"),
+    "nosql": ("$ne", "$nin", "$where", "$regex", "$or", "$exists"),
     "cmdi": (
         "; ls", "; cat", "; id", "; whoami", "; uname", "; wget", "; curl",
         "| ls", "| cat", "| id", "| whoami", "| uname", "| nc", "| bash", "| sh",

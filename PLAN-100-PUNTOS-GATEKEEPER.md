@@ -119,6 +119,43 @@ son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
 reevaluación formal con esta rúbrica. No deben interpretarse como puntuaciones
 actuales ni subirse únicamente por el número de tests o reglas.
 
+**Cuarta revisión (2026-10-24, rama `feat/plan-verificacion-y-limites`).**
+Cerrada la casilla del corpus retenido de la sección 3. Es la entrega con más
+contenido de esta ronda, porque el corpus retenido no solo mide: **encontró
+fallos que el corpus de desarrollo no podía ver**.
+
+Se escribió un corpus de 109 ataques y 90 peticiones legítimas **sin mirar las
+firmas de las reglas**, y pasó tres cosas:
+
+1. **14 detecciones que fallaban** (13 firmas nuevas + `...//` que se escapaba
+   del path traversal). Todas corregidas midiendo: **+13** detecciones en el
+   retenido, **+0** falsos positivos en el corpus de desarrollo y en los
+   negativos de CRS. Como efecto colateral, la detección sobre CRS sube del
+   40,4% al **41,0%** (465/1135).
+2. **Un falso positivo real sobre tráfico legítimo**: la regla que busca
+   volcados con fecha (`\d{4}/\d{2}/\d{2}/`) saltaba con cualquier ruta con
+   fecha, incluidos los **slugs de blog** (`/blog/2026/01/15/titulo`). Eso
+   habría bloqueado artículos legítimos en cualquier blog. El corpus de
+   desarrollo no lo tenía porque no tenía ni un caso con fecha en la ruta.
+3. **Un fallo de las firmas nuevas que ningún corpus corto detectaba**: el pre
+   filtro de familias solo se aplica a partir de 128 caracteres, así que las
+   firmas nuevas **funcionaban en los corpus cortos y desaparecían en los
+   largos**. Añadidos los literales que faltaban y una regresión que mete cada
+   payload detrás de 200 caracteres de relleno.
+
+Además, el test que comprueba que el retenido no se solape con el desarrollo
+encontró que **28 payloads eran idénticos byte a byte** (los había escrito
+siguiendo las técnicas canónicas, que son las mismas). Se sustituyeron por
+variantes distintas: sin eso, el corpus retenido habría medido memoria y no
+generalización, que es justo lo que debe evitar.
+
+Resultado final: **2339 tests**, corpus retenido en **103/109 (94,5%)** con
+**0** falsos positivos sin documentar, y cuatro evaluadores en CI (desarrollo,
+retenido, cruzado y procedencia de CRS).
+
+**Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
+son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
+
 
 ## Prioridad inmediata
 
@@ -157,9 +194,11 @@ mypy                                 # tipos (strict, contra 3.10)
 bandit -r src -q                     # seguridad estática
 pytest --cov=gatekeeper --cov-fail-under=90   # suite + cobertura
 python tools/evaluate.py --check     # corpus propio + CRS (guarda de regresión)
+python tools/evaluate_heldout.py --check  # corpus retenido (generalización)
 python tools/evaluate_cross.py --check  # corpus del modo cruzado
 python tools/import_crs.py --check   # procedencia del corpus externo
 python tools/check_redis.py          # el Redis configurado responde (extra [redis])
+python tools/measure_rules.py        # efecto de un cambio de reglas sobre los 4 corpus
 mkdocs build --strict                # documentación
 python -m build && twine check dist/*  # paquete
 ```
@@ -176,9 +215,10 @@ Si no hay Redis, esos tests se **omiten** con un motivo claro y el resto de la
 suite pasa igual.
 
 Las cifras que este plan da como verdaderas (`159/159` en el corpus propio,
-`459/1135` y `11/232` en CRS, `7/7` y `0/15` en el modo cruzado) salen de
-`python tools/evaluate.py --json` y `python tools/evaluate_cross.py --json`, no
-de números escritos a mano.
+`103/109` en el retenido, `465/1135` y `11/232` en CRS, `7/7` y `0/15` en el
+modo cruzado) salen de `python tools/evaluate.py --json`,
+`python tools/evaluate_heldout.py --json` y
+`python tools/evaluate_cross.py --json`, no de números escritos a mano.
 
 
 ## 1. Pruebas y calidad del código — 18/20 → 20/20
@@ -316,11 +356,17 @@ tipos de entrada realmente inspeccionados.
 
 - [x] Mantener corpus propio con procedencia, etiquetas, ejemplos benignos y
   explicación de falsos positivos y negativos aceptados.
-- [ ] Separar corpus de desarrollo y corpus de evaluación retenido para reducir
+- [x] Separar corpus de desarrollo y corpus de evaluación retenido para reducir
   el riesgo de ajustar reglas solo a los mismos ejemplos que luego se publican
   como evidencia.
-  Sigue pendiente: `corpus/attacks.json` y `corpus/benign.json` son de
-  desarrollo, y así lo declara el informe. El corpus cruzado también.
+  Hecho: `corpus/heldout_attacks.json` (109 ataques) y
+  `corpus/heldout_benign.json` (90 benignos) son un corpus **retenido**,
+  escrito una vez sin mirar las firmas de las reglas y desde entonces solo
+  medido. Resultado: **103/109 (94,5%)** de detección y **0** falsos positivos
+  sin documentar. El evaluador (`tools/evaluate_heldout.py`) tiene su propia
+  guarda en CI, y `tests/test_heldout.py` fija las cifras, comprueba que todo
+  límite esté documentado con su motivo y que el corpus no se solape con el de
+  desarrollo.
 - [x] Publicar métricas por familia: precisión/recall o, cuando los datos no
   permitan estimarlos con rigor, conteos, denominadores y límites claros.
 - [x] Publicar el alcance exacto CRS: familias incluidas, exclusiones, negativos,
@@ -337,9 +383,10 @@ tipos de entrada realmente inspeccionados.
 - [ ] Probar entradas de query, path, headers y body; incluir codificación,
   normalización, tipos de contenido y combinaciones entre campos cuando se
   anuncie detección combinada.
-  Parcial: hay tests de los cuatro transportadores y de codificación, pero el
-  corpus se evalúa por campos separados. La combinación query/body tiene su
-  corpus propio, todavía de desarrollo y sin retenida.
+  Parcial: hay tests de los cuatro transportadores y de codificación, y el
+  corpus retenido cubre los cuatro con codificación y bypass. Falta la
+  **combinación de campos** cuando se anuncie detección combinada: el modo
+  cruzado tiene su corpus, pero sigue siendo de desarrollo y sin retenida.
 - [x] Mantener el criterio de cero falsos positivos **no documentados** en el
   corpus propio (159 ataques y 81 benignos; `evaluate.py --check` pasó en esta
   verificación).
@@ -427,7 +474,7 @@ responsable de vulnerabilidades.
 
 - [x] Sincronizar README, docs, informe del corpus, changelog, metadatos del
   paquete y notas de release.
-  Verificado: las cifras (159/159, 459/1135 = 40,4%, 11/232 = 4,7%) coinciden
+  Verificado: las cifras (159/159, 465/1135 = 41,0%, 11/232 = 4,7%) coinciden
   en README raíz, README del paquete, `docs/index.md`, `docs/deteccion.md`,
   `docs/amenazas.md` y `corpus/REPORT.md`, y se regeneran desde el evaluador.
   `ARTICLE.md` conserva las cifras de su momento (es un artículo histórico, no

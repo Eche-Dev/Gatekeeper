@@ -51,9 +51,9 @@
 | Familia (familias CRS 930/941/942) | Detectados / total |
 |---|---|
 | path_traversal | 55 / 62 |
-| sqli | 304 / 869 |
+| sqli | 310 / 869 |
 | xss | 100 / 204 |
-| **total en alcance** | **459 / 1135 (40.4%)** |
+| **total en alcance** | **465 / 1135 (41.0%)** |
 
 | Métrica externa | Valor |
 |---|---|
@@ -78,7 +78,7 @@
 | crs-942521-t16-s1 | sqli | `var=Incorrectly%20constructed%20SQL%20statements%0AThis%20form%20of%20injection%20relies%2…` |
 | crs-942522-t8-s1 | sqli | `var=Incorrectly%20constructed%20SQL%20statements%0AThis%20form%20of%20injection%20relies%2…` |
 
-### Muestra de falsos negativos (12 de 676)
+### Muestra de falsos negativos (12 de 670)
 
 | id | familia | payload |
 |---|---|---|
@@ -97,6 +97,6 @@
 
 ### Umbrales del corpus externo (guarda de regresión sobre la línea base)
 
-- detección CRS ≥ 19%: ✅ (40.4%)
+- detección CRS ≥ 19%: ✅ (41.0%)
 - FP CRS ≤ 5.0%: ✅ (4.7%)
 
