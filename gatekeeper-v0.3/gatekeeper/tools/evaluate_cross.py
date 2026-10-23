@@ -50,7 +50,8 @@ def client(cross):
 
 def blocked(cl, it):
     r = cl.post(it["target"], content=it["body"].encode("utf-8"), headers={"content-type": it["content_type"]})
-    if r.status_code not in (200,403): raise RuntimeError(f"{it['id']}: {r.status_code}")
+    if r.status_code not in (200, 403):
+        raise RuntimeError(f"{it['id']}: {r.status_code}")
     return r.status_code == 403
 
 def evaluate_mode(items, cross):
@@ -60,14 +61,18 @@ def evaluate_mode(items, cross):
         b = blocked(c, it)
         if it["expect"] == "attack":
             r.attacks_total += 1
-            if b: r.attacks_blocked += 1
-            else: r.missed.append(it["id"])
+            if b:
+                r.attacks_blocked += 1
+            else:
+                r.missed.append(it["id"])
         else:
             r.benign_total += 1
             if b:
                 r.benign_blocked += 1
-                if it.get("known_fp"): r.documented_fp += 1
-                else: r.false_positives.append(it["id"])
+                if it.get("known_fp"):
+                    r.documented_fp += 1
+                else:
+                    r.false_positives.append(it["id"])
     return r
 
 def evaluate():
@@ -106,10 +111,17 @@ def main(argv=None):
     if a.write_report:
         REPORT_FILE.write_text("\n".join(lines), encoding="utf-8")
     if a.check:
-        if C["attacks_blocked"] / C["attacks_total"] < a.min: print("FALLO", file=sys.stderr); return 1
-        if C["benign_blocked"] / C["benign_total"] > a.max_fp: print("FALLO", file=sys.stderr); return 1
-        if D["benign_blocked"] / D["benign_total"] > a.max_fp: print("FALLO", file=sys.stderr); return 1
+        if C["attacks_blocked"] / C["attacks_total"] < a.min:
+            print("FALLO", file=sys.stderr)
+            return 1
+        if C["benign_blocked"] / C["benign_total"] > a.max_fp:
+            print("FALLO", file=sys.stderr)
+            return 1
+        if D["benign_blocked"] / D["benign_total"] > a.max_fp:
+            print("FALLO", file=sys.stderr)
+            return 1
         print("OK", file=sys.stderr)
     return 0
 
-if __name__ == "__main__": raise SystemExit(main())
+if __name__ == "__main__":
+    raise SystemExit(main())
