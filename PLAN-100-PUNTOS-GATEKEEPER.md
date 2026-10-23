@@ -83,6 +83,37 @@ Total: **2115 tests, 95,99% de cobertura** en Python 3.14.8 y **95,85%** en
 3.10.22; ruff, mypy y bandit limpios; corpus y cruce en verde; CI con los 6
 jobs en verde sobre `c55e253`.
 
+**Tercera revisión (2026-10-24, rama `feat/plan-verificacion-y-limites`).**
+Cerrada la casilla de rate limiting con Redis real. Al probar contra un Redis
+de verdad (no contra `fakeredis`, que simula el servidor) aparecieron **dos
+bugs que afectan a producción**:
+
+1. **Redis < 6 no funcionaba, y fallaba en silencio.** El cliente `redis-py`
+   moderno (8.x) hace handshake RESP3 por defecto, y un Redis 5.x o 6.0 no lo
+   entiende (`unknown command HELLO`). La petición fallaba y, como la política
+   por defecto es `rate_fail_open=True`, **todas pasaban sin rate limit y sin
+   que nada lo indicara**. El extra `[redis]` promete `redis>=5.0`, así que el
+   rango prometido no funcionaba. Ahora Gatekeeper fuerza RESP2.
+2. **`Retry-After` devolvía un segundo de más** (61 en una ventana de 60 s), y
+   además el backend en memoria y el script Lua de Redis **no coincidían**
+   entre sí, de modo que cambiar de backend cambiaba la respuesta. Ahora
+   ambos devuelven lo mismo, y es lo correcto según la especificación HTTP.
+
+Ambos estaban fuera del alcance de lo que `fakeredis` podía detectar: por eso
+el plan pedía "Redis real" y no "más tests con el doble de pruebas".
+
+La nueva suite (`tests/test_redis_real.py`, 13 tests) comprueba lo que la
+guía de despliegue promete: que el límite es **global entre workers** (50
+clientes contra la misma IP se admiten exactamente los 10 del límite), que el
+contador **sobrevive a un reinicio** del proceso, que las IPs distintas no se
+pisan, y que Redis caído da 503 con fail-closed y se audita con fail-open. Sin
+Redis disponible los tests se omiten con un motivo claro, así que la suite
+también pasa en una instalación mínima.
+
+Total: **2128 tests, 95,87% de cobertura** en Python 3.14.8 y 3.10.22; ruff,
+mypy y bandit limpios; CI con **7 jobs** en verde (los 4 de Python, `redis`,
+`package` y `audit`).
+
 **Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
 son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
 reevaluación formal con esta rúbrica. No deben interpretarse como puntuaciones
@@ -128,9 +159,21 @@ pytest --cov=gatekeeper --cov-fail-under=90   # suite + cobertura
 python tools/evaluate.py --check     # corpus propio + CRS (guarda de regresión)
 python tools/evaluate_cross.py --check  # corpus del modo cruzado
 python tools/import_crs.py --check   # procedencia del corpus externo
+python tools/check_redis.py          # el Redis configurado responde (extra [redis])
 mkdocs build --strict                # documentación
 python -m build && twine check dist/*  # paquete
 ```
+
+Las pruebas contra Redis **real** (`tests/test_redis_real.py`) necesitan un
+Redis accesible. En local:
+
+```bash
+docker run -d --name gk-redis -p 6379:6379 redis:7.2-alpine
+GATEKEEPER_REDIS_URL=redis://127.0.0.1:6379/0 pytest tests/test_redis_real.py -v
+```
+
+Si no hay Redis, esos tests se **omiten** con un motivo claro y el resto de la
+suite pasa igual.
 
 Las cifras que este plan da como verdaderas (`159/159` en el corpus propio,
 `459/1135` y `11/232` en CRS, `7/7` y `0/15` en el modo cruzado) salen de
