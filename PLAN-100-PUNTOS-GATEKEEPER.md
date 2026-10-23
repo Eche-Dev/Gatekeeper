@@ -378,15 +378,22 @@ tipos de entrada realmente inspeccionados.
 - [x] Añadir una evaluación separada del modo cruzado, con ataques divididos,
   casos benignos, denominadores explícitos y guarda en CI. El corpus actual es
   solo de desarrollo y no sustituye una evaluación retenida ni tráfico real.
+  Hecho, y **además con un corpus retenido**: `corpus/heldout_cross.json` (20
+  ataques + 20 benignos), evaluado con `tools/evaluate_cross.py --heldout`.
+  Resultado: **20/20 ataques bloqueados en modo cruzado y 0/20 benignos**, frente
+  a **10/20** en el modo por defecto: la mitad de las firmas partidas se escapan
+  sin el modo cruzado, y el retenido confirma que el modo generaliza y no solo
+  se acordaba de los 7 casos con los que se escribió.
 - [ ] Añadir casos reales anonimizados, recopilados con autorización, para
   observar falsos positivos en modo monitor antes de activar bloqueos.
 - [ ] Probar entradas de query, path, headers y body; incluir codificación,
   normalización, tipos de contenido y combinaciones entre campos cuando se
   anuncie detección combinada.
-  Parcial: hay tests de los cuatro transportadores y de codificación, y el
-  corpus retenido cubre los cuatro con codificación y bypass. Falta la
-  **combinación de campos** cuando se anuncie detección combinada: el modo
-  cruzado tiene su corpus, pero sigue siendo de desarrollo y sin retenida.
+  Ahora sí, en lo esencial: los cuatro transportadores tienen tests y el
+  corpus retenido cubre los cuatro con codificación y bypass. La **combinación
+  entre campos** (query + body) tiene ya su corpus retenido, con **20/20** en
+  modo cruzado y 0 falsos positivos.
+  Falta una cosa: **tráfico benigno real** (el último punto de la sección 3).
 - [x] Mantener el criterio de cero falsos positivos **no documentados** en el
   corpus propio (159 ataques y 81 benignos; `evaluate.py --check` pasó en esta
   verificación).

@@ -7,6 +7,7 @@ importa: **medir** y **ajustar** no son lo mismo.
 |---|---|---|---|
 | Desarrollo | `attacks.json` + `benign.json` | ajustar las reglas | 159 + 81 |
 | Retenido | `heldout_attacks.json` + `heldout_benign.json` | **medir** si las reglas generalizan | 109 + 90 |
+| Retenido cruzado | `heldout_cross.json` | **medir** el modo opt-in fuera del corpus de desarrollo | 20 + 20 |
 | Cruzado | `cross.json` | medir el modo opt-in `inspect_cross_carrier=True` | 7 + 15 |
 | Externo | `crs_payloads.json` | medir contra un corpus escrito por terceros | 1379 |
 
@@ -33,6 +34,19 @@ escribieron para ellas".
 
 Metodología completa: [`HELDOUT.md`](HELDOUT.md). Informe:
 [`HELDOUT_REPORT.md`](HELDOUT_REPORT.md).
+
+## Retenido cruzado
+
+`heldout_cross.json` es lo mismo para el modo opt-in
+`inspect_cross_carrier=True`: firmas **partidas** entre la ruta/query y los
+valores textuales del body, escritas una vez sin mirar las firmas.
+
+Se mide con `python tools/evaluate_cross.py --heldout`. Resultado: **20/20**
+ataques bloqueados en modo cruzado y **0/20** benignos bloqueados, frente a
+**10/20** en el modo por defecto (la mitad de las firmas partidas se escapan
+sin el modo cruzado).
+
+Informe: [`HELDOUT_CROSS_REPORT.md`](HELDOUT_CROSS_REPORT.md).
 
 ## Cruzado
 
@@ -64,12 +78,13 @@ para 500+ reglas y muchos más casos ofuscados.
 ## Comandos
 
 ```bash
-python tools/evaluate.py --check          # desarrollo + CRS
-python tools/evaluate_heldout.py --check   # retenido
-python tools/evaluate_cross.py --check     # cruzado
-python tools/import_crs.py --check         # procedencia del corpus externo
-python tools/measure_rules.py              # efecto de un cambio de reglas
+python tools/evaluate.py --check              # desarrollo + CRS
+python tools/evaluate_heldout.py --check       # retenido
+python tools/evaluate_cross.py --check         # cruzado (desarrollo)
+python tools/evaluate_cross.py --heldout --check  # cruzado (retenido)
+python tools/import_crs.py --check             # procedencia del corpus externo
+python tools/measure_rules.py                  # efecto de un cambio de reglas
 ```
 
-Los cuatro entran en CI. Un cambio de reglas que rompa una cifra pone el
+Los cinco entran en CI. Un cambio de reglas que rompa una cifra pone el
 pipeline en rojo.

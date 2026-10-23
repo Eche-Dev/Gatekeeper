@@ -79,6 +79,7 @@ def test_los_cuatro_evaluadores_estan_en_ci():
         "tools/evaluate.py",
         "tools/evaluate_heldout.py",
         "tools/evaluate_cross.py",
+        "tools/evaluate_cross.py --heldout",
         "tools/import_crs.py",
     ):
         assert script in texto, f"{script} no se ejecuta en CI"

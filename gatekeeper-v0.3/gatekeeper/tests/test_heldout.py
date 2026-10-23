@@ -148,3 +148,63 @@ def test_los_otros_evaluadores_siguen_pasando(herramienta: str):
         timeout=120,
     )
     assert proc.returncode == 0, proc.stdout[-1000:] + proc.stderr[-1000:]
+
+
+def test_el_evaluador_del_cruzado_retenido_pasa():
+    """El corpus retenido del modo cruzado tambien tiene su guarda."""
+    proc = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "evaluate_cross.py"), "--heldout", "--check"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        timeout=180,
+    )
+    assert proc.returncode == 0, proc.stdout[-1000:] + proc.stderr[-1000:]
+
+
+def test_el_cruzado_retenido_no_se_solapa_con_el_de_desarrollo():
+    """Igual que con el corpus principal: si comparten payloads, no mide nada."""
+    dev = json.loads((CORPUS / "cross.json").read_text(encoding="utf-8"))
+    retenido = json.loads((CORPUS / "heldout_cross.json").read_text(encoding="utf-8"))
+
+    def pares(data: dict) -> set[tuple[str, str]]:
+        return (
+            {(p["target"], p["body"]) for p in data["payloads"]}
+            | {(p["target"], p["body"]) for p in data["benign_payloads"]}
+        )
+
+    solape = pares(dev) & pares(retenido)
+    assert not solape, f"payloads compartidos en el corpus cruzado: {solape}"
+
+    ids_dev = {p["id"] for p in dev["payloads"]} | {p["id"] for p in dev["benign_payloads"]}
+    ids_retenido = {p["id"] for p in retenido["payloads"]} | {
+        p["id"] for p in retenido["benign_payloads"]
+    }
+    assert not (ids_dev & ids_retenido), "hay ids repetidos entre los corpus cruzados"
+
+
+def test_el_modo_cruzado_gana_ataques_al_retenido():
+    """La combinacion tiene que aportar algo: si no, no vale la pena.
+
+    Sin el modo cruzado, la mitad de las firmas partidas se escapan. Con el,
+    se detectan todas y sin falsos positivos.
+    """
+    proc = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "evaluate_cross.py"), "--heldout", "--json"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        timeout=180,
+    )
+    assert proc.returncode == 0, proc.stderr[-1000:]
+    data = json.loads(proc.stdout)
+    por_defecto = data["default"]
+    cruzado = data["cross"]
+
+    assert por_defecto["attacks_blocked"] < por_defecto["attacks_total"], (
+        "si el modo por defecto ya lo detecta todo, el corpus no mide el cruce"
+    )
+    assert cruzado["attacks_blocked"] == cruzado["attacks_total"], data
+    assert cruzado["benign_blocked"] == 0, data
+    # Y el modo cruzado no puede perder ataques que el normal ya cogia.
+    assert cruzado["attacks_blocked"] >= por_defecto["attacks_blocked"], data

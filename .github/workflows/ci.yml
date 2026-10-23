@@ -36,6 +36,8 @@ jobs:
         run: python tools/evaluate_cross.py --check
       - name: Corpus retenido - generalizacion fuera del corpus de desarrollo
         run: python tools/evaluate_heldout.py --check
+      - name: Corpus retenido del modo cruzado
+        run: python tools/evaluate_cross.py --heldout --check
       - name: Procedencia del corpus externo de CRS
         run: python tools/import_crs.py --check
 

@@ -14,6 +14,12 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   reglas generalizan, no si se acuerdan de los casos con los que se escribieron.
   Resultado: **103/109 (94,5%)** de detección y **0** falsos positivos sin
   documentar sobre tráfico legítimo. Entra en CI con su propia guarda.
+- **Corpus retenido del modo cruzado** (`corpus/heldout_cross.json`, 20 ataques
+  y 20 benignos), evaluado con `tools/evaluate_cross.py --heldout`: **20/20**
+  ataques bloqueados en modo `inspect_cross_carrier=True` y **0/20** benignos
+  bloqueados, frente a **10/20** en el modo por defecto. Confirma que el modo
+  cruzado generaliza y no solo se acordaba de los 7 casos del corpus de
+  desarrollo. Entra en CI con su propia guarda.
 - **`tools/measure_rules.py`**: mide el efecto de un cambio de reglas sobre los
   cuatro corpus a la vez (desarrollo, retenido, benignos propios y negativos de
   CRS), para ver el coste (FP nuevos) junto al beneficio (detecciones nuevas).

