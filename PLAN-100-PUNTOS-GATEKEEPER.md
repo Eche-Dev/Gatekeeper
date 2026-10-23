@@ -397,14 +397,20 @@ tipos de entrada realmente inspeccionados.
   publicar el log en crudo) están escritos en la propia página.
   Lo que **no** se ha hecho todavía es la observación en sí: eso necesita
   tráfico real de un despliegue real y un periodo de observación.
-- [ ] Probar entradas de query, path, headers y body; incluir codificación,
+- [x] Probar entradas de query, path, headers y body; incluir codificación,
   normalización, tipos de contenido y combinaciones entre campos cuando se
   anuncie detección combinada.
-  Ahora sí, en lo esencial: los cuatro transportadores tienen tests y el
-  corpus retenido cubre los cuatro con codificación y bypass. La **combinación
-  entre campos** (query + body) tiene ya su corpus retenido, con **20/20** en
-  modo cruzado y 0 falsos positivos.
-  Falta una cosa: **tráfico benigno real** (el último punto de la sección 3).
+  Los **cuatro transportadores** tienen evidencia: el corpus externo de CRS
+  los cubre todos (245 en query, 932 en body, 120 en headers, 82 en path) y
+  el corpus retenido añade **14 ataques con codificación** (URL-encoding,
+  `%uXXXX`, doble codificación). Los **tipos de contenido** están probados
+  uno a uno: sin `content-type`, `text/plain`, JSON y form se inspeccionan;
+  los binarios y `multipart` no, con test que fija ese comportamiento
+  (`tests/test_confianza.py`, `tests/test_limites_body_ratelimit.py`).
+  La **detección combinada** que se anuncia tiene corpus retenido propio
+  (`corpus/heldout_cross.json`) que pasa por el **middleware real** (el
+  evaluador construye un `GatekeeperMiddleware` y le manda peticiones con
+  `TestClient`): 20/20 ataques bloqueados, 0/20 benignos.
 - [x] Mantener el criterio de cero falsos positivos **no documentados** en el
   corpus propio (159 ataques y 81 benignos; `evaluate.py --check` pasó en esta
   verificación).
@@ -414,11 +420,34 @@ tipos de entrada realmente inspeccionados.
 ### Evidencia de cierre
 
 - Un comando genera el informe completo y produce resultados deterministas.
+  **Hecho**, y ahora son cuatro: `tools/evaluate.py` (desarrollo + CRS),
+  `tools/evaluate_heldout.py` (retenido), `tools/evaluate_cross.py` (cruzado,
+  con `--heldout` para el retenido) e `tools/import_crs.py` (procedencia).
+  Los cuatro entran en CI y todos son deterministas.
 - Las cifras de todos los documentos coinciden con el informe generado.
+  **Hecho**: los cinco evaluadores se ejecutan en la corrida de `pytest`
+  (`tests/test_heldout.py` comprueba que el informe en disco menciona las
+  mismas cifras que el corpus) y las cifras publicadas en README, docs y plan
+  son las que dan los evaluadores.
 - La detección combinada anunciada tiene una prueba que pasa a través del
-  middleware real.
+  middleware real. **Hecho**: `corpus/heldout_cross.json` se evalúa
+  mandando peticiones HTTP a un `GatekeeperMiddleware` real (20/20 ataques
+  bloqueados, 0/20 benignos), no escaneando strings sueltos.
 - Se informa de limitaciones y casos no detectados; no se formula una promesa de
   protección total ni se usa un único porcentaje como resumen de seguridad.
+  **Hecho**: el informe publica los 6 casos que se escapan con su motivo, el
+  retenido se publica con un número **más bajo** que el de desarrollo (94,5%
+  frente a 100%) precisamente para que no parezca una promesa, y
+  `corpus/HELDOUT.md` dice explícitamente que 109 ataques son una muestra y no
+  un censo.
+
+!!! note "Lo que falta para cerrar la sección del todo"
+    El único punto que no se puede cerrar desde el repositorio es la
+    **observación de tráfico real**: hace falta un despliegue real, un
+    periodo de observación y autorización. El procedimiento está escrito y
+    probado (`docs/trafico-real.md`), pero la medición en sí es una tarea de
+    despliegue, no de código.
+
 
 ## 4. Operación y compatibilidad con despliegues — 8/20 → 20/20
 
