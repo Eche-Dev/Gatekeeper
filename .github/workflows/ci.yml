@@ -79,19 +79,9 @@ jobs:
           GATEKEEPER_REDIS_URL: redis://127.0.0.1:6379/0
         run: pytest tests/test_redis_real.py -v
       - name: El servicio Redis responde
-        run: |
-          python - <<'PY'
-          import os
-          import redis
-          client = redis.Redis.from_url(
-              os.environ["GATEKEEPER_REDIS_URL"],
-              socket_connect_timeout=5,
-              socket_timeout=5,
-              protocol=2,
-          )
-          print("PING ->", client.ping())
-          print("VERSION ->", client.info("server")["redis_version"])
-          PY
+        env:
+          GATEKEEPER_REDIS_URL: redis://127.0.0.1:6379/0
+        run: python tools/check_redis.py
 
   # NO hay job de latencia en CI, y es una decisión con datos, no una pereza.
   # Se intentó un guard de regresión (`benchmarks/latency.py --check`) y se
