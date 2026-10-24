@@ -153,8 +153,58 @@ Resultado final: **2339 tests**, corpus retenido en **103/109 (94,5%)** con
 **0** falsos positivos sin documentar, y cuatro evaluadores en CI (desarrollo,
 retenido, cruzado y procedencia de CRS).
 
+**Quinta revisión (2026-10-24, rama `feat/plan-verificacion-y-limites`).**
+Cerrada la sección 4 (operación y compatibilidad con despliegues). Sus cinco
+casillas pendientes:
+
+1. **Límites de memoria fijados como contrato**
+   (`tests/test_limites_memoria.py`): un body que excede `max_body_size` se
+   corta sin acumularse (64 MiB con límite de 1 MiB consumen ~1 MiB); el
+   consumo de un body permitido está acotado a ~2× su tamaño e independiente de
+   la fragmentación; y el middleware no retiene memoria entre peticiones. De
+   paso se quitó una **duplicación real**: `read_body` guardaba los bytes dos
+   veces (en la lista de chunks y dentro de los mensajes de ASGI, que ya los
+   llevan).
+
+2. **Observabilidad definida**: `corpus/events.json` (catálogo exhaustivo de
+   los 5 eventos, con un test que impide que se desincronice del código),
+   `tools/metrics.py` (exportador a Prometheus con 5 contadores, verificado
+   para que **no** filtren IPs, rutas ni payloads) y `docs/operacion.md` (qué
+   alertar: el error del backend de rate limit es la importante, porque con
+   fail-open el tráfico pasa **sin rate limit**).
+
+3. **Servidores ASGI reales**: uvicorn, hypercorn y daphne levantados como
+   subprocesos, con peticiones HTTP por socket de verdad. Con los tres: 200 al
+   legítimo, 403 al ataque, 413 por `Content-Length` sin enviar el body, y
+   las cabeceras de seguridad salen.
+
+4. **Rate limit entre procesos de Python reales**
+   (`tests/test_redis_multiproceso.py`): cuatro procesos con `multiprocessing`
+   se conceden exactamente los permisos del límite. Con el **contraste** del
+   backend en memoria, que concede el límite por proceso: sin ese contraste,
+   el test no demostraría nada.
+
+5. **Despliegue gradual y rollback** (`docs/operacion.md`): 4 pasos, cada uno
+   reversible sin desplegar código, y la tabla de rollback menos invasiva
+   primero.
+
+!!! note "Un hallazgo colateral que salió de aquí"
+    Al añadir daphne al extra `dev`, el job de auditoría de CI se puso rojo:
+    daphne arrastra Twisted, cuya versión **estable** (26.4.0) tiene 6 avisos
+    de seguridad con parche solo en una release candidate. La solución no fue
+    silenciar el aviso ni fijar una rc: hypercorn y daphne pasan a un extra
+    `servers` aparte, porque **el runtime del paquete no depende de ninguno de
+    los dos**. uvicorn (sin CVEs sin corregir) sigue en `dev`, así que CI
+    sigue probando con un servidor real. El job de auditoría informa del
+    `servers` con un warning sin bloquear el pipeline, y avisa de lo que hay
+    que hacer cuando salga la versión estable con los parches.
+
+Estado: **38 casillas hechas, 11 pendientes** (secciones 1, 2 y 5).
+
 **Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
 son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
+reevaluación formal con esta rúbrica. No deben interpretarse como puntuaciones
+actuales ni subirse únicamente por el número de tests o reglas.
 
 
 ## Prioridad inmediata
