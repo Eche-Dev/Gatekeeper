@@ -199,7 +199,8 @@ casillas pendientes:
     `servers` con un warning sin bloquear el pipeline, y avisa de lo que hay
     que hacer cuando salga la versión estable con los parches.
 
-Estado: **38 casillas hechas, 11 pendientes** (secciones 1, 2 y 5).
+Estado: **39 casillas hechas, 10 pendientes** (secciones 2 y 5, más la
+independencia de la revisión de seguridad).
 
 **Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
 son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
