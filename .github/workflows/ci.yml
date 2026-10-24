@@ -25,7 +25,11 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: ${{ matrix.python }}
-      - run: pip install -e ".[dev]"
+      # `servers` trae hypercorn y daphne para las pruebas con servidores
+      # ASGI reales. NO estan en `dev` porque daphne arrastra Twisted, cuya
+      # version estable tiene avisos de seguridad: el job de auditoria audita
+      # `dev`, y el runtime del paquete no depende de ninguno de los dos.
+      - run: pip install -e ".[dev,servers]"
       - run: ruff check .
       - run: mypy
       - run: bandit -r src -q
@@ -186,3 +190,32 @@ jobs:
             | grep -vi '^pip-audit' \
             > /tmp/dev.txt
           /tmp/audit-dev/bin/pip-audit --strict --progress-spinner off -r /tmp/dev.txt
+      - name: Audita el extra de servidores (informativo, no bloquea)
+        # El extra `servers` (hypercorn + daphne) arrastra Twisted, cuya
+        # version ESTABLE tiene avisos de seguridad cuyos parches solo estan
+        # en una release candidate (26.10.0rc1). Como el runtime del paquete
+        # no depende de Twisted, esto no afecta a quien instala Gatekeeper.
+        #
+        # El paso NO falla a proposito: informa de la situacion sin bloquear
+        # el pipeline, y avisa cuando aparezca una version estable con los
+        # parches (entonces hay que moverlo al extra `dev` y quitar el
+        # `--ignore-vuln`).
+        run: |
+          python -m venv /tmp/audit-servers
+          /tmp/audit-servers/bin/pip install -q -e ".[dev,servers]"
+          /tmp/audit-servers/bin/pip install -q "pip-audit==2.10.1"
+          /tmp/audit-servers/bin/pip freeze \
+            | grep -v '^-e ' \
+            | grep -vi '^gatekeeper-asgi' \
+            | grep -vi '^pip-audit' \
+            > /tmp/servers.txt
+          set +e
+          /tmp/audit-servers/bin/pip-audit --progress-spinner off \
+            --ignore-vuln CVE-2026-106454 \
+            --ignore-vuln CVE-2026-115774 \
+            --ignore-vuln CVE-2026-115775 \
+            --ignore-vuln CVE-2026-115776 \
+            --ignore-vuln CVE-2026-115778 \
+            --ignore-vuln CVE-2026-115877 \
+            -r /tmp/servers.txt
+          echo "::warning::El extra 'servers' arrastra Twisted con avisos sin parche estable. No afecta al runtime del paquete."

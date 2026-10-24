@@ -34,6 +34,7 @@
 | `gatekeeper-asgi[yaml]` | PyYAML | Quieres `Config.from_yaml("gatekeeper.yaml")` |
 | `gatekeeper-asgi[redis]` | redis | Rate limit compartido entre workers |
 | `gatekeeper-asgi[dev]` | herramientas de desarrollo | Contribuyes al proyecto |
+| `gatekeeper-asgi[servers]` | hypercorn, daphne | Pruebas con servidores ASGI reales |
 
 ```bash
 pip install "gatekeeper-asgi[redis]"
@@ -41,6 +42,16 @@ pip install "gatekeeper-asgi[redis]"
 
 El núcleo solo depende de `starlette` (cualquier versión ≥ 0.37; FastAPI ya la
 incluye).
+
+!!! info "Por qué los servidores están en un extra aparte"
+    `daphne` arrastra `Twisted`, cuya versión **estable** (26.4.0) tiene
+    avisos de seguridad cuyos parches solo están en una *release candidate*
+    (26.10.0rc1). El runtime de Gatekeeper no depende de ninguno de los dos,
+    así que no tiene por qué arrastrar ese riesgo: por eso están en
+    `servers` y no en `dev`.
+
+    Para ejecutar las pruebas con servidores reales:
+    `pip install -e ".[dev,servers]"`. En CI se instalan los dos extras.
 
 !!! info "Versiones de Redis admitidas"
     Con el extra `[redis]` hace falta un **Redis 5.0 o superior** (probado

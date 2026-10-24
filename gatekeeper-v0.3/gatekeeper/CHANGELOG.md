@@ -6,6 +6,13 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [Sin publicar]
 
 ### Añadido
+- **Extra `servers`** (`hypercorn`, `daphne`): los servidores ASGI alternativos
+  para las pruebas de integración con servidores reales. No están en el extra
+  `dev` a propósito: daphne arrastra Twisted, cuya versión **estable**
+  (26.4.0) tiene avisos de seguridad cuyos parches solo están en una release
+  candidate (26.10.0rc1). Como el runtime del paquete no depende de ellos, no
+  tiene por qué arrastrar ese riesgo. Para probarlos:
+  `pip install -e ".[dev,servers]"`.
 - **Catálogo de eventos de auditoría** (`corpus/events.json`): los 5 tipos de
   evento que emite el middleware, con sus campos, a qué código de respuesta
   corresponden, qué NUNCA se registra (payload, cuerpos, valores de cabeceras,

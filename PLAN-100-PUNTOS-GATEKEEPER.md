@@ -525,13 +525,20 @@ real sin confiar accidentalmente en el cliente.
   subprocesos y les manda peticiones HTTP por un socket de verdad. Con los
   tres: la petición legítima da 200, el ataque da 403, el 413 por
   `Content-Length` llega sin enviar el body, y las cabeceras de seguridad
-  salen. Los servidores se añaden al extra `dev`, así que CI los prueba.
+  salen. CI los instala con `.[dev,servers]`.
 
   Un detalle que salió de ahí: **daphne espera al body declarado** antes de
   invocar la aplicación, así que el 413 por `Content-Length` sin enviar el
   body no se puede comprobar con daphne (sí con uvicorn e hypercorn, y con el
   stream leído en todos). Está documentado como comportamiento del servidor,
   no de Gatekeeper.
+
+  Y una decisión de dependencias: hypercorn y daphne viven en el extra
+  `servers`, **no** en `dev`, porque daphne arrastra Twisted y la versión
+  estable de Twisted tiene avisos de seguridad con parche solo en una release
+  candidate. El runtime del paquete no depende de ninguno, así que no arrastra
+  ese riesgo; el job de auditoría audita `dev` (limpio) e informa del
+  `servers` sin bloquear el pipeline.
 
   Topologías documentadas en `docs/despliegue.md`: un proceso, varios workers,
   varias réplicas de Kubernetes, Docker y proxy inverso.

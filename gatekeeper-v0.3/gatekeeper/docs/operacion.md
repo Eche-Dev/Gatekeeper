@@ -182,6 +182,13 @@ procesos reales y con peticiones HTTP de verdad
     se puede comprobar con daphne (sí con uvicorn e hypercorn, y con el
     stream leído en todos). Es un comportamiento de daphne, no de Gatekeeper.
 
+!!! note "hypercorn y daphne viven en el extra `servers`"
+    No están en el extra `dev` a propósito: daphne arrastra Twisted, cuya
+    versión estable tiene avisos de seguridad con parche solo en una release
+    candidate. El runtime de Gatekeeper no depende de ellos, así que no
+    arrastra ese riesgo. El job de auditoría de CI audita `dev` (limpio) y
+    informa del `servers` sin bloquear el pipeline.
+
 ---
 
 Siguiente: [Seguridad →](seguridad.md)
