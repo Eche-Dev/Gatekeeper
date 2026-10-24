@@ -320,6 +320,42 @@ modo cruzado) salen de `python tools/evaluate.py --json`,
   instalación desde PyPI, que exige publicar antes.
 - [ ] Añadir una revisión de seguridad independiente antes de declarar una
   versión estable; resolver o aceptar de forma explícita cada hallazgo.
+  **Revisión hecha** (`gatekeeper-v0.3/gatekeeper/SECURITY_REVIEW.md`), pero
+  **no independiente**: la hizo quien escribió el código, y el informe lo dice
+  explícitamente. Para el requisito del plan falta una segunda opinión de
+  alguien ajeno al proyecto.
+
+  Lo que sí es independiente son las **mediciones**: los PoC son ejecutables
+  y reproducibles, y cada hallazgo tiene una regresión que falla sin el
+  arreglo.
+
+  **Un hallazgo alto, corregido:** un **DoS de memoria con cuerpos pequeños**.
+  El puntero JSON que identifica el campo en la auditoría se construía
+  concatenando un segmento por nivel, así que a profundidad N el puntero mide
+  O(N) y con N campos el total es O(N²). Medido a través del middleware real:
+  un body de **83 KiB** con 14.100 niveles consumía **193,6 MiB** (2401×), y 10
+  peticiones simultáneas llegaban a **1,9 GiB** y 24 s de CPU, con respuesta
+  **200** (el consumo era invisible). `max_body_size` no lo acotaba: 83 KiB
+  están muy por debajo de 1 MiB.
+
+  Corregido llevando la ruta como una lista de segmentos acotada
+  (`MAX_POINTER_DEPTH`, `MAX_POINTER_LENGTH`, `MAX_SEGMENT_LENGTH`), con
+  `field_excluded` comparando también por el primer segmento para que
+  `exclude_fields` siga funcionando. Resultado: **193,6 MiB → 7,8 MiB** y
+  **1,9 GiB → 58,3 MiB** en concurrencia. La detección no se pierde (el
+  recorte es del puntero, no del texto).
+
+  **4 hallazgos aceptados con su justificación** en el informe: las reglas
+  propias del usuario pueden colgar el proceso (documentado, es del usuario),
+  la normalización NFKC expande hasta 4× (medido, lineal con el body, y
+  comprobado que no puede activar detecciones falsas), `monitor_only` no es un
+  plan de rollback, y el rate limit en memoria se multiplica por workers.
+
+  **Lo que la revisión comprobó que estaba bien:** la inyección de log en el
+  puntero JSON es imposible, 18 cuerpos adversarios no producen excepciones
+  sin controlar, la cadena de confianza del XFF da el resultado correcto en 12
+  combinaciones, y 14 valores de configuración hostiles **rompen el arranque**
+  en vez de pasar silenciosamente.
 
 
 ### Evidencia de cierre

@@ -70,6 +70,19 @@ pero **nunca el contenido de los payloads**. Un log de Gatekeeper no se puede
 usar para robar tokens interceptados. En modo monitor puedes medir falsos
 positivos sin bloquear y sin volcar credenciales.
 
+!!! note "El puntero JSON se recorta"
+    El campo que aparece en la auditoría es un puntero JSON (`/users/0/bio`).
+    Si la ruta es muy profunda, se recorta a 256 caracteres y se marca con
+    `…`: se conservan el primer segmento (la clave exterior) y el último (el
+    campo concreto), pero el tramo intermedio se pierde.
+
+    El motivo es un DoS medido: sin recorte, un body de 83 KiB con 14.100
+    niveles de anidamiento consumía **193,6 MiB** por petición. Ver
+    [SECURITY_REVIEW.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY_REVIEW.md).
+
+    `exclude_fields` sigue funcionando con punteros recortados: compara por el
+    último segmento y por el primero.
+
 ## Versiones soportadas
 
 | Versión | Estado |

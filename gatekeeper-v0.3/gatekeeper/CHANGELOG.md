@@ -6,6 +6,14 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [Sin publicar]
 
 ### Añadido
+- **Revisión de seguridad** (`SECURITY_REVIEW.md`): revisión por zonas de
+  confianza con PoC ejecutables sobre el código real. Documenta un hallazgo
+  alto (el DoS de memoria corregido más abajo), 4 hallazgos aceptados con su
+  justificación y 5 límites conocidos. El informe declara explícitamente que
+  **no es una revisión independiente** (la hizo quien escribió el código) y
+  qué parte sí lo es (las mediciones y las regresiones).
+  `tests/test_informe_seguridad.py` comprueba que las afirmaciones medibles
+  del informe siguen siendo ciertas.
 - **Extra `servers`** (`hypercorn`, `daphne`): los servidores ASGI alternativos
   para las pruebas de integración con servidores reales. No están en el extra
   `dev` a propósito: daphne arrastra Twisted, cuya versión **estable**
@@ -110,6 +118,29 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 
 ### Corregido
+- **DoS de memoria con cuerpos pequeños (hallazgo de seguridad alto).** El
+  puntero JSON que identifica el campo en la auditoría se construía
+  concatenando un segmento por nivel de anidamiento: a profundidad N, cada
+  puntero mide O(N) caracteres y, con N campos, el total es O(N²).
+
+  Medido a través del middleware real: un body de **83 KiB** con 14.100
+  niveles consumía **193,6 MiB** (2401× la entrada), y 10 peticiones
+  simultáneas llegaban a **1,9 GiB** y 24 s de CPU. La respuesta era **200**:
+  el atacante recibía una respuesta normal y el consumo era invisible.
+  `max_body_size` no lo acotaba, porque 83 KiB están muy por debajo de 1 MiB:
+  el problema no era el tamaño del body, sino su estructura.
+
+  Ahora la ruta se lleva como una lista de segmentos acotada
+  (`MAX_POINTER_DEPTH` 64, `MAX_POINTER_LENGTH` 256, `MAX_SEGMENT_LENGTH` 64),
+  conservando el primer y el último segmento (el que nombra el usuario en
+  `exclude_fields` y el campo que saltó) y marcando el corte con `…`.
+  `field_excluded` compara también por el primer segmento, para que
+  `exclude_fields` siga funcionando con punteros recortados.
+
+  Resultado: **193,6 MiB → 7,8 MiB** por petición, y **1,9 GiB → 58,3 MiB**
+  con 10 peticiones simultáneas. La detección no se pierde: el recorte es del
+  puntero, no del texto. Regresión en `tests/test_dos_punteros_json.py`.
+
 - **El body se guardaba dos veces en memoria.** `read_body` acumulaba los
   bytes en una lista de chunks **y** dentro de los mensajes de ASGI (que ya
   los llevan). Un body de 8 MiB ocupaba el doble de lo necesario. Ahora los
