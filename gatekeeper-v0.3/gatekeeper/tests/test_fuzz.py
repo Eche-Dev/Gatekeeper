@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import time
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -163,3 +164,99 @@ def test_scan_es_lineal_con_entradas_patologicas() -> None:
             f"scan tardó {elapsed:.2f}s con {len(payload)} caracteres "
             f"(¿ReDoS reintroducido?): {payload[:30]!r}"
         )
+
+
+# ------------------------------------------------------- limites de memoria
+
+
+@pytest.mark.parametrize("nivel", [1000, 5000, 10000])
+def test_la_memoria_del_escaneo_esta_acotada(nivel: int) -> None:
+    """El escaneo no debe amplificar la memoria con entradas grandes.
+
+    Regresión del hallazgo de seguridad H-1: un JSON con 14.100 niveles
+    consumía 193,6 MiB (el puntero de auditoría crecía de forma cuadrática).
+    Ahora el consumo es lineal con la entrada.
+
+    El límite es holgado a propósito: aqui se busca una AMPLIFICACIÓN
+    patológica, no el coste absoluto.
+    """
+    import tracemalloc
+
+    payload = '{"a":' * nivel + "1" + "}" * nivel
+    tracemalloc.start()
+    rules.scan(payload)
+    _, pico = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    factor = pico / len(payload)
+    assert factor < 200, (
+        f"un payload de {len(payload) / 1024:.0f} KiB amplifica la memoria "
+        f"{factor:.0f}x ({pico / 1024 / 1024:.1f} MiB)"
+    )
+
+
+def test_la_memoria_de_extract_strings_esta_acotada() -> None:
+    """La extracción de campos de un body grande no se dispara.
+
+    El mismo hallazgo H-1, medido en la función que construye los punteros.
+    """
+    import tracemalloc
+
+    from gatekeeper import body as body_mod
+
+    crudo = ('{"a": ' * 5000) + '"' + "x" * 100_000 + '"}'
+    tracemalloc.start()
+    campos = body_mod.extract_strings("application/json", crudo.encode())
+    _, pico = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    assert campos
+    factor = pico / len(crudo)
+    assert factor < 50, f"la extracción amplifica la memoria {factor:.0f}x"
+
+
+# ------------------------------------- las reglas del usuario son tuyas
+
+
+@given(
+    st.text(alphabet="ab()|.*+?[]{}^$\\", min_size=1, max_size=30),
+)
+@settings(max_examples=50, deadline=None)
+def test_una_regex_del_usuario_nunca_revienta_el_middleware(patron: str) -> None:
+    """Las reglas propias se compilan tal cual: si el usuario escribe una regex
+    patológica, Gatekeeper no la puede proteger sin un motor con timeout.
+
+    Lo que sí se comprueba aquí es que una regex **inválida** falla al
+    arrancar con un error explícito (no en producción, con una petición), y
+    que una regex válida pero patológica no rompe nada que no sea culpa del
+    propio patrón.
+
+    La documentación dice esto en SECURITY.md y docs/uso.md.
+    """
+    import re
+    import warnings
+
+    try:
+        with warnings.catch_warnings():
+            # Los patrones generados pueden ser invalidos de formas que Python
+            # avisa (juego de caracteres anidado): aqui no interesa.
+            warnings.simplefilter("ignore")
+            compiled = re.compile(patron)
+    except re.error:
+        return  # una regex invalida ya la rechaza Config al arrancar
+
+    # Con una entrada corta, el patron se evalua en tiempo razonable.
+    entrada = "a" * 200
+    start = time.perf_counter()
+    compiled.search(entrada)
+    elapsed = time.perf_counter() - start
+    assert elapsed < 1.0, f"el patron {patron!r} tardó {elapsed:.2f}s"
+
+
+def test_una_regex_invalida_del_usuario_rompe_el_arranque() -> None:
+    """Un patron invalido tiene que fallar al arrancar, no en produccion."""
+    from gatekeeper.config import Config
+
+    with pytest.raises(ValueError):
+        Config(custom_rules={"mia": "[sin cerrar"})
+

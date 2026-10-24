@@ -6,6 +6,13 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [Sin publicar]
 
 ### Añadido
+- **Límites de tiempo y memoria en el fuzzing** (`tests/test_fuzz.py`):
+  además de las propiedades con Hypothesis, ahora hay límites de tiempo
+  (entradas patológicas de hasta 1 MiB en menos de 1 s) y de memoria (el
+  escaneo y la extracción no pueden amplificar la memoria más de un factor
+  acotado). El límite de memoria es la regresión del hallazgo de seguridad
+  H-1. También se cubre que una regex del usuario inválida rompe el
+  arranque.
 - **Revisión de seguridad** (`SECURITY_REVIEW.md`): revisión por zonas de
   confianza con PoC ejecutables sobre el código real. Documenta un hallazgo
   alto (el DoS de memoria corregido más abajo), 4 hallazgos aceptados con su

@@ -307,12 +307,27 @@ modo cruzado) salen de `python tools/evaluate.py --json`,
 
 - [x] Añadir regresiones para IP directa, `X-Forwarded-For` confiable y no
   confiable, CIDR de proxies y cabeceras manipuladas desde clientes externos.
-- [ ] Ejecutar pruebas de fuzzing y límites de tiempo/memoria para entradas
+- [x] Ejecutar pruebas de fuzzing y límites de tiempo/memoria para entradas
   grandes y patrones configurables. Documentar que las regex del usuario pueden
   tener riesgos distintos de las reglas integradas.
-  Parcial: `tests/test_fuzz.py` cubre propiedades con Hypothesis sobre las
-  funciones puras, pero no hay límites de tiempo/memoria ni fuzzing de las regex
-  de usuario.
+  Hecho. `tests/test_fuzz.py` (15 tests) cubre:
+  - **Propiedades** con Hypothesis sobre las funciones puras (scan, normalize,
+    extract_strings, config, cabeceras).
+  - **Límite de tiempo**: entradas patológicas de hasta 1 MiB tienen que
+    escanearse en menos de 1 s (regresión del ReDoS cuadrático de v0.3).
+  - **Límite de memoria**: el escaneo y la extracción de campos no pueden
+    amplificar la memoria más de un factor acotado (regresión del hallazgo de
+    seguridad H-1, que amplificaba 2401×).
+  - **Patrones configurables**: una regex del usuario **inválida** rompe el
+    arranque con `ValueError` (nunca en producción, con una petición), y una
+    regex válida se evalúa sin colgarse con entradas cortas.
+
+  La diferencia de riesgo entre reglas integradas y del usuario está
+  documentada en `SECURITY.md`, `docs/seguridad.md` y `docs/uso.md`, y en el
+  informe de revisión (hallazgo A-1): las integradas tienen todos los
+  cuantificadores acotados y un test lo vigila; las del usuario se compilan tal
+  cual, porque protegerlas exigiría un motor de regex con timeout.
+
 - [x] Probar el artefacto wheel/sdist en un entorno virtual limpio y verificar
   instalación, importación, extras opcionales y metadatos.
   Verificado en local (venv limpio: instalación, `import gatekeeper`, extras
@@ -320,10 +335,10 @@ modo cruzado) salen de `python tools/evaluate.py --json`,
   instalación desde PyPI, que exige publicar antes.
 - [ ] Añadir una revisión de seguridad independiente antes de declarar una
   versión estable; resolver o aceptar de forma explícita cada hallazgo.
-  **Revisión hecha** (`gatekeeper-v0.3/gatekeeper/SECURITY_REVIEW.md`), pero
-  **no independiente**: la hizo quien escribió el código, y el informe lo dice
-  explícitamente. Para el requisito del plan falta una segunda opinión de
-  alguien ajeno al proyecto.
+  **La revisión está hecha y medida, pero NO es independiente**: la hizo quien
+  escribió el código, y el informe (`gatekeeper-v0.3/gatekeeper/SECURITY_REVIEW.md`)
+  lo declara explícitamente. Para el requisito del plan falta una segunda
+  opinión de alguien ajeno al proyecto.
 
   Lo que sí es independiente son las **mediciones**: los PoC son ejecutables
   y reproducibles, y cada hallazgo tiene una regresión que falla sin el
@@ -356,6 +371,10 @@ modo cruzado) salen de `python tools/evaluate.py --json`,
   sin controlar, la cadena de confianza del XFF da el resultado correcto en 12
   combinaciones, y 14 valores de configuración hostiles **rompen el arranque**
   en vez de pasar silenciosamente.
+
+  !!! note "Lo que queda para cerrarla del todo"
+    Una revisión por alguien que no haya escrito el código. Con eso, y con
+    revisar o rechazar los 4 hallazgos aceptados, la casilla se cierra.
 
 
 ### Evidencia de cierre
