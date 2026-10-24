@@ -6,6 +6,36 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [Sin publicar]
 
 ### Añadido
+- **Catálogo de eventos de auditoría** (`corpus/events.json`): los 5 tipos de
+  evento que emite el middleware, con sus campos, a qué código de respuesta
+  corresponden, qué NUNCA se registra (payload, cuerpos, valores de cabeceras,
+  cookies) y la política de privacidad. Un test comprueba que el catálogo y el
+  código no se desincronizan.
+- **Exportador de métricas Prometheus** (`tools/metrics.py`): convierte un log
+  de auditoría en 5 contadores (`gatekeeper_attacks_total{rule,source}`,
+  `gatekeeper_rate_limited_total`, `gatekeeper_blocked_ips_total`,
+  `gatekeeper_body_too_large_total`,
+  `gatekeeper_rate_backend_errors_total{fail_open}`). Verificado por test: la
+  salida **no contiene IPs, rutas, payloads ni patrones**, solo conteos.
+- **Guía operativa** (`docs/operacion.md`): qué observar, qué alertar, el
+  despliegue gradual en 4 pasos y la tabla de rollback.
+- **Pruebas con servidores ASGI reales** (`tests/test_servidores_asgi.py`):
+  uvicorn, hypercorn y daphne se lanzan como subprocesos y reciben
+  peticiones HTTP por un socket de verdad. Con los tres: la petición legítima
+  da 200, el ataque da 403, el 413 por `Content-Length` llega sin enviar el
+  body, y las cabeceras de seguridad salen. Los tres servidores se añaden al
+  extra `dev`, así que CI los prueba.
+- **Pruebas de límites de memoria** (`tests/test_limites_memoria.py`): un body
+  que excede `max_body_size` se corta sin acumularse (64 MiB con límite de
+  1 MiB consumen ~1 MiB); el consumo de un body permitido está acotado a ~2× su
+  tamaño e independiente de la fragmentación; y el middleware no retiene
+  memoria entre peticiones.
+- **Pruebas de rate limit entre procesos de Python reales**
+  (`tests/test_redis_multiproceso.py`): cuatro procesos lanzados con
+  `multiprocessing`, cada uno con su cliente de Redis, se conceden
+  exactamente los permisos del límite. Incluye el contraste con el backend en
+  memoria, que concede el límite **por proceso**: sin ese contraste, el test
+  no demostraría nada.
 - **Corpus retenido (held-out)**: `corpus/heldout_attacks.json` (109 ataques) y
   `corpus/heldout_benign.json` (90 peticiones legítimas), con su evaluador
   `tools/evaluate_heldout.py`, su informe `corpus/HELDOUT_REPORT.md` y la
@@ -73,6 +103,10 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 
 ### Corregido
+- **El body se guardaba dos veces en memoria.** `read_body` acumulaba los
+  bytes en una lista de chunks **y** dentro de los mensajes de ASGI (que ya
+  los llevan). Un body de 8 MiB ocupaba el doble de lo necesario. Ahora los
+  bytes se guardan una sola vez.
 - **Falso positivo sobre trafico legitimo: blogs con fecha en la ruta.** La
   regla `\d{4}/\d{2}/\d{2}/` (buscaba volcados con fecha) saltaba con
   **cualquier** ruta con fecha, incluidos los slugs de los blogs

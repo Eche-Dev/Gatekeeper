@@ -82,6 +82,10 @@ jobs:
         env:
           GATEKEEPER_REDIS_URL: redis://127.0.0.1:6379/0
         run: pytest tests/test_redis_real.py -v
+      - name: Rate limiting entre varios procesos de Python
+        env:
+          GATEKEEPER_REDIS_URL: redis://127.0.0.1:6379/0
+        run: pytest tests/test_redis_multiproceso.py -v
       - name: El servicio Redis responde
         env:
           GATEKEEPER_REDIS_URL: redis://127.0.0.1:6379/0

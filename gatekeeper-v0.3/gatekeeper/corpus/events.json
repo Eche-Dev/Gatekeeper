@@ -1,0 +1,97 @@
+{
+  "description": "Catalogo de eventos de auditoria de Gatekeeper. Es la lista EXHAUSTIVA de lo que el middleware puede emitir: si un evento no esta aqui, no existe. Cada evento lleva metadatos, no payload.",
+  "version": "0.3.1",
+  "logger": "gatekeeper",
+  "level": "WARNING",
+  "format": "JSON, una linea por evento",
+  "common_fields": {
+    "ts": "Timestamp Unix (float, segundos).",
+    "event": "Tipo de evento (ver events).",
+    "ip": "IP del cliente segun la cadena de confianza configurada. Dato personal: no publicar en crudo.",
+    "method": "Metodo HTTP.",
+    "path": "Ruta de la peticion (sin query string)."
+  },
+  "events": {
+    "attack_detected": {
+      "meaning": "Una firma de ataque ha saltado.",
+      "when": "En query, cabeceras, body o en la combinacion query+body.",
+      "extra_fields": {
+        "rule": "Familia que saltó (sqli, xss, path_traversal, sensitive_files, nosql, cmdi, ssrf, ssti, crlf, log4shell, proto_pollution).",
+        "source": "Donde estaba el payload: query | header | body | query_body.",
+        "field": "Atribucion: nombre del parametro, nombre de la cabecera o puntero JSON. En query_body vale 'request target + body'.",
+        "pattern": "La regex que saltó (truncada a 160 caracteres). Es lo que permite ajustar sin adivinar.",
+        "blocked": "true si se bloqueo; false si solo se registro (monitor_only)."
+      },
+      "metrics": {
+        "counter": "gatekeeper_attacks_total",
+        "labels": ["rule", "source"]
+      },
+      "notes": "NUNCA lleva el payload: solo la regla, el campo y el patron."
+    },
+    "rate_limited": {
+      "meaning": "La peticion supera el limite del backend de rate limit.",
+      "when": "El contador de la IP llega al limite. La respuesta es 429 con Retry-After.",
+      "extra_fields": {},
+      "metrics": {
+        "counter": "gatekeeper_rate_limited_total"
+      },
+      "notes": "Es el evento que mas se dispara en un ataque de volumetrico, y el mas ruidoso en un trafico legitimo con el limite mal puesto."
+    },
+    "blocked_ip": {
+      "meaning": "La IP esta en `blocked_ips` (IP exacta, CIDR o literal).",
+      "when": "Antes de mirar nada mas: es la primera comprobacion.",
+      "extra_fields": {
+        "entry": "La entrada de `blocked_ips` que casó (la IP, el CIDR o el literal)."
+      },
+      "metrics": {
+        "counter": "gatekeeper_blocked_ips_total"
+      },
+      "notes": ""
+    },
+    "body_too_large": {
+      "meaning": "El body excede `max_body_size`.",
+      "when": "Por el Content-Length declarado o por el stream leido. La respuesta es 413.",
+      "extra_fields": {
+        "size": "El Content-Length declarado, o null si el body se cortao al leerlo."
+      },
+      "metrics": {
+        "counter": "gatekeeper_body_too_large_total"
+      },
+      "notes": "Un 413 sostenido es casi siempre un cliente que envia bodies enormes, no un ataque."
+    },
+    "rate_backend_error": {
+      "meaning": "El backend de rate limit no ha respondido.",
+      "when": "Redis no contesta (caido, timeout, red). Es el unico evento que indica un problema de infraestructura.",
+      "extra_fields": {
+        "fail_open": "true si se admitio la peticion (rate_fail_open=True); false si se devolvio 503.",
+        "error": "El mensaje de error, truncado a 200 caracteres."
+      },
+      "metrics": {
+        "counter": "gatekeeper_rate_backend_errors_total",
+        "labels": ["fail_open"]
+      },
+      "notes": "Con fail_open=True el trafico sigue pasando SIN rate limit. Es el evento que hay que alertar: el limite no se esta aplicando."
+    }
+  },
+  "response_codes": {
+    "200": "La peticion pasa. Incluye el modo monitor: ahi se registra el ataque pero no se bloquea.",
+    "403": "Bloqueada: `blocked_ips`, o una firma de ataque (en modo monitor no se bloquea).",
+    "413": "Body mayor que `max_body_size`.",
+    "429": "Limite de rate limit superado. Incluye la cabecera `Retry-After` con los segundos que faltan.",
+    "503": "El backend de rate limit no responde y `rate_fail_open=False`."
+  },
+  "monitor_only": {
+    "meaning": "Con `monitor_only=True` se registra lo que se bloquearia, pero NO se bloquea. La respuesta es 200 y el evento lleva `blocked: false`.",
+    "use": "Para medir falsos positivos sobre trafico real antes de activar el bloqueo."
+  },
+  "what_is_never_logged": [
+    "El payload de la peticion (ni el cuerpo, ni la query, ni los valores de las cabeceras).",
+    "Cookies, tokens o credenciales: solo se registra el NOMBRE de la cabecera que salto la regla.",
+    "El cuerpo de la peticion en los eventos de 413: solo el tamano declarado."
+  ],
+  "privacy": {
+    "warning": "El evento lleva IP y ruta: son datos personales. El log en crudo NO se publica.",
+    "publishable": "Agregados: cuantas veces salto cada regla, en que source, y que ajustes se hicieron.",
+    "retention": "Los logs de auditoria contienen IPs de usuarios. Aplicar la misma politica de retencion que al resto de datos personales de la aplicacion, y restringirlos a quien pueda verlos."
+  }
+}

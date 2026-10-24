@@ -459,13 +459,15 @@ real sin confiar accidentalmente en el cliente.
 
 ### Trabajo
 
-- [ ] Documentar y probar el comportamiento de cada backend de rate limit,
+- [x] Documentar y probar el comportamiento de cada backend de rate limit,
   incluyendo reinicios, concurrencia, workers y indisponibilidad de Redis.
-  Ahora **sí**: los dos backends se prueban contra un Redis real (reinicios,
-  concurrencia, workers, indisponibilidad) y contra el backend en memoria.
-  Falta la prueba con **varios procesos de Python** reales (hoy son varios
-  clientes en el mismo proceso, que es lo mismo para Redis pero no demuestra
-  el reparto entre procesos del sistema operativo).
+  Ahora sí, con **procesos de Python de verdad**
+  (`tests/test_redis_multiproceso.py`): cuatro procesos lanzados con
+  `multiprocessing`, cada uno con su propio cliente de Redis, se conceden
+  exactamente los permisos del límite (no uno por proceso). El test incluye
+  el **contraste con el backend en memoria**, que concede `limite` por proceso:
+  sin ese contraste, el test no demostraría nada. Los reinicios, la
+  concurrencia y la indisponibilidad ya estaban cubiertos contra un Redis real.
 
 - [x] Elegir y explicar el comportamiento recomendado ante fallo del backend:
   fail-open o fail-closed, según el riesgo de la aplicación.
@@ -480,10 +482,19 @@ real sin confiar accidentalmente en el cliente.
   hace que el XFF se ignore, el peer de confianza permite bloquear y limitar
   por la IP real, y una cadena inconsistente no adivina.
 
-- [ ] Verificar límites de memoria y consumo con cuerpos grandes, cuerpos
+- [x] Verificar límites de memoria y consumo con cuerpos grandes, cuerpos
   fragmentados y entradas de gran volumen.
-  Parcial: `max_body_size` corta el body acumulado y hay test de body
-  fragmentado, pero no hay medición de memoria ni prueba de volumen alto.
+  Hecho y **fijado como contrato** en `tests/test_limites_memoria.py`:
+  un body que excede `max_body_size` se corta sin acumularse (64 MiB con
+  límite de 1 MiB consumen ~1 MiB, no 64); el consumo de un body permitido
+  está acotado a ~2× su tamaño (una copia en los mensajes de ASGI que hay que
+  reproducir, otra en el body unido que se inspecciona) e independiente de
+  cómo fragmentation viene; y el middleware no retiene memoria entre
+  peticiones.
+
+  De paso se quitó una **duplicación**: `read_body` guardaba los bytes dos
+  veces (en la lista de chunks y dentro de los mensajes de ASGI). Ahora se
+  guardan una sola vez.
 - [x] Documentar qué tipos de body no se inspeccionan, incluidos multipart y
   contenido binario, y cuáles son las consecuencias.
   `docs/amenazas.md` lo documenta y ahora hay tests que fijan ese
@@ -493,21 +504,70 @@ real sin confiar accidentalmente en el cliente.
   Hay test que comprueba que la auditoría no lleva el payload; se documenta
   qué metadatos se registran. La recomendación de retención y acceso es
   explícita en `docs/seguridad.md`.
-- [ ] Definir métricas/observabilidad de bloqueos, límites, errores de Redis,
+- [x] Definir métricas/observabilidad de bloqueos, límites, errores de Redis,
   respuestas 413 y modo monitor, sin exponer datos sensibles.
-  Falta: hay eventos de auditoría, pero no un catálogo de métricas ni
-  Prometheus/OTel.
-- [ ] Probar la interacción con aplicaciones ASGI comunes y servidores de
+  Hecho con tres piezas:
+  - **`corpus/events.json`**: catálogo exhaustivo de los 5 tipos de evento, con
+    sus campos, a qué código de respuesta corresponden y qué NUNCA se registra.
+    Un test comprueba que el catálogo y el middleware no se desincronizan (si el
+    código emite un evento que no está, falla).
+  - **`tools/metrics.py`**: exportador a formato Prometheus con 5 contadores
+    (`gatekeeper_attacks_total{rule,source}`, `rate_limited`, `blocked_ips`,
+    `body_too_large`, `rate_backend_errors{fail_open}`). Verificado por test:
+    la salida **no contiene IPs, rutas, payloads ni patrones**, solo conteos.
+  - **`docs/operacion.md`**: qué alertar (el error del backend de rate limit
+    es la alerta importante: con fail-open el tráfico pasa **sin rate limit**).
+
+- [x] Probar la interacción con aplicaciones ASGI comunes y servidores de
   producción soportados; documentar topologías comprobadas.
-- [ ] Proporcionar un procedimiento de despliegue gradual: monitor, revisión de
+  Hecho con servidores **reales**, no con `TestClient`:
+  `tests/test_servidores_asgi.py` lanza uvicorn, hypercorn y daphne como
+  subprocesos y les manda peticiones HTTP por un socket de verdad. Con los
+  tres: la petición legítima da 200, el ataque da 403, el 413 por
+  `Content-Length` llega sin enviar el body, y las cabeceras de seguridad
+  salen. Los servidores se añaden al extra `dev`, así que CI los prueba.
+
+  Un detalle que salió de ahí: **daphne espera al body declarado** antes de
+  invocar la aplicación, así que el 413 por `Content-Length` sin enviar el
+  body no se puede comprobar con daphne (sí con uvicorn e hypercorn, y con el
+  stream leído en todos). Está documentado como comportamiento del servidor,
+  no de Gatekeeper.
+
+  Topologías documentadas en `docs/despliegue.md`: un proceso, varios workers,
+  varias réplicas de Kubernetes, Docker y proxy inverso.
+
+- [x] Proporcionar un procedimiento de despliegue gradual: monitor, revisión de
   alertas, ajuste y activación de bloqueo, con instrucciones de reversión.
+  Hecho en `docs/operacion.md`, en tres partes:
+  - **Despliegue gradual en 4 pasos**: monitor (sin `rate_limit`, que si no
+    corta el tráfico que hay que medir) → bloquear ataques → activar el rate
+    limit → considerar el modo combinado. Cada paso es reversible sin
+    desplegar código.
+  - **Rollback** con el orden menos invasivo primero (`exclude_fields` →
+    `disabled_rules` → `monitor_only` → quitar el middleware), con la
+    advertencia de que `monitor_only` **no es un plan de rollback** si lo que
+    se frenaba era un ataque real.
+  - **Qué observar y qué alertar**, con la nota de que observar y revertir van
+    juntos: sin métricas no se sabe cuándo se ha vuelto a la normalidad.
+
 
 
 ### Evidencia de cierre
 
-- Pruebas de integración y carga reproducibles para las topologías documentadas.
+- Pruebas de integración y carga reproducibles para las topologías
+  documentadas. **Hecho**: servidores ASGI reales (uvicorn, hypercorn, daphne)
+  con peticiones HTTP de verdad, y procesos de Python reales compartiendo un
+  contador de Redis. Reproducibles: `pytest tests/test_servidores_asgi.py` y
+  `pytest tests/test_redis_multiproceso.py`.
 - Guía operativa con decisiones ante fallo, proxy, logs, límites y rollback.
+  **Hecho**: `docs/operacion.md` (eventos, métricas, alertas, despliegue
+  gradual, rollback, límites operativos) y `docs/despliegue.md` (proxy, Redis,
+  topologías).
 - Sin afirmaciones de soporte para configuraciones que no se hayan probado.
+  **Hecho**: los servidores que se nombran son los probados, y se dice
+  explícitamente que el 413 por `Content-Length` sin body no se puede
+  comprobar con daphne (por qué).
+
 
 ## 5. Documentación y preparación de publicación — 8/20 → 20/20
 

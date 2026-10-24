@@ -45,23 +45,31 @@ def is_inspectable(content_type: str) -> bool:
 
 
 async def read_body(receive: Receive, max_size: int) -> tuple[list[Message], bytes | None]:
-    """Lee el body completo. Devuelve (mensajes originales, body) o (mensajes, None) si excede."""
+    """Lee el body completo. Devuelve (mensajes originales, body) o (mensajes, None) si excede.
+
+    Los bytes se guardan **una sola vez**: los mensajes de ASGI ya llevan el
+    `body` de cada fragmento, así que no hace falta una lista de chunks aparte.
+    Con la duplicación, un body de 8 MiB ocupaba 16 MiB de memoria (el doble de
+    lo que ocupa el body), y el pico de memoria de un proceso era el doble de
+    lo que el limite `max_body_size` sugiere.
+
+    El body se devuelve unido (`b"".join`) porque es lo que se inspecciona; los
+    mensajes se conservan sueltos para poder reproducirlos tal cual llegaron
+    (`replay`), que es lo que espera la app.
+    """
     messages: list[Message] = []
-    chunks: list[bytes] = []
     size = 0
     while True:
         message = await receive()
         messages.append(message)
         if message["type"] != "http.request":
             break  # http.disconnect
-        chunk = message.get("body", b"")
-        size += len(chunk)
+        size += len(message.get("body", b""))
         if size > max_size:
             return messages, None
-        chunks.append(chunk)
         if not message.get("more_body", False):
             break
-    return messages, b"".join(chunks)
+    return messages, b"".join(m.get("body", b"") for m in messages)
 
 
 def replay(messages: list[Message], receive: Receive) -> Receive:

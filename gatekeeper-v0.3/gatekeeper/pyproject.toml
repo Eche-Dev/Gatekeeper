@@ -69,6 +69,13 @@ dev = [
   # la documentacion usan FastAPI y `tests/test_docs_examples.py` los ejecuta.
   # Sin esto, esos ejemplos no se podrian validar en CI.
   "fastapi",
+  # Servidores ASGI reales: `tests/test_servidores_asgi.py` los levanta como
+  # subprocesos y les manda peticiones HTTP de verdad. Es la unica forma de
+  # comprobar el middleware con un servidor de produccion y no solo con
+  # TestClient.
+  "uvicorn",
+  "hypercorn",
+  "daphne",
 ]
 
 [tool.hatch.build.targets.wheel]
