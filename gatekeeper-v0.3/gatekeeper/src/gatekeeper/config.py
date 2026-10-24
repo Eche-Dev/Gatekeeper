@@ -253,10 +253,23 @@ class Config:
         Un puntero JSON como `/user/bio` se compara por su ÚLTIMO segmento
         (`bio`) y por el puntero completo, para que puedas exentar `bio` o
         `/user/bio` sin ensuciar la lista. Vacío = nada excluido (caso normal).
+
+        También se compara por el PRIMER segmento: un puntero muy profundo se
+        recorta (`/bio/…/nivel`) para que su longitud no crezca sin límite, y
+        el nombre que el usuario escribió (`bio`) queda en ese primer
+        segmento. Sin esta comparación, excluir un campo dejaría de funcionar
+        en los punteros recortados.
         """
         if not self._exclude_globs or not name:
             return False
-        candidates = (name, name.rsplit("/", 1)[-1])
+        # El puntero empieza por "/", así que el primer elemento de la lista
+        # es vacío: el primer segmento DE VERDAD es el segundo.
+        segmentos = [s for s in name.split("/") if s]
+        candidates = {name}
+        if segmentos:
+            candidates.add(segmentos[-1])
+            if len(segmentos) > 1:
+                candidates.add(segmentos[0])
         return any(
             pattern.match(candidate) for pattern in self._exclude_globs
             for candidate in candidates

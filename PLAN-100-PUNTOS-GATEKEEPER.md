@@ -153,8 +153,59 @@ Resultado final: **2339 tests**, corpus retenido en **103/109 (94,5%)** con
 **0** falsos positivos sin documentar, y cuatro evaluadores en CI (desarrollo,
 retenido, cruzado y procedencia de CRS).
 
+**Quinta revisión (2026-10-24, rama `feat/plan-verificacion-y-limites`).**
+Cerrada la sección 4 (operación y compatibilidad con despliegues). Sus cinco
+casillas pendientes:
+
+1. **Límites de memoria fijados como contrato**
+   (`tests/test_limites_memoria.py`): un body que excede `max_body_size` se
+   corta sin acumularse (64 MiB con límite de 1 MiB consumen ~1 MiB); el
+   consumo de un body permitido está acotado a ~2× su tamaño e independiente de
+   la fragmentación; y el middleware no retiene memoria entre peticiones. De
+   paso se quitó una **duplicación real**: `read_body` guardaba los bytes dos
+   veces (en la lista de chunks y dentro de los mensajes de ASGI, que ya los
+   llevan).
+
+2. **Observabilidad definida**: `corpus/events.json` (catálogo exhaustivo de
+   los 5 eventos, con un test que impide que se desincronice del código),
+   `tools/metrics.py` (exportador a Prometheus con 5 contadores, verificado
+   para que **no** filtren IPs, rutas ni payloads) y `docs/operacion.md` (qué
+   alertar: el error del backend de rate limit es la importante, porque con
+   fail-open el tráfico pasa **sin rate limit**).
+
+3. **Servidores ASGI reales**: uvicorn, hypercorn y daphne levantados como
+   subprocesos, con peticiones HTTP por socket de verdad. Con los tres: 200 al
+   legítimo, 403 al ataque, 413 por `Content-Length` sin enviar el body, y
+   las cabeceras de seguridad salen.
+
+4. **Rate limit entre procesos de Python reales**
+   (`tests/test_redis_multiproceso.py`): cuatro procesos con `multiprocessing`
+   se conceden exactamente los permisos del límite. Con el **contraste** del
+   backend en memoria, que concede el límite por proceso: sin ese contraste,
+   el test no demostraría nada.
+
+5. **Despliegue gradual y rollback** (`docs/operacion.md`): 4 pasos, cada uno
+   reversible sin desplegar código, y la tabla de rollback menos invasiva
+   primero.
+
+!!! note "Un hallazgo colateral que salió de aquí"
+    Al añadir daphne al extra `dev`, el job de auditoría de CI se puso rojo:
+    daphne arrastra Twisted, cuya versión **estable** (26.4.0) tiene 6 avisos
+    de seguridad con parche solo en una release candidate. La solución no fue
+    silenciar el aviso ni fijar una rc: hypercorn y daphne pasan a un extra
+    `servers` aparte, porque **el runtime del paquete no depende de ninguno de
+    los dos**. uvicorn (sin CVEs sin corregir) sigue en `dev`, así que CI
+    sigue probando con un servidor real. El job de auditoría informa del
+    `servers` con un warning sin bloquear el pipeline, y avisa de lo que hay
+    que hacer cuando salga la versión estable con los parches.
+
+Estado: **39 casillas hechas, 10 pendientes** (secciones 2 y 5, más la
+independencia de la revisión de seguridad).
+
 **Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
 son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
+reevaluación formal con esta rúbrica. No deben interpretarse como puntuaciones
+actuales ni subirse únicamente por el número de tests o reglas.
 
 
 ## Prioridad inmediata
@@ -257,12 +308,27 @@ modo cruzado) salen de `python tools/evaluate.py --json`,
 
 - [x] Añadir regresiones para IP directa, `X-Forwarded-For` confiable y no
   confiable, CIDR de proxies y cabeceras manipuladas desde clientes externos.
-- [ ] Ejecutar pruebas de fuzzing y límites de tiempo/memoria para entradas
+- [x] Ejecutar pruebas de fuzzing y límites de tiempo/memoria para entradas
   grandes y patrones configurables. Documentar que las regex del usuario pueden
   tener riesgos distintos de las reglas integradas.
-  Parcial: `tests/test_fuzz.py` cubre propiedades con Hypothesis sobre las
-  funciones puras, pero no hay límites de tiempo/memoria ni fuzzing de las regex
-  de usuario.
+  Hecho. `tests/test_fuzz.py` (15 tests) cubre:
+  - **Propiedades** con Hypothesis sobre las funciones puras (scan, normalize,
+    extract_strings, config, cabeceras).
+  - **Límite de tiempo**: entradas patológicas de hasta 1 MiB tienen que
+    escanearse en menos de 1 s (regresión del ReDoS cuadrático de v0.3).
+  - **Límite de memoria**: el escaneo y la extracción de campos no pueden
+    amplificar la memoria más de un factor acotado (regresión del hallazgo de
+    seguridad H-1, que amplificaba 2401×).
+  - **Patrones configurables**: una regex del usuario **inválida** rompe el
+    arranque con `ValueError` (nunca en producción, con una petición), y una
+    regex válida se evalúa sin colgarse con entradas cortas.
+
+  La diferencia de riesgo entre reglas integradas y del usuario está
+  documentada en `SECURITY.md`, `docs/seguridad.md` y `docs/uso.md`, y en el
+  informe de revisión (hallazgo A-1): las integradas tienen todos los
+  cuantificadores acotados y un test lo vigila; las del usuario se compilan tal
+  cual, porque protegerlas exigiría un motor de regex con timeout.
+
 - [x] Probar el artefacto wheel/sdist en un entorno virtual limpio y verificar
   instalación, importación, extras opcionales y metadatos.
   Verificado en local (venv limpio: instalación, `import gatekeeper`, extras
@@ -270,6 +336,46 @@ modo cruzado) salen de `python tools/evaluate.py --json`,
   instalación desde PyPI, que exige publicar antes.
 - [ ] Añadir una revisión de seguridad independiente antes de declarar una
   versión estable; resolver o aceptar de forma explícita cada hallazgo.
+  **La revisión está hecha y medida, pero NO es independiente**: la hizo quien
+  escribió el código, y el informe (`gatekeeper-v0.3/gatekeeper/SECURITY_REVIEW.md`)
+  lo declara explícitamente. Para el requisito del plan falta una segunda
+  opinión de alguien ajeno al proyecto.
+
+  Lo que sí es independiente son las **mediciones**: los PoC son ejecutables
+  y reproducibles, y cada hallazgo tiene una regresión que falla sin el
+  arreglo.
+
+  **Un hallazgo alto, corregido:** un **DoS de memoria con cuerpos pequeños**.
+  El puntero JSON que identifica el campo en la auditoría se construía
+  concatenando un segmento por nivel, así que a profundidad N el puntero mide
+  O(N) y con N campos el total es O(N²). Medido a través del middleware real:
+  un body de **83 KiB** con 14.100 niveles consumía **193,6 MiB** (2401×), y 10
+  peticiones simultáneas llegaban a **1,9 GiB** y 24 s de CPU, con respuesta
+  **200** (el consumo era invisible). `max_body_size` no lo acotaba: 83 KiB
+  están muy por debajo de 1 MiB.
+
+  Corregido llevando la ruta como una lista de segmentos acotada
+  (`MAX_POINTER_DEPTH`, `MAX_POINTER_LENGTH`, `MAX_SEGMENT_LENGTH`), con
+  `field_excluded` comparando también por el primer segmento para que
+  `exclude_fields` siga funcionando. Resultado: **193,6 MiB → 7,8 MiB** y
+  **1,9 GiB → 58,3 MiB** en concurrencia. La detección no se pierde (el
+  recorte es del puntero, no del texto).
+
+  **4 hallazgos aceptados con su justificación** en el informe: las reglas
+  propias del usuario pueden colgar el proceso (documentado, es del usuario),
+  la normalización NFKC expande hasta 4× (medido, lineal con el body, y
+  comprobado que no puede activar detecciones falsas), `monitor_only` no es un
+  plan de rollback, y el rate limit en memoria se multiplica por workers.
+
+  **Lo que la revisión comprobó que estaba bien:** la inyección de log en el
+  puntero JSON es imposible, 18 cuerpos adversarios no producen excepciones
+  sin controlar, la cadena de confianza del XFF da el resultado correcto en 12
+  combinaciones, y 14 valores de configuración hostiles **rompen el arranque**
+  en vez de pasar silenciosamente.
+
+  !!! note "Lo que queda para cerrarla del todo"
+    Una revisión por alguien que no haya escrito el código. Con eso, y con
+    revisar o rechazar los 4 hallazgos aceptados, la casilla se cierra.
 
 
 ### Evidencia de cierre
@@ -459,13 +565,15 @@ real sin confiar accidentalmente en el cliente.
 
 ### Trabajo
 
-- [ ] Documentar y probar el comportamiento de cada backend de rate limit,
+- [x] Documentar y probar el comportamiento de cada backend de rate limit,
   incluyendo reinicios, concurrencia, workers y indisponibilidad de Redis.
-  Ahora **sí**: los dos backends se prueban contra un Redis real (reinicios,
-  concurrencia, workers, indisponibilidad) y contra el backend en memoria.
-  Falta la prueba con **varios procesos de Python** reales (hoy son varios
-  clientes en el mismo proceso, que es lo mismo para Redis pero no demuestra
-  el reparto entre procesos del sistema operativo).
+  Ahora sí, con **procesos de Python de verdad**
+  (`tests/test_redis_multiproceso.py`): cuatro procesos lanzados con
+  `multiprocessing`, cada uno con su propio cliente de Redis, se conceden
+  exactamente los permisos del límite (no uno por proceso). El test incluye
+  el **contraste con el backend en memoria**, que concede `limite` por proceso:
+  sin ese contraste, el test no demostraría nada. Los reinicios, la
+  concurrencia y la indisponibilidad ya estaban cubiertos contra un Redis real.
 
 - [x] Elegir y explicar el comportamiento recomendado ante fallo del backend:
   fail-open o fail-closed, según el riesgo de la aplicación.
@@ -480,10 +588,19 @@ real sin confiar accidentalmente en el cliente.
   hace que el XFF se ignore, el peer de confianza permite bloquear y limitar
   por la IP real, y una cadena inconsistente no adivina.
 
-- [ ] Verificar límites de memoria y consumo con cuerpos grandes, cuerpos
+- [x] Verificar límites de memoria y consumo con cuerpos grandes, cuerpos
   fragmentados y entradas de gran volumen.
-  Parcial: `max_body_size` corta el body acumulado y hay test de body
-  fragmentado, pero no hay medición de memoria ni prueba de volumen alto.
+  Hecho y **fijado como contrato** en `tests/test_limites_memoria.py`:
+  un body que excede `max_body_size` se corta sin acumularse (64 MiB con
+  límite de 1 MiB consumen ~1 MiB, no 64); el consumo de un body permitido
+  está acotado a ~2× su tamaño (una copia en los mensajes de ASGI que hay que
+  reproducir, otra en el body unido que se inspecciona) e independiente de
+  cómo fragmentation viene; y el middleware no retiene memoria entre
+  peticiones.
+
+  De paso se quitó una **duplicación**: `read_body` guardaba los bytes dos
+  veces (en la lista de chunks y dentro de los mensajes de ASGI). Ahora se
+  guardan una sola vez.
 - [x] Documentar qué tipos de body no se inspeccionan, incluidos multipart y
   contenido binario, y cuáles son las consecuencias.
   `docs/amenazas.md` lo documenta y ahora hay tests que fijan ese
@@ -493,21 +610,77 @@ real sin confiar accidentalmente en el cliente.
   Hay test que comprueba que la auditoría no lleva el payload; se documenta
   qué metadatos se registran. La recomendación de retención y acceso es
   explícita en `docs/seguridad.md`.
-- [ ] Definir métricas/observabilidad de bloqueos, límites, errores de Redis,
+- [x] Definir métricas/observabilidad de bloqueos, límites, errores de Redis,
   respuestas 413 y modo monitor, sin exponer datos sensibles.
-  Falta: hay eventos de auditoría, pero no un catálogo de métricas ni
-  Prometheus/OTel.
-- [ ] Probar la interacción con aplicaciones ASGI comunes y servidores de
+  Hecho con tres piezas:
+  - **`corpus/events.json`**: catálogo exhaustivo de los 5 tipos de evento, con
+    sus campos, a qué código de respuesta corresponden y qué NUNCA se registra.
+    Un test comprueba que el catálogo y el middleware no se desincronizan (si el
+    código emite un evento que no está, falla).
+  - **`tools/metrics.py`**: exportador a formato Prometheus con 5 contadores
+    (`gatekeeper_attacks_total{rule,source}`, `rate_limited`, `blocked_ips`,
+    `body_too_large`, `rate_backend_errors{fail_open}`). Verificado por test:
+    la salida **no contiene IPs, rutas, payloads ni patrones**, solo conteos.
+  - **`docs/operacion.md`**: qué alertar (el error del backend de rate limit
+    es la alerta importante: con fail-open el tráfico pasa **sin rate limit**).
+
+- [x] Probar la interacción con aplicaciones ASGI comunes y servidores de
   producción soportados; documentar topologías comprobadas.
-- [ ] Proporcionar un procedimiento de despliegue gradual: monitor, revisión de
+  Hecho con servidores **reales**, no con `TestClient`:
+  `tests/test_servidores_asgi.py` lanza uvicorn, hypercorn y daphne como
+  subprocesos y les manda peticiones HTTP por un socket de verdad. Con los
+  tres: la petición legítima da 200, el ataque da 403, el 413 por
+  `Content-Length` llega sin enviar el body, y las cabeceras de seguridad
+  salen. CI los instala con `.[dev,servers]`.
+
+  Un detalle que salió de ahí: **daphne espera al body declarado** antes de
+  invocar la aplicación, así que el 413 por `Content-Length` sin enviar el
+  body no se puede comprobar con daphne (sí con uvicorn e hypercorn, y con el
+  stream leído en todos). Está documentado como comportamiento del servidor,
+  no de Gatekeeper.
+
+  Y una decisión de dependencias: hypercorn y daphne viven en el extra
+  `servers`, **no** en `dev`, porque daphne arrastra Twisted y la versión
+  estable de Twisted tiene avisos de seguridad con parche solo en una release
+  candidate. El runtime del paquete no depende de ninguno, así que no arrastra
+  ese riesgo; el job de auditoría audita `dev` (limpio) e informa del
+  `servers` sin bloquear el pipeline.
+
+  Topologías documentadas en `docs/despliegue.md`: un proceso, varios workers,
+  varias réplicas de Kubernetes, Docker y proxy inverso.
+
+- [x] Proporcionar un procedimiento de despliegue gradual: monitor, revisión de
   alertas, ajuste y activación de bloqueo, con instrucciones de reversión.
+  Hecho en `docs/operacion.md`, en tres partes:
+  - **Despliegue gradual en 4 pasos**: monitor (sin `rate_limit`, que si no
+    corta el tráfico que hay que medir) → bloquear ataques → activar el rate
+    limit → considerar el modo combinado. Cada paso es reversible sin
+    desplegar código.
+  - **Rollback** con el orden menos invasivo primero (`exclude_fields` →
+    `disabled_rules` → `monitor_only` → quitar el middleware), con la
+    advertencia de que `monitor_only` **no es un plan de rollback** si lo que
+    se frenaba era un ataque real.
+  - **Qué observar y qué alertar**, con la nota de que observar y revertir van
+    juntos: sin métricas no se sabe cuándo se ha vuelto a la normalidad.
+
 
 
 ### Evidencia de cierre
 
-- Pruebas de integración y carga reproducibles para las topologías documentadas.
+- Pruebas de integración y carga reproducibles para las topologías
+  documentadas. **Hecho**: servidores ASGI reales (uvicorn, hypercorn, daphne)
+  con peticiones HTTP de verdad, y procesos de Python reales compartiendo un
+  contador de Redis. Reproducibles: `pytest tests/test_servidores_asgi.py` y
+  `pytest tests/test_redis_multiproceso.py`.
 - Guía operativa con decisiones ante fallo, proxy, logs, límites y rollback.
+  **Hecho**: `docs/operacion.md` (eventos, métricas, alertas, despliegue
+  gradual, rollback, límites operativos) y `docs/despliegue.md` (proxy, Redis,
+  topologías).
 - Sin afirmaciones de soporte para configuraciones que no se hayan probado.
+  **Hecho**: los servidores que se nombran son los probados, y se dice
+  explícitamente que el 413 por `Content-Length` sin body no se puede
+  comprobar con daphne (por qué).
+
 
 ## 5. Documentación y preparación de publicación — 8/20 → 20/20
 

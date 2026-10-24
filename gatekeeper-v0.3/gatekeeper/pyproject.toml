@@ -49,6 +49,20 @@ gatekeeper = "gatekeeper.cli:main"
 [project.optional-dependencies]
 yaml = ["pyyaml>=6"]
 redis = ["redis>=5.0"]
+# Servidores ASGI alternativos, para las pruebas de integracion con
+# servidores reales (tests/test_servidores_asgi.py).
+#
+# NO estan en el extra `dev` a proposito: daphne arrastra Twisted, y la
+# version ESTABLE de Twisted tiene avisos de seguridad cuyos parches solo
+# estan en una release candidate. Como el runtime del paquete no depende de
+# ellos, no tiene por que arrastrar ese riesgo, y el job de auditoria de CI
+# audita el extra `dev` completo.
+#
+# Para probarlos: pip install -e ".[dev,servers]"
+servers = [
+  "hypercorn",
+  "daphne",
+]
 dev = [
   "pytest",
   "pytest-cov",
@@ -69,6 +83,9 @@ dev = [
   # la documentacion usan FastAPI y `tests/test_docs_examples.py` los ejecuta.
   # Sin esto, esos ejemplos no se podrian validar en CI.
   "fastapi",
+  # uvicorn: es el servidor ASGI de referencia y no arrastra dependencias
+  # con CVEs sin corregir. Se prueba siempre en CI.
+  "uvicorn",
 ]
 
 [tool.hatch.build.targets.wheel]

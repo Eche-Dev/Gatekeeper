@@ -206,6 +206,28 @@ Las reglas personalizadas se evalúan sobre texto decodificado y en minúsculas,
 iguales que las integradas. **No están acotadas contra ReDoS**: revisa tus
 patrones (las integradas sí lo están; ver [Seguridad](seguridad.md)).
 
+!!! danger "Tus reglas pueden colgar el proceso"
+    Las reglas integradas tienen **todos** los cuantificadores acotados
+    (`\s{0,16}`), y un test vigila que nadie introduzca un `\s*` sin cota: un
+    `\s*` adyacente sobre una racha de espacios es O(n²).
+
+    Las tuyas se compilan **tal cual**. Una regex con backtracking exponencial
+    (por ejemplo `(a+)+$`) puede tardar minutos con una entrada crafted, y
+    eso para el proceso entero, no solo para esa petición.
+
+    Cómo evitarlo:
+
+    - acota los cuantificadores: `\s{0,16}`, `[a-z]{1,32}`, no `\s*` ni `+`;
+    - evita anidar cuantificadores sobre el mismo grupo (`(a+)+`, `(a*)*`);
+    - usa alternancias en vez de repeticiones ambigua (`foo|foobar` en vez de
+      `foo(bar)?`);
+    - evita las referencias hacia atrás (`(a+)\1`) cuando el texto pueda ser
+      largo.
+
+    Si necesitas un patrón que no se puede acotar, no lo apliques sobre el
+    body entero: usa `exclude_fields` para sacarlo del escaneo, o ponlo en una
+    regla integrada con la forma acotada equivalente.
+
 !!! danger "Fallar al arrancar, no en producción"
     Una clave con typo (`rate_limt`) o un patrón inválido **rompe el arranque**
     con `ValueError`. Nunca te levantas con una protección que crees tener y no

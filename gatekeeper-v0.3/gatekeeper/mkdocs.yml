@@ -32,6 +32,7 @@ nav:
   - Instalación: instalacion.md
   - Uso: uso.md
   - Despliegue: despliegue.md
+  - Guía operativa: operacion.md
   - Detección y medición: deteccion.md
   - Medir con tráfico real: trafico-real.md
   - Modelo de amenazas: amenazas.md

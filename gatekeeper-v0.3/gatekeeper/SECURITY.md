@@ -69,3 +69,16 @@ detección y registro, no sustitución de controles fundamentales.
 
 Gatekeeper reduce superficie de ataque y te avisa. No convierte una aplicación
 que concatena SQL en una aplicación segura.
+
+## Revisión de seguridad
+
+La revisión de la versión actual está en
+[SECURITY_REVIEW.md](SECURITY_REVIEW.md): un hallazgo alto (un DoS de memoria
+con cuerpos JSON pequeños, ya corregido), cuatro aceptados con su
+justificación y cinco límites conocidos.
+
+!!! note "No es una revisión independiente"
+    La hizo quien escribió el código, y el informe lo dice. Para una revisión
+    de verdad independiente hace falta alguien ajeno al proyecto; el informe
+    explica qué parte sí es independiente (las mediciones y las regresiones) y
+    cómo reproducir los PoC.
