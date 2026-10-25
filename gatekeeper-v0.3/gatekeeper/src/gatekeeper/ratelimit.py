@@ -16,15 +16,28 @@ no se mezclan y ambos casos están testeados.
 """
 from __future__ import annotations
 
+import ipaddress
 import math
 import time
 import uuid
-from collections import deque
+from collections import OrderedDict, deque
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis
+
+# Prefijo IPv6 que se agrupa al contar (bits). Un /64 es el prefijo mas
+# pequeno que se delega de forma rutinaria (RFC 6177): un cliente con un /64
+# puede rotar 2^64 direcciones sin cambiar de ISP, asi que contar por
+# direccion completa no limita a ese cliente (solo lo retrasa).
+DEFAULT_IPV6_PREFIX = 64
+
+# Tope de claves distintas que el backend en memoria recuerda. Medido: sin
+# tope, 300.000 IPs distintas costaban ~245 MB de RAM (859 B por clave, casi
+# todo el `deque` que se crea por clave). Con el tope, la memoria es acotada
+# sea cual sea el numero de IPs que se inventen.
+DEFAULT_MAX_KEYS = 10_000
 
 # Ventana deslizante atómica: recorta las peticiones fuera de ventana, cuenta
 # las que quedan y solo registra la nueva si cabe. Devuelve 1 (permitido) o 0.
@@ -73,17 +86,60 @@ class BackendUnavailable(RuntimeError):
     """El backend externo (Redis) no ha respondido o ha fallado."""
 
 
+def normalize_rate_key(ip: str, ipv6_prefix: int = DEFAULT_IPV6_PREFIX) -> str:
+    """Clave de conteo del rate limit para una IP.
+
+    - **IPv4-mapped IPv6** (`::ffff:1.2.3.4`) -> `1.2.3.4`: es la misma
+      direccion con dos twitching, y con dos cubos el limite se podria eludir
+      solo alternando la forma.
+    - **IPv6** -> la direccion de red del prefijo (`/64` por defecto): rotar
+      dentro del /64 es el evasion clasica de un limitador por IP.
+    - **IPv4** -> la direccion tal cual (agrupar IPv4 por prefijo juntaria a
+      Internet entero en el mismo cubo).
+    - **Lo que no sea una IP** (p. ej. `unknown`) -> su texto en minusculas,
+      para que dos escrituras equivalentes no ocupen dos claves.
+
+    La IP CRUDA se sigue usando en la auditoria: aqui solo se decide de que
+    cubo se cuenta.
+    """
+    value = ip.strip()
+    try:
+        addr = ipaddress.ip_address(value)
+    except ValueError:
+        return value.lower()
+    mapped = getattr(addr, "ipv4_mapped", None)
+    if mapped is not None:
+        return str(mapped)
+    if addr.version == 6:
+        red = ipaddress.ip_network(f"{addr}/{ipv6_prefix}", strict=False)
+        return str(red.network_address)
+    return str(addr)
+
+
 class RateLimitBackend(Protocol):
+    """Contador de peticiones por clave.
+
+    La clave es la salida de `normalize_rate_key`, no la IP cruda: el backend
+    no sabe de IPs, solo de claves.
+    """
+
     async def allow(self, key: str) -> bool: ...
 
     async def retry_after(self, key: str) -> int: ...
 
 
 class MemoryBackend:
-    """Ventana deslizante en memoria, por clave (IP). Un solo proceso.
+    """Ventana deslizante en memoria, por clave. Un solo proceso.
 
     ``clock`` es inyectable para tests deterministas (por defecto
     ``time.monotonic``, que no salta con cambios de reloj del sistema).
+
+    ``max_keys`` acota la memoria: como mucho se recuerda ese numero de
+    claves distintas. Al llegar al tope se descarta la MAS ANTIGUA (la que
+    hace mas que no se usa, no la que se creo antes), y solo si no queda nada
+    caducado. Un ataque que inunda de IPs inventadas, en vez de agotar la RAM
+    del proceso, desplaza a los cubos viejos: el limite sigue valiendo para
+    quien lo necesita y el proceso no crece sin limite.
     """
 
     def __init__(
@@ -92,25 +148,58 @@ class MemoryBackend:
         window: float,
         clock: Callable[[], float] = time.monotonic,
         prune_interval: int = 1000,
+        max_keys: int = DEFAULT_MAX_KEYS,
     ):
+        if limit < 1:
+            raise ValueError("limit debe ser >= 1")
+        if window <= 0:
+            raise ValueError("window debe ser mayor que 0")
+        if max_keys < 1:
+            raise ValueError("max_keys debe ser >= 1")
+        if prune_interval < 1:
+            raise ValueError("prune_interval debe ser >= 1")
         self.limit = limit
         self.window = window
         self.clock = clock
         self.prune_interval = prune_interval
+        self.max_keys = max_keys
         self._calls = 0
-        self._hits: dict[str, deque[float]] = {}
+        # OrderedDict: el primero es el menos usado (se mueve al final al
+        # tocarlo), que es lo que permite evacuar por LRU sin un heap.
+        self._hits: OrderedDict[str, deque[float]] = OrderedDict()
 
     def _prune(self, now: float) -> None:
         stale = [k for k, q in self._hits.items() if not q or now - q[-1] >= self.window]
         for key in stale:
             del self._hits[key]
 
+    def _bucket(self, key: str) -> deque[float]:
+        """Cubo de la clave, creandolo si hace falta y respetando el tope.
+
+        Al llegar al tope sale la clave MENOS USADA (la primera del
+        `OrderedDict`). Las claves caducadas son, por definicion, las que hace
+        mas que no se tocan, asi que son las primeras en salir: no hace falta
+        una poda completa aqui. Esa poda es O(n) y, con la tabla llena, se
+        dispararia en cada insercion (200.000 IPsDistincts eran 1.900 millones
+        de comparaciones). La poda periodica (cada `prune_interval` llamadas)
+        es la que retira las claves caducadas.
+        """
+        q = self._hits.get(key)
+        if q is not None:
+            self._hits.move_to_end(key)
+            return q
+        while len(self._hits) >= self.max_keys:
+            self._hits.popitem(last=False)
+        q = deque()
+        self._hits[key] = q
+        return q
+
     async def allow(self, key: str) -> bool:
         now = self.clock()
         self._calls += 1
         if self._calls % self.prune_interval == 0:
             self._prune(now)  # evita crecimiento sin límite con muchas IPs distintas
-        q = self._hits.setdefault(key, deque())
+        q = self._bucket(key)
         while q and now - q[0] >= self.window:
             q.popleft()
         if len(q) >= self.limit:
@@ -150,6 +239,14 @@ class RedisBackend:
     se comparten entre procesos y cada proceso tiene su propio monotónico.
 
     El cliente es ``redis.asyncio``: la petición a Redis no bloquea el event loop.
+
+    A diferencia de ``MemoryBackend``, aqui no hay tope de claves: cada clave
+    es un ZSET de Redis que caduca a los ``window`` segundos (``PEXPIRE``), de
+    modo que la memoria no crece sin limite, pero SI crece con el numero de
+    IPs distintas que haya en una ventana. Si eso es un problema, la proteccion
+    es del lado de Redis (``maxmemory`` + ``maxmemory-policy``), no del
+    middleware. Lo que si hace el middleware es agrupar las IPv6 por /64 (ver
+    ``normalize_rate_key``), que es donde se concentran las rotaciones.
     """
 
     def __init__(

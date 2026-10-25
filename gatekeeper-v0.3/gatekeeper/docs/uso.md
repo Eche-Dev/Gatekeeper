@@ -30,6 +30,18 @@ CRS publicada mide el modo normal; no representa el rendimiento de esta opción.
 | `rate_backend` | `"memory"` | `"memory"` (un proceso) o `"redis"` (todos los workers) |
 | `redis_url` | `redis://localhost:6379/0` | Con `rate_backend="redis"` |
 | `rate_fail_open` | `True` | Qué hacer si Redis no responde (ver abajo) |
+| `rate_max_keys` | `10000` | IPs distintas que el backend en memoria recuerda (LRU al llegar al tope) |
+| `rate_ipv6_prefix` | `64` | Bits de prefijo IPv6 que se agrupan al contar |
+
+!!! note "Qué cuenta como el mismo cliente"
+    La clave de conteo se normaliza: `::ffff:1.2.3.4` cuenta como
+    `1.2.3.4`, y las IPv6 del mismo /64 cuentan juntas. Sin eso, quien tiene
+    un /64 (el prefijo delegable más pequeño) evade el límite rotando
+    direcciones. En la auditoría siempre se registra la IP cruda.
+
+    `rate_max_keys` acota la memoria del backend en memoria: sin tope,
+    inundar de IPs distintas hacía crecer el proceso sin límite (medido:
+    300.000 IPs → ~245 MB).
 
 !!! warning "Un worker, un contador"
     Con el backend en memoria cada proceso cuenta lo suyo: 4 workers con

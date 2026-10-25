@@ -43,6 +43,20 @@ Dataclass con validación en `__post_init__`. Un valor inválido lanza
 | `redis_url` | `str` | `"redis://localhost:6379/0"` |
 | `redis_prefix` | `str` | `"gatekeeper:rl:"` |
 | `rate_fail_open` | `bool` | `True` |
+| `rate_max_keys` | `int` | `10000` — tope de IPs distintas que el backend en memoria recuerda (al llegar al tope sale la menos usada) |
+| `rate_ipv6_prefix` | `int` | `64` — bits de prefijo IPv6 que se agrupan al contar (un /64 es el prefijo delegable más pequeño, RFC 6177) |
+
+**Qué se cuenta como "el mismo cliente".** La clave de conteo no es la IP
+cruda: `::ffff:1.2.3.4` cuenta como `1.2.3.4` (es la misma dirección con
+dos formas) y las IPv6 del mismo prefijo cuentan juntas (por defecto, el
+/64). Sin esa normalización, rotar direcciones IPv6 dentro del propio /64
+evadía el límite, que es la evasión clásica de un limitador por IP. La IP
+**cruda** es la que se registra en la auditoría.
+
+`rate_max_keys` acota la memoria del backend en memoria: sin tope, inundar
+de IPs distintas hacía crecer el proceso sin límite (medido: 300.000 IPs →
+~245 MB). Al llegar al tope se descarta la clave menos usada, de modo que el
+límite por cliente sigue mandando y la memoria queda acotada.
 
 ### Detección
 

@@ -5,7 +5,33 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ## [Sin publicar]
 
-Nada pendiente.
+### Corregido
+- **El rate limiter no tenía tope de claves.** El backend en memoria guardaba un
+  `deque` por cada IP distinta, sin límite: medido, 200.000 IPs distintas
+  costaban **174,9 MB** de RAM (875 B por clave) y la poda era O(n) en cada
+  limpieza. Ahora la tabla está acotada (`rate_max_keys`, 10.000 por defecto):
+  al llegar al tope sale la clave **menos usada** (LRU). Con el tope, esas
+  mismas 200.000 IPs ocupan **9,4 MB**, y la inserción es O(1).
+- **La IPv6 se contaba por dirección, y eso no limitaba a nadie.** Un /64 es el
+  prefijo delegable más pequeño (RFC 6177): quien tiene un /64 puede rotar
+  2^64 direcciones sin que el contador se entere. Ahora las direcciones del
+  mismo prefijo cuentan juntas (`rate_ipv6_prefix`, /64 por defecto; 128 = sin
+  agrupar).
+- **`::ffff:1.2.3.4` y `1.2.3.4` contaban aparte.** La misma dirección en dos
+  formas llevaba dos contadores. Ahora la clave de conteo se normaliza. La IP
+  **cruda** se sigue registrando en la auditoría.
+- **`blocked_ips` con una entrada IPv4-mapped era un no-op silencioso.**
+  `blocked_ips={"::ffff:127.0.0.1"}` (o `{"::ffff:0:0/96"}`) se aceptaba al
+  arrancar y **no bloqueaba nada**: la IP entrante se normaliza a IPv4 y se
+  comparaba contra una red IPv6, que nunca coincide. Una protección que no
+  protege. Ahora esas entradas se traducen a su equivalente IPv4 y bloquean las
+  dos formas.
+
+### Añadido
+- `Config(rate_max_keys=...)`: tope de IPs distintas que el backend en memoria
+  recuerda (10.000). `Config(rate_ipv6_prefix=...)`: bits de prefijo IPv6 que se
+  agrupan al contar (64).
+- 23 tests que fijan el contrato de lo anterior (`tests/test_ratelimit_hardening.py`).
 
 ## [0.5.0] - 2026-10-25
 

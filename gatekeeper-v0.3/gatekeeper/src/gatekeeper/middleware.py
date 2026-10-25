@@ -23,7 +23,13 @@ from .body import (
 )
 from .config import Config
 from .paths import is_path_allowed
-from .ratelimit import BackendUnavailable, MemoryBackend, RateLimitBackend, RedisBackend
+from .ratelimit import (
+    BackendUnavailable,
+    MemoryBackend,
+    RateLimitBackend,
+    RedisBackend,
+    normalize_rate_key,
+)
 from .rules import scan_detailed
 
 logger = logging.getLogger("gatekeeper")
@@ -36,7 +42,9 @@ def build_limiter(config: Config) -> RateLimitBackend | None:
     if config.rate_limit <= 0:
         return None
     if config.rate_backend == "memory":
-        return MemoryBackend(config.rate_limit, config.rate_window)
+        return MemoryBackend(
+            config.rate_limit, config.rate_window, max_keys=config.rate_max_keys
+        )
     try:
         from redis.asyncio import Redis
     except ImportError as exc:  # pragma: no cover - depende del entorno
@@ -216,7 +224,9 @@ class GatekeeperMiddleware:
 
         if self.limiter:
             try:
-                allowed = await self.limiter.allow(ip)
+                allowed = await self.limiter.allow(
+                    normalize_rate_key(ip, cfg.rate_ipv6_prefix)
+                )
             except BackendUnavailable as exc:
                 # Redis no responde: la política (seguir o cortar) es
                 # rate_fail_open, igual que en HTTP.
@@ -286,9 +296,12 @@ class GatekeeperMiddleware:
             return
 
         if self.limiter:
+            # La clave de conteo es normalizada (IPv4-mapped, IPv6 por /64);
+            # la IP CRUDA es la que se audita, para no perder el dato real.
+            key = normalize_rate_key(ip, cfg.rate_ipv6_prefix)
             try:
-                allowed = await self.limiter.allow(ip)
-                retry_after = 0 if allowed else await self.limiter.retry_after(ip)
+                allowed = await self.limiter.allow(key)
+                retry_after = 0 if allowed else await self.limiter.retry_after(key)
             except BackendUnavailable as exc:
                 # Redis no responde: la política (seguir o 503) es rate_fail_open.
                 self._audit(

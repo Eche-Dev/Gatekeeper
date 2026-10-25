@@ -34,6 +34,23 @@ def _parse_ip(value: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | Non
     return mapped or addr
 
 
+def _normalize_net(net: _IPvNetwork) -> _IPvNetwork:
+    """Convierte una red IPv4-mapped IPv6 a su equivalente IPv4.
+
+    `::ffff:0:0/96` es el rango reservado para IPv4 dentro de IPv6. Sin esta
+    conversion, una entrada en esa forma NUNCA coincide con nada: la IP que
+    llega se normaliza a IPv4 (ver `_parse_ip`) y se compara contra una red
+    IPv6, y IPv4 no pertenece a IPv6. Es decir, `blocked_ips={"::ffff:0:0/96"}`
+    se aceptaba al arrancar y no bloqueaba NADA: una proteccion que no protege.
+    """
+    if net.version != 6 or net.prefixlen < 96:
+        return net
+    mapped = getattr(net.network_address, "ipv4_mapped", None)
+    if mapped is None:
+        return net
+    return ipaddress.ip_network(f"{mapped}/{net.prefixlen - 96}", strict=False)
+
+
 def _compile_ips(
     entries: set[str], context: str, allow_literal: bool
 ) -> tuple[frozenset[str], tuple[tuple[str, _IPvNetwork], ...]]:
@@ -52,7 +69,7 @@ def _compile_ips(
             raise ValueError(f"{context}: entrada vacía")
         looks_ip = "/" in entry or ":" in entry or entry.count(".") == 3
         try:
-            nets.append((entry, ipaddress.ip_network(entry, strict=False)))
+            nets.append((entry, _normalize_net(ipaddress.ip_network(entry, strict=False))))
         except ValueError:
             if looks_ip or not allow_literal:
                 raise ValueError(f"{context}: '{entry}' no es una IP ni una red CIDR válida") from None
@@ -76,6 +93,15 @@ class Config:
     # Política si Redis no responde: True -> se admiten peticiones (disponibilidad)
     # False -> 503 (seguridad estricta). En ambos casos se audita el fallo.
     rate_fail_open: bool = True
+    # Tope de claves distintas que el backend en memoria recuerda (LRU al
+    # llegar al tope). Sin tope, inundar de IPs distintas agotaba la RAM del
+    # proceso: medido, 300.000 IPs costaban ~245 MB. El limite acota la
+    # memoria; el limite por IP sigue mandando sobre el cubo de cada cliente.
+    rate_max_keys: int = 10_000
+    # Prefijo IPv6 (en bits) que se agrupa al contar. Un /64 es el prefijo
+    # delegable mas pequeno (RFC 6177): sin agrupar, quien tenga un /64 evade
+    # el limite rotando direcciones. 128 = una direccion por cubo (sin agrupar).
+    rate_ipv6_prefix: int = 64
 
     # Detección de patrones
     inspect_requests: bool = True
@@ -168,6 +194,10 @@ class Config:
             raise ValueError("rate_backend debe ser 'memory' o 'redis'")
         if self.rate_backend == "redis" and not self.redis_url:
             raise ValueError("redis_url no puede estar vacío con rate_backend='redis'")
+        if self.rate_max_keys < 1:
+            raise ValueError("rate_max_keys debe ser >= 1")
+        if not 16 <= self.rate_ipv6_prefix <= 128:
+            raise ValueError("rate_ipv6_prefix debe estar entre 16 y 128 bits")
         if self.max_body_size <= 0:
             raise ValueError("max_body_size debe ser mayor que 0")
         if self.trusted_proxies < 1:
