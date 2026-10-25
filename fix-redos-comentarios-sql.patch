@@ -1,0 +1,144 @@
+From 962c0e1cccd19bf5d9e22e8a81891d6daf7271ab Mon Sep 17 00:00:00 2001
+From: review <review@example.com>
+Date: Sun, 25 Oct 2026 15:27:27 +0000
+Subject: [PATCH] =?UTF-8?q?fix:=20elimina=20el=20ReDoS=20cuadr=C3=A1tico?=
+ =?UTF-8?q?=20de=20los=20comentarios=20SQL=20sin=20cierre?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .../gatekeeper/src/gatekeeper/rules.py        | 46 ++++++++++++---
+ .../tests/test_redos_comentarios.py           | 56 +++++++++++++++++++
+ 2 files changed, 93 insertions(+), 9 deletions(-)
+ create mode 100644 gatekeeper-v0.3/gatekeeper/tests/test_redos_comentarios.py
+
+diff --git a/gatekeeper-v0.3/gatekeeper/src/gatekeeper/rules.py b/gatekeeper-v0.3/gatekeeper/src/gatekeeper/rules.py
+index ef2ec4b..7123568 100644
+--- a/gatekeeper-v0.3/gatekeeper/src/gatekeeper/rules.py
++++ b/gatekeeper-v0.3/gatekeeper/src/gatekeeper/rules.py
+@@ -463,7 +463,41 @@ def _entity_to_char(match: re.Match[str]) -> str:
+ # Comentario versionado de MySQL: el contenido SE EJECUTA si la versión cumple,
+ # así que se desenvuelve en lugar de borrarlo (un `/*!50000union*/` borrado es
+ # un payload invisible). Contenido acotado: sin `*/` de cierre no hay carrera.
+-_VERSIONED_COMMENT = re.compile(r"/\*!\d{0,6}(.{0,200}?)\*/")
++
++
++_VERSIONED_HEAD = re.compile(r"!\d{0,6}")
++
++
++def _strip_sql_comments(text: str) -> str:
++    """Quita comentarios SQL `/* ... */` en tiempo LINEAL.
++
++    - `/*!50000union*/` (versionado de MySQL) se DESENVUELVE a su contenido:
++      MySQL lo ejecuta, borrarlo ocultaría el payload.
++    - Cualquier otro comentario se sustituye por un espacio.
++    - Un `/*` sin cierre se deja tal cual y se corta la búsqueda: con
++      `re.sub(r"/\\*.*?\\*/", ...)` cada `/*` sin cierre recorría el resto del
++      texto (O(n^2): 128 KB de `/*a` tardaban 21 s, y el body admite 1 MiB).
++    Cada carácter se recorre una vez con `str.find`, que es C y no retrocede.
++    """
++    out: list[str] = []
++    i = 0
++    while True:
++        start = text.find("/*", i)
++        if start < 0:
++            break
++        end = text.find("*/", start + 2)
++        if end < 0:
++            break
++        body = text[start + 2:end]
++        out.append(text[i:start])
++        head = _VERSIONED_HEAD.match(body) if body.startswith("!") else None
++        if head and len(body) - head.end() <= 200:
++            out.append(" " + body[head.end():] + " ")
++        else:
++            out.append(" ")
++        i = end + 2
++    out.append(text[i:])
++    return "".join(out)
+ 
+ 
+ def decode(value: str, max_rounds: int = 3) -> str:
+@@ -512,14 +546,8 @@ def normalize(value: str, max_rounds: int = 3) -> str:
+     text = unicodedata.normalize("NFKC", decode(value, max_rounds))
+     text = unicodedata.normalize("NFKC", decode(text, max_rounds))
+     text = unicodedata.normalize("NFKC", decode(text, max_rounds))
+-    # Comentarios SQL versionados: MySQL los EJECUTA, así que se desenvuelven a
+-    # su contenido en vez de borrarlos (borrarlos los volvía invisibles).
+-    text = _VERSIONED_COMMENT.sub(r" \1 ", text)
+-    # Comentarios SQL genéricos (`/* foo */`) se tratan como espacio en blanco,
+-    # que es lo que MySQL hace. Medido: cierra 4 misses de CRS (el comentario
+-    # ocultaba el payload) y no introduce ningún FP sobre los negativos.
+-    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.DOTALL)
+-    return text.replace("/**/", " ").lower()
++    text = _strip_sql_comments(text)
++    return text.lower()
+ 
+ 
+ def _family_names() -> tuple[str, ...]:
+diff --git a/gatekeeper-v0.3/gatekeeper/tests/test_redos_comentarios.py b/gatekeeper-v0.3/gatekeeper/tests/test_redos_comentarios.py
+new file mode 100644
+index 0000000..f6abeae
+--- /dev/null
++++ b/gatekeeper-v0.3/gatekeeper/tests/test_redos_comentarios.py
+@@ -0,0 +1,56 @@
++r"""Regresión: los comentarios SQL sin cierre no pueden costar tiempo cuadrático.
++
++Antes, `re.sub(r"/\*.*?\*/", " ", texto, flags=re.DOTALL)` recorría el resto del
++texto por cada `/*` sin cierre: 128 KB de `/*a` tardaban ~21 s y el body admite
++1 MiB (~20 min de event loop bloqueado por UNA petición).
++"""
++import time
++
++import pytest
++
++from gatekeeper.rules import normalize, scan
++
++HOSTILES = {
++    "abierto_repetido": "/*a" * 90_000,
++    "versionado_repetido": "/*!50000" * 40_000,
++    "union_versionado": "union/*!" * 40_000,
++    "solo_apertura": "/*!" * 100_000,
++    "cierre_solo_al_final": "/*a" * 90_000 + "*/",
++}
++
++
++@pytest.mark.parametrize("nombre", HOSTILES)
++def test_comentarios_sin_cierre_son_lineales(nombre):
++    texto = HOSTILES[nombre]  # ~270 KB
++    inicio = time.perf_counter()
++    scan("/?q=" + texto)
++    # con la regex anterior esto tardaba decenas de segundos; margen enorme para CI lento
++    assert time.perf_counter() - inicio < 3.0
++
++
++def test_el_coste_crece_de_forma_lineal():
++    def coste(n):
++        inicio = time.perf_counter()
++        normalize("/*a" * n)
++        return time.perf_counter() - inicio
++
++    coste(10_000)  # calentamiento
++    pequeno, grande = coste(30_000), coste(240_000)  # x8 de tamaño
++    # lineal ~x8; cuadrático ~x64. El umbral separa ambos con holgura.
++    assert grande < pequeno * 30
++
++
++@pytest.mark.parametrize(
++    "payload",
++    [
++        "1 /*!50000union*/ /*!50000select*/ 1",
++        "1 UnIoN/**/SeLeCt 1",
++        "/*c*/union/*c*/select/*c*/1",
++    ],
++)
++def test_sigue_detectando_los_ofuscadores_con_comentarios(payload):
++    assert scan("/?q=" + payload) == "sqli"
++
++
++def test_un_comentario_normal_no_es_un_ataque():
++    assert scan("/?q=texto /* nota */ normal") is None
+-- 
+2.43.0
+

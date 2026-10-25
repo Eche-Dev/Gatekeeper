@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Entornos
+.venv/
+venv/
+env/
+
+# Testing / calidad
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Type checkers
+.pyre/
+.pytype/
+
+# Editores / SO
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# Copias de trabajo de la auditoria (el paquete duplicado con el parche aplicado)
+.audit/patchtest_*/
+.audit/dist/
