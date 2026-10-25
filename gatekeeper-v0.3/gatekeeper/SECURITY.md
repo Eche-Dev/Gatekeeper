@@ -2,10 +2,20 @@
 
 ## Versiones soportadas
 
-| Versión | Soportada |
-|---|---|
-| 0.3.x | ✅ |
-| < 0.3.0 | ❌ (sin publicar en PyPI aún) |
+| Rama | Estado | Recibe correcciones |
+|---|---|---|
+| 0.3.x | **Activa** | Seguridad, errores y features |
+| 0.2.x | Histórica | Solo seguridad crítica |
+| 0.1.x | Histórica | Nada |
+
+Una versión está soportada si no se rompe a propósito dentro de su major. La
+tabla de versiones **medidas** (Python, Starlette, FastAPI, servidores ASGI y
+Redis) está en
+[Compatibilidad y soporte](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/compatibilidad.md).
+
+!!! note "Todavía no hay nada publicado en PyPI"
+    Gatekeeper se instala desde el repositorio hasta que se publique la
+    primera versión. Ver [Instalación](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/instalacion.md).
 
 ## Cómo reportar una vulnerabilidad
 
@@ -15,6 +25,11 @@ forma privada. No abras un issue público con un fallo explotable.
 Contesta dentro de 72 horas y coordino el fix y la publicación contigo. Si
 prefieres, incluye un payload que reproduzca el fallo y el escenario en el que
 salta (query, body, backend Redis, etc.).
+
+Para errores que **no** son vulnerabilidades (una regla que bloquea tráfico
+legítimo, un error de documentación), usa
+[GitHub Issues](https://github.com/Eche-Dev/Gatekeeper/issues). Con el evento
+de auditoría (`rule`, `field`, `pattern`) se puede arreglar rápido.
 
 ## Modelo de amenazas: qué defiende Gatekeeper
 

@@ -33,6 +33,7 @@ nav:
   - Uso: uso.md
   - Despliegue: despliegue.md
   - Guía operativa: operacion.md
+  - Compatibilidad y soporte: compatibilidad.md
   - Detección y medición: deteccion.md
   - Medir con tráfico real: trafico-real.md
   - Modelo de amenazas: amenazas.md

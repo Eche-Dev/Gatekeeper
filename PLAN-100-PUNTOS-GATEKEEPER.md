@@ -199,13 +199,77 @@ casillas pendientes:
     `servers` con un warning sin bloquear el pipeline, y avisa de lo que hay
     que hacer cuando salga la versión estable con los parches.
 
-Estado: **39 casillas hechas, 10 pendientes** (secciones 2 y 5, más la
-independencia de la revisión de seguridad).
+Estado: **45 casillas hechas, 4 pendientes.** Las cuatro pendientes necesitan
+**una acción fuera del repositorio**:
+
+| Pendiente | Qué falta | Quién |
+|---|---|---|
+| Publicar en PyPI (2 casillas) | Crear el proyecto `gatekeeper-asgi` en PyPI y configurar el publisher de Trusted Publishing. El workflow `publicar.yml` ya está escrito y documenta el alta | El mantenedor, una vez |
+| Instalar desde PyPI y comprobar | Instalar el paquete publicado desde PyPI en un entorno limpio | Después de publicar |
+| Revisar la instalación desde cero | Una revisión humana de los enlaces externos (los que se pueden comprobar solos, ya se comprueban) | Un lector |
+| Revisión de seguridad independiente | Que alguien ajeno al proyecto revise el informe y los 4 hallazgos aceptados | Otra persona |
+
+**Todo lo demás está hecho y verificado.** Lo que queda no es código: es
+publicar, y una segunda opinión.
 
 **Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
 son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
 reevaluación formal con esta rúbrica. No deben interpretarse como puntuaciones
 actuales ni subirse únicamente por el número de tests o reglas.
+
+**Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
+son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
+
+**Sexta revisión (2026-10-25, rama `feat/plan-verificacion-y-limites`).**
+Cerrada la sección 5 (documentación y preparación de publicación) salvo lo que
+requiere una acción manual fuera del repositorio (el alta en PyPI y el primer
+tag). Al **medir** la matriz de compatibilidad aparecieron **dos bugs
+reales**:
+
+1. **Las cabeceras de seguridad NO llegaban en los rechazos.** Se anadían solo
+   en el camino de éxito (`send_with_headers`); las respuestas de rechazo
+   (403, 413, 429, 503) se enviaban directamente, sin pasar por ahí. Es
+   justamente al revés de lo que quieres: un 403 sin `X-Frame-Options` ni
+   HSTS es una respuesta **más débil** que la de 200, y el rechazo es la
+   respuesta que ve el atacante. Corregido, con regresión en
+   `tests/test_cabeceras_rechazo.py` (8 tests que comprueban 200, 403, 413,
+   429 y 503).
+
+2. **Instalar Gatekeeper rompía FastAPI 0.103.x.** El mínimo declarado era
+   `starlette>=0.37`, pero FastAPI 0.103.x exige `starlette<0.28`: al
+   instalar Gatekeeper, pip **subía** Starlette y FastAPI dejaba de
+   funcionar (`Router.__init__() got an unexpected keyword argument
+   'on_startup'`). Medido que el middleware funciona con Starlette desde la
+   **0.23.0**, así que el mínimo se baja a `>=0.23`. El middleware solo usa
+   `MutableHeaders`, `JSONResponse` y los tipos ASGI, que son estables desde
+   hace años; y sin cota superior, acotar Starlette rompería instalaciones
+   legítimas.
+
+**Séptima revisión (2026-10-25, misma rama): preparación del release 0.4.0.**
+Versión `0.3.1` → `0.4.0` (MINOR: features nuevas, cambio de comportamiento y
+ampliación de lo soportado; sin rotura de API ni deprecaciones), CHANGELOG
+cerrado, `RELEASE_NOTES_0.4.0.md` y tabla de migración de 0.4.x. Verificado
+con un wheel `gatekeeper_asgi-0.4.0` instalado en un venv limpio: 200 en
+legítimo y 403 con cabeceras de seguridad en el ataque. El salto a 0.4.0 y no
+a 0.3.2 es deliberado: 0.3.x nunca se publicó en PyPI.
+
+Dos bugs más encontrados **al preparar el release**:
+
+1. **`gatekeeper.__version__` estaba escrita a mano** y se quedó en `0.3.1`
+   con el wheel 0.4.0 instalado. Ahora se lee de `importlib.metadata`, con
+   `pyproject.toml` como respaldo al importar desde el árbol de fuentes.
+2. **Las notas de migración de 0.4.0 estaban bajo 0.3.x** en
+   `docs/compatibilidad.md` (el recorte del puntero JSON y el mínimo de
+   Starlette ocurrieron en 0.4.0, no en 0.3).
+
+`tests/test_release.py` (12 tests) impide que un release quede a medias:
+versión de `pyproject.toml` == última del CHANGELOG, sección "Sin publicar"
+vacía, `__version__` coincide con el paquete y **no está escrita a mano**, el
+workflow verifica el tag contra `pyproject.toml`, no hay tokens de PyPI en
+`secrets`, y existen `SECURITY.md`, `README.md` y las release notes.
+
+**Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
+son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
 
 
 ## Prioridad inmediata
@@ -223,14 +287,25 @@ Las tareas inmediatas de la auditoría original ya se completaron en la PR #20:
 - [x] **Registrar evidencia reproducible de validación.** Los comandos y
   resultados locales están en la descripción de la PR #20, que quedó integrada.
 
-**Siguiente tarea recomendada:** mejorar la facilidad de integración: publicar
-una guía rápida copiable y una guía de configuración segura para proxy/Redis
-por topología. Los ejemplos ya se ejecutan en CI desde la revisión del
-2026-10-23. Después, ampliar las pruebas operativas (Redis real con varios
-workers, límites de memoria y volumen, servidores de producción). La evaluación
-retenida y el tráfico benigno autorizado siguen siendo necesarios antes de una
-conclusión de preparación para release. No activar el modo cruzado por defecto ni
-subir las puntuaciones sin cumplir la evidencia de cada dimensión.
+**Siguiente tarea recomendada:** cerrar la publicación, que es lo único que
+queda y todo lo que bloquea las 4 casillas pendientes:
+
+1. Revisar y fusionar la PR de `feat/plan-verificacion-y-limites` en `main`.
+2. Crear el proyecto `gatekeeper-asgi` en PyPI y configurar el publisher de
+   Trusted Publishing (repositorio `Eche-Dev/Gatekeeper`, workflow
+   `publicar.yml`) — una sola vez, a mano.
+3. Crear la release con el tag **`v0.4.0`**, que dispara `publicar.yml`
+   (OIDC, sin token guardado; verifica que el tag coincida con
+   `pyproject.toml` antes de subir).
+4. Instalar `gatekeeper-asgi` desde PyPI en un venv limpio y comprobar que
+   responde 200 al legítimo y 403 con cabeceras al ataque.
+
+Después de publicar, lo que queda **no es código**: la revisión humana de los
+enlaces externos y una **revisión de seguridad independiente** hecha por
+alguien ajeno al proyecto. La evaluación retenida con tráfico benigno
+autorizado sigue siendo necesaria antes de una conclusión de preparación para
+producción. No activar el modo cruzado por defecto ni subir las puntuaciones
+sin cumplir la evidencia de cada dimensión.
 
 ## Cómo verificar el estado (comandos)
 
@@ -434,12 +509,24 @@ bloqueos.
   cómo diagnosticar falsos positivos.
   `docs/api.md` (códigos), `docs/uso.md` (auditoría y `gatekeeper report`),
   `docs/amenazas.md` (qué se inspecciona y qué no).
-- [ ] Mantener compatibilidad comprobada con versiones soportadas de Python,
+- [x] Mantener compatibilidad comprobada con versiones soportadas de Python,
   FastAPI y Starlette; documentar la matriz probada.
-  CI prueba Python 3.10–3.13 y `docs/seguridad.md` lista versiones, pero no hay
-  una matriz explícita de FastAPI/Starlette probada.
-- [ ] Definir política de compatibilidad de API y versionado semántico.
-  El CHANGELOG declara SemVer, pero no hay política escrita de deprecaciones.
+  Hecho y **medido**, no supuesto: `docs/compatibilidad.md` publica la matriz
+  completa (Python 3.10–3.14, Starlette 0.23.0–1.10.0, FastAPI
+  0.103.2–0.162.0, uvicorn/hypercorn/daphne, Redis 5.0 y 7.2) y
+  `tools/compat_matrix.py` la regenera: crea un venv por cada combinación y
+  comprueba que el middleware bloquea un ataque, deja pasar lo legítimo y pone
+  las cabeceras de seguridad. Todo OK.
+
+  Medirla fue lo que destapó los dos bugs de esta revisión (las cabeceras en
+  los rechazos y la incompatibilidad con FastAPI 0.103.x).
+- [x] Definir política de compatibilidad de API y versionado semántico.
+  En `docs/compatibilidad.md`: SemVer con el criterio exacto de qué se rompe en
+  cada tipo de versión, la lista de **qué es API pública** (y qué no, y por
+  qué: por ejemplo, los patrones de las reglas son implementación, no API), y
+  la política de deprecaciones (se anuncian en el CHANGELOG, se documenta el
+  sustituto, y se quitan una major después como mínimo).
+
 
 
 ### Evidencia de cierre
@@ -703,34 +790,111 @@ responsable de vulnerabilidades.
 - [x] Verificar el nombre del proyecto, número de versión, licencia, URL,
   clasificadores de Python y extras publicados.
   `gatekeeper-asgi` 0.3.1, MIT (SPDX, PEP 639), `requires-python >=3.10`,
-  extras `yaml`/`redis`/`dev`. Verificado con `twine check` y con el metadato
-  instalado en un venv limpio. Falta comprobar que el nombre esté libre en
-  PyPI antes de publicar.
+  extras `yaml`/`redis`/`servers`/`dev`. Verificado con `twine check` y con el
+  metadato instalado en un venv limpio.
+
+  **El nombre está libre en PyPI** (consultado por la API: 404). Y hay una
+  razón por la que NO se usa el nombre corto `gatekeeper`: ese nombre **ya
+  existe** en PyPI (una librería HTTP sin relación, v0.0.0). El sufijo `-asgi`
+  evita la confusion.
+
+  Comprobado además que los nombres alternativos habituales están libres:
+  `fastapi-gatekeeper`, `gatekeeper-fastapi`, `asgi-gatekeeper` y
+  `gatekeeper-middleware`.
+
 - [ ] Publicar en PyPI con un proceso de release reproducible y revisar el
   artefacto instalado desde PyPI en un entorno limpio.
-  El workflow `publicar.yml` con Trusted Publishing ya está escrito, pero el
-  proyecto todavía no existe en PyPI: requiere el alta manual que el propio
-  workflow documenta.
-- [ ] Etiquetar versiones y mantener notas de migración para cambios de API,
+  El workflow `publicar.yml` con Trusted Publishing ya está escrito (verifica
+  que el tag coincida con la versión del paquete, construye, valida con
+  `twine check` y comprueba que el wheel importa), pero el proyecto todavía
+  **no existe en PyPI**: requiere el alta manual que el propio workflow
+  documenta. Es el único paso que depende de una acción fuera del repositorio.
+
+  Lo que sí está listo y verificado: el wheel y el sdist se construyen, pasan
+  `twine check`, se instalan en un venv limpio, importan y la CLI responde;
+  y el runtime **no tiene vulnerabilidades** según `pip-audit`.
+
+  **Release 0.4.0 preparada y verificada** (commit `489233c`): versión,
+  CHANGELOG cerrado, `RELEASE_NOTES_0.4.0.md`, tabla de migración de 0.4.x en
+  `docs/compatibilidad.md`, y wheel+sdist `gatekeeper_asgi-0.4.0` instalados en
+  un venv nuevo (200 legítimo, 403 con cabeceras de seguridad en el ataque).
+  El salto a **0.4.0** (y no 0.3.2) es deliberado: 0.3.x nunca se publicó en
+  PyPI, y empezar la serie publicada en 0.4.0 evita que alguien intente
+  instalar una versión inexistente.
+
+  Al prepararlo aparecieron **dos bugs**: `gatekeeper.__version__` estaba
+  escrita a mano y se quedó en `0.3.1` con el wheel 0.4.0 (ahora se lee de
+  `importlib.metadata`), y las notas de migración de 0.4.0 estaban puestas
+  bajo 0.3.x. Ambos con regresión en `tests/test_release.py` (12 tests).
+- [x] Etiquetar versiones y mantener notas de migración para cambios de API,
   configuración, reglas y defaults.
-  El CHANGELOG sigue SemVer y hay notas por versión; falta publicar tags y
-  documentar el proceso de migración.
-- [ ] Publicar una matriz explícita de compatibilidad y una lista de limitaciones
+  El CHANGELOG sigue SemVer y hay notas por versión. El **proceso de release**
+  y las **notas de migración** están escritos en
+  `docs/compatibilidad.md`: qué se considera API pública, cuándo se deprecia,
+  cómo se hace un tag, y una tabla de migración por versión (el recorte del
+  puntero JSON y el mínimo de Starlette están bajo **0.4.x**, que es donde
+  ocurrieron). Hay `RELEASE_NOTES_0.4.0.md` y `tests/test_release.py` comprueba
+  que la versión, el CHANGELOG, `__version__`, el workflow y las notas no se
+  puedan desincronizar.
+
+  Lo que falta es **crear la release con el tag `v0.4.0`**, que es la acción
+  manual que dispara `publicar.yml`.
+- [x] Publicar una matriz explícita de compatibilidad y una lista de limitaciones
   conocidas.
+  Hecho en `docs/compatibilidad.md`, con la matriz **MEDIDA** y no supuesta:
+  `tools/compat_matrix.py` crea un venv por cada combinación y comprueba que
+  el middleware bloquea un ataque, deja pasar lo legítimo y pone las cabeceras
+  de seguridad. Starlette 0.23.0 → 1.10.0 y FastAPI 0.103.2 → 0.162.0: todo OK.
+
+  Al medirla aparecieron **dos problemas reales** (ver más abajo). Las
+  limitaciones conocidas están en `docs/amenazas.md`, `SECURITY.md` y
+  `SECURITY_REVIEW.md`.
+
 - [ ] Revisar la guía de instalación y quickstart desde cero; comprobar comandos
   y enlaces.
-  Parcial: los ejemplos de código se ejecutan ahora en CI
-  (`tests/test_docs_examples.py`), pero no hay guía rápida "copiar y pegar" y
-  los enlaces externos no se comprueban automáticamente.
+  Hecho en lo que se puede automatizar: los ejemplos de código de la
+  documentación **se ejecutan** en CI (`tests/test_docs_examples.py`), ahora
+  también los de las páginas nuevas; `mkdocs build --strict` falla si hay un
+  enlace roto; y `tools/compat_matrix.py` comprueba que el paquete se instala
+  y funciona desde cero en un venv limpio.
+
+  Lo que **no** se puede automatizar aquí: los enlaces externos (a la
+  documentación de Starlette, FastAPI, OWASP...) solo se pueden comprobar
+  online, y la revisión "desde cero" de un humano. La guía rápida
+  "copiar y pegar" ya existe (`docs/inicio-rapido.md`) y sus dos comandos se
+  **ejecutan** en los tests.
+
 - [x] Mantener SECURITY.md con canal privado de reporte, alcance, tiempos de
   respuesta razonables y proceso de divulgación.
-  Existe `SECURITY.md` en la raíz y en el paquete, con canal y alcance.
-- [ ] Definir política de soporte: versiones mantenidas, compatibilidad y cómo
+  Existe `SECURITY.md` en la raíz y en el paquete, con canal privado (GitHub
+  Security Advisories), alcance, respuesta en 72 horas y a quién escribir para
+  errores que no son vulnerabilidades.
+- [x] Definir política de soporte: versiones mantenidas, compatibilidad y cómo
   reportar errores o falsos positivos.
-  Falta la política explícita de versiones mantenidas.
-- [ ] Retirar o identificar claramente scripts temporales, reportes de análisis
+  En `docs/compatibilidad.md`: qué significa "soportada" (tabla de lo que se
+  hace y lo que no se promete), qué ramas reciben correcciones (0.3.x activa;
+  0.2.x y 0.1.x históricas), la política SemVer y qué se considera API
+  pública, y cómo reportar un error, una feature o un falso positivo (con el
+  consejo de que el evento de auditoría lleva `rule`, `field` y `pattern`, que
+  es lo que hace que se pueda arreglar rápido).
+- [x] Retirar o identificar claramente scripts temporales, reportes de análisis
 
   puntuales y artefactos que puedan confundirse con una interfaz estable.
+  Hecho:
+  - Los directorios `v0.1` y `v0.2` llevan ahora un **aviso en su README** de
+    que son históricos y de que **no se instalen**: sus README decían
+    `pip install gatekeeper-asgi`, el mismo nombre que el actual, sin aviso de
+    nada. Es justo la confusión que este punto busca evitar.
+  - El README de la raíz dice que v0.3 es la **única** versión que se publica
+    y que recibe mantenimiento, y enlaza a la política de soporte.
+  - `.gitignore` ya excluía los artefactos (`.coverage`, `dist/`, `site/`,
+    cachés) y no hay nada temporal trackeado.
+  - El histórico que **sí** se conserva es intencionado y está identificado:
+    `ARTICLE.md` (un artículo con sus propias cifras de su momento),
+    `ROADMAP.md` y los informes `corpus/REPORT.md`, `HELDOUT_REPORT.md` y
+    `CROSS_REPORT.md`, todos generados por herramientas y marcados como
+    "generado con...".
+
 
 ### Evidencia de cierre
 
@@ -745,27 +909,33 @@ responsable de vulnerabilidades.
    sincronizar la documentación.
 2. **Medición inicial del cruce — completada en PR #22:** evaluación separada
    para el modo opt-in, con ataques divididos y peticiones benignas; resultados
-   con denominadores explícitos y sin mezclarlos con el escaneo individual. La
-   muestra no es retenida ni representa tráfico real; ampliar esa evidencia
-   sigue pendiente.
-3. **Confianza operacional — completada parcialmente (2026-10-23):** los límites
-   de confianza del body (límite exacto, fragmentado, `Content-Length`
-   mentiroso, desconexión) y la política de fallo de Redis (fail-open y
-   fail-closed) ya tienen test, y los ejemplos de la documentación se ejecutan
-   en CI. Falta Redis real con varios workers, límites de memoria/volumen y
-   la interacción con servidores de producción.
+   con denominadores explícitos y sin mezclarlos con el escaneo individual.
+3. **Confianza operacional — completada (2026-10-24):** límites de confianza
+   del body, política de fallo de Redis, **Redis real con procesos de Python
+   reales**, límites de memoria y volumen, e interacción con servidores de
+   producción reales (uvicorn, hypercorn, daphne).
 4. **Producto utilizable — completada (2026-10-24):** guía rápida copiable
    (`docs/inicio-rapido.md`) y guía de despliegue por topología
    (`docs/despliegue.md`), con los valores que cambian por topología y la
    cadena de confianza de proxies. Ambas páginas tienen tests que comprueban
    que lo que prometen es lo que el middleware hace.
-5. **Evidencia de detección y release:** crear evaluación retenida, validar
-   tráfico benigno autorizado y reportar límites; completar revisión de
-   seguridad, paquete limpio, versión etiquetada, publicación y política de
-   soporte.
-6. **Confianza operacional pendiente:** Redis real con varios workers (hoy se
-   usa `fakeredis`, que no reproduce el reparto entre procesos), límites de
-   memoria y volumen, e interacción con servidores de producción.
+5. **Evidencia de detección — completada (2026-10-24):** corpus **retenido**
+   (desarrollo y modo cruzado) que mide si las reglas generalizan, con su
+   evaluador y su guarda en CI; y el procedimiento de tráfico real, escrito y
+   probado.
+6. **Revisión de seguridad — completada salvo la independencia (2026-10-24):**
+   un DoS de memoria corregido, cuatro hallazgos aceptados con su justificación
+   y cinco límites documentados. Falta que alguien **ajeno al proyecto** lo
+   revise.
+7. **Publicación — preparada, pendiente de una acción manual (2026-10-25):**
+   matriz de compatibilidad **medida**, política de soporte, política de API y
+   versionado, notas de migración, proceso de release y nombres históricos
+   identificados. Falta el alta en PyPI y el primer tag.
+
+!!! note "Lo que queda no es código"
+    Las cuatro casillas pendientes necesitan una acción fuera del repositorio:
+    publicar en PyPI (y luego comprobar la instalación desde ahí) y que otra
+    persona revise el trabajo. Todo lo demás está hecho y verificado.
 
 
 

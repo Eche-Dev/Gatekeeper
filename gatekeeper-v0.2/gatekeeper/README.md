@@ -1,5 +1,19 @@
 # Gatekeeper
 
+> **⚠️ Versión histórica: no instales esto.**
+>
+> Este directorio es la versión **0.2** de Gatekeeper, que ya **no recibe
+> mantenimiento**. La versión actual está en
+> [`gatekeeper-v0.3/gatekeeper/`](../gatekeeper-v0.3/gatekeeper/), y es la que
+> se publica en PyPI como `gatekeeper-asgi`.
+>
+> Instalar este código te da una versión sin las correcciones de seguridad
+> posteriores (incluido un fallo de DoS por memoria y la incompatibilidad con
+> FastAPI antiguo que se corrigieron en 0.3). No hay soporte para esta rama.
+>
+> Para el estado de cada rama y la política de soporte, ver
+> [Compatibilidad y soporte](../gatekeeper-v0.3/gatekeeper/docs/compatibilidad.md).
+
 Middleware ASGI de seguridad para FastAPI/Starlette. Una capa extra delante de tu app:
 rate limiting, cabeceras seguras, detección de patrones de ataque en query y body,
 reglas propias por YAML y auditoría en JSON.
