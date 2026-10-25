@@ -122,10 +122,10 @@ def test_el_puntero_json_esta_acotado():
 
 def test_la_inyeccion_de_log_sigue_siendo_imposible():
     """El informe dice que el puntero no puede colar claves en el evento."""
-    from gatekeeper.body import _escape_pointer
+    from gatekeeper.body import escape_pointer
 
     clave = 'evil", "injected": "yes'
-    evento = json.dumps({"field": f"/{_escape_pointer(clave)}"}, ensure_ascii=False)
+    evento = json.dumps({"field": f"/{escape_pointer(clave)}"}, ensure_ascii=False)
     datos = json.loads(evento)
     assert "injected" not in datos, datos
     assert list(datos) == ["field"], datos
