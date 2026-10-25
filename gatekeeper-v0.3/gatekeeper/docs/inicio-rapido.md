@@ -3,15 +3,15 @@
 Esta página es para quien tiene Gatekeeper delante de una aplicación y quiere
 **verlo funcionando en cinco minutos**, sin leer la documentación entera.
 
-!!! info "Todavía no está en PyPI"
-    Gatekeeper aún no se publica en PyPI. Por ahora se instala desde el
-    repositorio (ver [Instalación](instalacion.md)).
+!!! info "Publicado en PyPI"
+    Gatekeeper se instala desde PyPI: `pip install gatekeeper-asgi`. La 0.4.0
+    tiene un DoS de disponibilidad corregido en la **0.4.1**: actualiza a
+    `0.4.1` o superior. Ver [Instalación](instalacion.md).
 
 ## 1. Instalar
 
 ```bash
-git clone https://github.com/Eche-Dev/Gatekeeper.git
-pip install ./Gatekeeper/gatekeeper-v0.3/gatekeeper
+pip install --upgrade "gatekeeper-asgi>=0.4.1"
 ```
 
 Comprueba que está:

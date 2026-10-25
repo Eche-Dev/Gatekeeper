@@ -50,15 +50,38 @@ no escondida en el código.
 
 ## ReDoS: la historia honesta
 
-v0.3 midió un **backtracking cuadrático real**: dos cuantificadores de blancos
-adyacentes (`\s*[(']?\s*`) en las reglas de SQLi hacían que `or` + 80.000
-espacios consumiera **118 s de CPU por petición** — un DoS con bodies de 1 MiB.
-La respuesta fue:
+**v0.3** midió un **backtracking cuadrático real**: dos cuantificadores de
+blancos adyacentes (`\s*[(']?\s*`) en las reglas de SQLi hacían que `or` +
+80.000 espacios consumiera **118 s de CPU por petición** — un DoS con bodies
+de 1 MiB. La respuesta fue:
 
-- acotar **todos** los cuantificadores integrados (`\s{0,16}`) → lineal;
+- acotar **todos** los cuantificadores de las reglas integradas (`\s{0,16}`) → lineal;
 - test de regresión con entradas patológicas de 1M de caracteres;
 - tests de propiedades con **hypothesis** (`tests/test_fuzz.py`) que fallan si
   alguien reintroduce `\s*` adyacente o mete una excepción nueva.
+
+**v0.4.0 tenía un segundo cuadrático, y no estaba en las reglas.** El
+`normalize()` eliminaba los comentarios SQL con
+`re.sub(r"/\*.*?\*/", " ", text, flags=re.DOTALL)`: por cada `/*` **sin cierre**
+el motor recorría el resto del texto. Medido sobre 0.4.0: **23,6 s con
+128 KB** y **5,5 s con una sola petición de 64 KB**, que además devolvía 200 y
+bloqueaba el event loop; con el `max_body_size` de 1 MiB eran **~25 minutos de
+CPU por petición**. El caso más fácil es un `POST` con
+`Content-Type: text/plain` y el cuerpo formado por `/*a` repetido.
+
+Por qué lo pasó por alto el arreglo de v0.3: aquel iba sobre los
+**cuantificadores de las reglas**, y este estaba en la **normalización**, que
+no es una regla. La lección que queda escrita aquí: *"acotar todos los
+cuantificadores"* no es una garantía si el coste puede crecer en otro sitio.
+
+**v0.4.1** sustituye los dos `re.sub` por un barrido **lineal** con `str.find`
+(`_strip_sql_comments()`), conservando la semántica: los comentarios
+versionados de MySQL (`/*!50000union*/`) se siguen **desenvolviendo** porque
+MySQL los ejecuta, y un `/*` sin cierre se deja tal cual. Con el arreglo,
+128 KB tardan **0,009 s** y el tiempo crece de forma lineal. La regresión
+(`tests/test_redos_comentarios.py`) exige que el coste crezca **linealmente**,
+no solo que «no tarde mucho». Detalle completo y PoC en
+[SECURITY.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY.md).
 
 Las reglas personalizadas del usuario **no** están acotadas: revisa tus
 patrones.
@@ -66,9 +89,16 @@ patrones.
 ## Auditoría sin fugas
 
 El logger `gatekeeper` registra eventos (regla, ruta, IP, tamaño del body)
-pero **nunca el contenido de los payloads**. Un log de Gatekeeper no se puede
-usar para robar tokens interceptados. En modo monitor puedes medir falsos
-positivos sin bloquear y sin volcar credenciales.
+pero **nunca los valores de los payloads**: no se vuelca el texto que|matcheó|
+la regla, así que un log de Gatekeeper no se puede usar para robar tokens
+interceptados. En modo monitor puedes medir falsos positivos sin bloquear y
+sin volcar credenciales.
+
+!!! warning "El nombre del campo sí es dato del atacante"
+    El evento incluye `field`: el **nombre** del parámetro o el puntero JSON.
+    Ese nombre lo elige el atacante, así que puede acabar en el log (acotado a
+    256 caracteres). Los **valores** no se registran nunca; los **nombres** sí.
+    Si vas a mandar estos logs a un tercero, tenlo en cuenta.
 
 !!! note "El puntero JSON se recorta"
     El campo que aparece en la auditoría es un puntero JSON (`/users/0/bio`).
@@ -87,13 +117,15 @@ positivos sin bloquear y sin volcar credenciales.
 
 | Versión | Estado |
 |---|---|
-| 0.3.x | Activa |
-| 0.2.x, 0.1.x | Históricas, sin soporte |
+| 0.4.x | Activa |
+| 0.3.x, 0.2.x, 0.1.x | Históricas, sin soporte (0.3.x nunca se publicó en PyPI) |
 
 ## Reportar una vulnerabilidad
 
-Escribe a **angel98dev26@gmail.com** con la descripción, versión/commit y pasos
-para reproducir. No abras un issue público. Ver también
+Usa **[GitHub Security Advisories](https://github.com/Eche-Dev/Gatekeeper/security/advisories/new)**
+para reportar de forma privada: es la vía que permite corregir y publicar el
+fix antes de que el fallo sea público. No abras un issue con un fallo
+explotable. Ver también
 [SECURITY.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY.md)
 en el repo.
 

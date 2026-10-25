@@ -7,6 +7,42 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 Nada pendiente.
 
+## [0.4.1] - 2026-10-25
+
+### Corregido
+- **DoS cuadrático en la normalización de comentarios SQL** (seguridad, sin
+  autenticación). `normalize()` usaba `re.sub(r"/\*.*?\*/", " ", text,
+  flags=re.DOTALL)`: por cada `/*` **sin cierre** el motor recorrería el resto
+  del texto, así que el coste crecía como O(n²). Medido sobre el código de
+  0.4.0: **23,6 s con 128 KB** y **5,5 s con una sola petición de 64 KB**, que
+  además devolvía 200 y bloqueaba el event loop; con el `max_body_size` de
+  1 MiB por defecto eran **~25 minutos de CPU por petición**. El caso más
+  fácil de explotar es un `POST` con `Content-Type: text/plain` y el cuerpo
+  formado por `/*a` repetido. La corrección sustituye los dos `re.sub` por un
+  barrido **lineal** con `str.find` (`_strip_sql_comments()`), que conserva la
+  semántica original: `/*!50000union*/` se sigue **desenvolviendo** (MySQL lo
+  ejecuta) y un `/*` sin cierre se deja tal cual. Con el arreglo, 128 KB
+  tardan **0,009 s** y el tiempo crece de forma lineal.
+  Regresión cubierta por `tests/test_redos_comentarios.py`, que además exige
+  que el coste **crezca linealmente** y no solo que «no tarde mucho».
+- Las cifras de detección **no cambian**: corpus propio 159/159, corpus
+  retenido 94,5 % con 0 falsos positivos no documentados, OWASP CRS 41,0 % de
+  detección y 4,7 % de falsos positivos, modo cruzado 7/7.
+
+### Añadido
+- **Sección «Vulnerabilidades corregidas»** en `SECURITY.md` y aviso de
+  seguridad en GitHub (GHSA) con los detalles, la PoC y elmitigación.
+
+### Cambiado
+- `SECURITY.md` y `docs/seguridad.md`: la tabla de versiones soportadas pasa a
+  listar **0.4.x como activa** (0.4.0 ya estaba publicada en PyPI) y se
+  elimina el aviso de que «todavía no hay nada publicado en PyPI», que era
+  falso desde la 0.4.0.
+- `docs/seguridad.md`: la sección «ReDoS: la historia honesta» incluye ahora
+  **este** hallazgo, no solo el backtracking de los cuantificadores de v0.3.
+- `docs/seguridad.md` y `SECURITY.md`: la vía de reporte unificada es **GitHub
+  Security Advisories**; se retira el email personal de la documentación.
+
 ## [0.4.0] - 2026-10-25
 
 ### Añadido

@@ -4,18 +4,58 @@
 
 | Rama | Estado | Recibe correcciones |
 |---|---|---|
-| 0.3.x | **Activa** | Seguridad, errores y features |
-| 0.2.x | Histórica | Solo seguridad crítica |
-| 0.1.x | Histórica | Nada |
+| 0.4.x | **Activa** | Seguridad, errores y features |
+| 0.3.x, 0.2.x, 0.1.x | Históricas | Solo seguridad crítica |
 
 Una versión está soportada si no se rompe a propósito dentro de su major. La
 tabla de versiones **medidas** (Python, Starlette, FastAPI, servidores ASGI y
 Redis) está en
 [Compatibilidad y soporte](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/compatibilidad.md).
 
-!!! note "Todavía no hay nada publicado en PyPI"
-    Gatekeeper se instala desde el repositorio hasta que se publique la
-    primera versión. Ver [Instalación](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/instalacion.md).
+!!! note "Publicado en PyPI"
+    Gatekeeper se instala desde PyPI: `pip install gatekeeper-asgi`. La 0.4.0
+    se publicó el 25 de octubre de 2026 y la 0.4.1 corrige un DoS de
+    disponibilidad (ver más abajo). Ver
+    [Instalación](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/instalacion.md).
+
+## Vulnerabilidades corregidas
+
+Publicamos aquí los fallos de seguridad corregidos, con su versión de
+corrección. Cada entrada enlaza al aviso de GitHub correspondiente.
+
+### GHSA — DoS cuadrático en la normalización de comentarios SQL
+
+- **Versiones afectadas:** 0.4.0 (publicada en PyPI)
+- **Versión corregida:** 0.4.1
+- **Severidad:** alta · **Sin autenticación** · **Impacto:** disponibilidad
+
+`normalize()` eliminaba los comentarios SQL con
+`re.sub(r"/\*.*?\*/", " ", text, flags=re.DOTALL)`. Por cada `/*` **sin
+cierre**, el motor recorría el resto del texto, de modo que el coste crecía
+como O(n²) y `re` no suelta el GIL: el event loop completo quedaba bloqueado.
+
+Medido sobre 0.4.0: **23,6 s con 128 KB** y **5,5 s con una sola petición de
+64 KB** (que devolvía 200, sin bloquear el ataque). Con el
+`max_body_size` de 1 MiB por defecto, **~25 minutos de CPU por petición**.
+
+**Reproducción mínima:**
+
+```bash
+# 64 KB de "/*a" sin cerrar; la respuesta llega 200 tras ~5,5 s de CPU
+curl -s -o /dev/null -w '%{time_total}\n' \
+  --data-binary @<(python -c "print('/*a'*21845, end='')") \
+  -H 'Content-Type: text/plain' https://tu-servidor/
+```
+
+**Mitigación para quien no puede actualizar todavía:** baja
+`max_body_size` (por ejemplo a 64 KiB) y limita el número de peticiones por
+segundo. Actualizar a **0.4.1** es la solución real.
+
+La corrección sustituye los dos `re.sub` por un barrido lineal con
+`str.find`, conservando la semántica (los comentarios versionados de MySQL
+`/*!50000union*/` se siguen desenvolviendo). La regresión está cubierta por
+`tests/test_redos_comentarios.py`, que exige que el coste crezca **linealmente**
+y no solo que «no tarde mucho».
 
 ## Cómo reportar una vulnerabilidad
 
