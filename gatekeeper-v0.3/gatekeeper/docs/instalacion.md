@@ -64,10 +64,19 @@ incluye).
 
 ## Requisitos
 
-- **Python 3.10 o superior.** El CI prueba 3.10, 3.11 y 3.12; el mantenimiento
-  local se hace en 3.14.
+- **Python 3.10 o superior.** El CI prueba 3.10, 3.11, 3.12 y 3.13; el
+  mantenimiento local se hace en 3.14.
+- **Starlette 0.23 o superior** (FastAPI ya la incluye). La matriz completa
+  de versiones probadas está en
+  [Compatibilidad y soporte](compatibilidad.md).
 - Un servidor ASGI (uvicorn, hypercorn, daphne…). El middleware es ASGI puro:
     funciona con FastAPI y con Starlette puro.
+
+!!! info "La matriz de compatibilidad está medida"
+    La tabla de versiones no es una suposición: `tools/compat_matrix.py` crea
+    un entorno virtual por cada combinación y comprueba que el middleware
+    bloquea un ataque, deja pasar lo legítimo y pone las cabeceras de
+    seguridad. Se puede regenerar con `python tools/compat_matrix.py`.
 
 ## Verificar la instalación
 
