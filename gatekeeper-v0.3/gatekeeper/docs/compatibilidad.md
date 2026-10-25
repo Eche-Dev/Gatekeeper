@@ -204,16 +204,22 @@ en las release notes del tag.
    nueva), actualizar el número de versión en `pyproject.toml`.
 2. **Verificar**: el CI tiene que estar verde (tests, cobertura, corpus,
    auditoría de dependencias, paquete).
-3. **Etiquetar**: `git tag -a v0.3.2 -m "Gatekeeper 0.3.2"`.
-4. **Publicar**: el workflow `publicar.yml` construye el wheel y el sdist y
-   los sube a PyPI con Trusted Publishing (OIDC). No hay ningún token en los
-   secretos del repositorio.
+3. **Etiquetar**: `git tag -a v0.4.1 -m "Gatekeeper 0.4.1"` y subirlo
+   (`git push origin v0.4.1`).
+4. **Publicar**: crear la **release** en GitHub con ese tag (o publicarla desde
+   la CLI con `gh release create v0.4.1`). El workflow `publicar.yml` construye
+   el wheel y el sdist y los sube a PyPI con Trusted Publishing (OIDC). No hay
+   ningún token en los secretos del repositorio.
 5. **Anunciar**: release notes en GitHub con los puntos de la tabla de
    migración.
 
-!!! info "El tag dispara la publicación"
-    El workflow `publicar.yml` se activa con los tags `v*`. El tag es la
-    señal: lo que no lleva tag, no se publica.
+!!! warning "El tag NO publica: la release sí"
+    `publicar.yml` se activa con **`release: published`** (o a mano con
+    `workflow_dispatch`), **no** con un tag. Si solo haces `git push origin
+    v0.4.1` no se publica nada: hay que **crear la release** en GitHub. El
+    workflow comprueba que el tag coincida con la versión de `pyproject.toml`
+    y falla si no, así que un tag equivocado no puede publicar una versión
+    que no es.
 
 ### Reproducir una publicación en local
 

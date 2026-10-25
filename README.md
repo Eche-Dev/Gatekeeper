@@ -9,8 +9,9 @@ seguras, detección de patrones de ataque en query y body, reglas propias por YA
 y auditoría en JSON. **Una capa adicional** delante de tu app, no un WAF ni una
 sustitución de la validación de entradas.
 
-> **El proyecto activo es v0.3**, y vive en
-> [`gatekeeper-v0.3/gatekeeper/`](gatekeeper-v0.3/gatekeeper/). Es la única
+> **La versión publicada es la 0.4.x**, y su código vive en
+> [`gatekeeper-v0.3/gatekeeper/`](gatekeeper-v0.3/gatekeeper/) — el nombre de
+> la carpeta es histórico y no coincide con la versión del paquete. Es la única
 > versión que se publica y que recibe mantenimiento.
 >
 > Las carpetas `v0.1` y `v0.2` se conservan **solo como referencia
@@ -20,8 +21,13 @@ sustitución de la validación de entradas.
 
 ## Empezar
 
-Gatekeeper todavía **no está publicado en PyPI**: se publicará cuando se decida
-de forma explícita. Instálalo desde el repo:
+```bash
+pip install gatekeeper-asgi             # núcleo
+pip install "gatekeeper-asgi[yaml]"     # + configuración por YAML
+pip install "gatekeeper-asgi[redis]"    # + rate limit compartido entre workers
+```
+
+O desde el repositorio:
 
 ```bash
 git clone https://github.com/Eche-Dev/Gatekeeper.git

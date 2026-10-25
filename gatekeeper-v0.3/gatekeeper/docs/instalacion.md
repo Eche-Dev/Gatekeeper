@@ -1,14 +1,29 @@
 # Instalación
 
-!!! info "Aún no en PyPI"
-    Gatekeeper no está publicado en PyPI todavía: se publicará cuando el
-    proyecto se decida completo. Por ahora se instala desde el repositorio.
-
 !!! tip "¿Solo quieres verlo funcionar?"
     Si tu objetivo es comprobar que Gatekeeper bloquea lo que debe en cinco
     minutos, empieza por la [guía de inicio rápido](inicio-rapido.md): instala,
     añade el middleware y lanza los dos comandos que verifican que un ataque
     recibe 403.
+
+## Desde PyPI
+
+```bash
+pip install gatekeeper-asgi             # núcleo
+pip install "gatekeeper-asgi[yaml]"     # + configuración por YAML
+pip install "gatekeeper-asgi[redis]"    # + rate limit compartido entre workers
+```
+
+La versión publicada es la **0.4.x** (la carpeta del repositorio se llama
+`v0.3` por razones históricas). El paquete se publica con *Trusted Publishing*
+y lleva **provenance verificado** por GitHub: en la ficha de PyPI verás que
+todos los ficheros se subieron con metadatos de provenance firmados.
+
+!!! warning "0.4.0 tiene un DoS de disponibilidad corregido en 0.4.1"
+    La 0.4.0 bloqueaba el event loop con una petición grande y sin
+    autenticación. **Actualiza a 0.4.1 o superior.** Detalle y PoC en
+    [Seguridad](seguridad.md) y en
+    [SECURITY.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY.md).
 
 ## Desde el repositorio
 
@@ -40,7 +55,7 @@
 pip install "gatekeeper-asgi[redis]"
 ```
 
-El núcleo solo depende de `starlette` (cualquier versión ≥ 0.37; FastAPI ya la
+El núcleo solo depende de `starlette` (cualquier versión ≥ 0.23; FastAPI ya la
 incluye).
 
 !!! info "Por qué los servidores están en un extra aparte"

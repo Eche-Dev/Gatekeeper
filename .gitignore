@@ -39,3 +39,4 @@ Thumbs.db
 # Copias de trabajo de la auditoria (el paquete duplicado con el parche aplicado)
 .audit/patchtest_*/
 .audit/dist/
+.audit/site/
