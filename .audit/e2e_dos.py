@@ -32,6 +32,6 @@ for tam in (8_000, 16_000, 32_000, 64_000):
     print(f"{len(cuerpo):>10} {dt:>10.3f} {r.status_code:>8}")
 
 print()
-print("Escalado a 1 MiB (max_body_size por defecto = 1.048.576 bytes),")
-print("extrapolando el factor x4 medido por cada duplicacion del tamano:")
-print("  128 KB -> 23,6 s ;  256 KB -> ~94 s ;  512 KB -> ~377 s ;  1 MiB -> ~1.510 s (25 min)")
+print("Referencia (0.4.0 SIN el arreglo): 8 KB 0,142 s | 16 KB 0,336 s |")
+print("  32 KB 1,340 s | 64 KB 5,535 s | 128 KB ~23,6 s | 1 MiB ~25 min (x4 por duplicacion).")
+print("  Con el arreglo (0.4.1) el tiempo es lineal y 128 KB baja a ~0,016 s.")

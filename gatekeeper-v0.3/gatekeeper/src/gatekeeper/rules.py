@@ -463,7 +463,41 @@ def _entity_to_char(match: re.Match[str]) -> str:
 # Comentario versionado de MySQL: el contenido SE EJECUTA si la versión cumple,
 # así que se desenvuelve en lugar de borrarlo (un `/*!50000union*/` borrado es
 # un payload invisible). Contenido acotado: sin `*/` de cierre no hay carrera.
-_VERSIONED_COMMENT = re.compile(r"/\*!\d{0,6}(.{0,200}?)\*/")
+
+
+_VERSIONED_HEAD = re.compile(r"!\d{0,6}")
+
+
+def _strip_sql_comments(text: str) -> str:
+    """Quita comentarios SQL `/* ... */` en tiempo LINEAL.
+
+    - `/*!50000union*/` (versionado de MySQL) se DESENVUELVE a su contenido:
+      MySQL lo ejecuta, borrarlo ocultaría el payload.
+    - Cualquier otro comentario se sustituye por un espacio.
+    - Un `/*` sin cierre se deja tal cual y se corta la búsqueda: con
+      `re.sub(r"/\\*.*?\\*/", ...)` cada `/*` sin cierre recorría el resto del
+      texto (O(n^2): 128 KB de `/*a` tardaban 21 s, y el body admite 1 MiB).
+    Cada carácter se recorre una vez con `str.find`, que es C y no retrocede.
+    """
+    out: list[str] = []
+    i = 0
+    while True:
+        start = text.find("/*", i)
+        if start < 0:
+            break
+        end = text.find("*/", start + 2)
+        if end < 0:
+            break
+        body = text[start + 2:end]
+        out.append(text[i:start])
+        head = _VERSIONED_HEAD.match(body) if body.startswith("!") else None
+        if head and len(body) - head.end() <= 200:
+            out.append(" " + body[head.end():] + " ")
+        else:
+            out.append(" ")
+        i = end + 2
+    out.append(text[i:])
+    return "".join(out)
 
 
 def decode(value: str, max_rounds: int = 3) -> str:
@@ -512,14 +546,8 @@ def normalize(value: str, max_rounds: int = 3) -> str:
     text = unicodedata.normalize("NFKC", decode(value, max_rounds))
     text = unicodedata.normalize("NFKC", decode(text, max_rounds))
     text = unicodedata.normalize("NFKC", decode(text, max_rounds))
-    # Comentarios SQL versionados: MySQL los EJECUTA, así que se desenvuelven a
-    # su contenido en vez de borrarlos (borrarlos los volvía invisibles).
-    text = _VERSIONED_COMMENT.sub(r" \1 ", text)
-    # Comentarios SQL genéricos (`/* foo */`) se tratan como espacio en blanco,
-    # que es lo que MySQL hace. Medido: cierra 4 misses de CRS (el comentario
-    # ocultaba el payload) y no introduce ningún FP sobre los negativos.
-    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.DOTALL)
-    return text.replace("/**/", " ").lower()
+    text = _strip_sql_comments(text)
+    return text.lower()
 
 
 def _family_names() -> tuple[str, ...]:
