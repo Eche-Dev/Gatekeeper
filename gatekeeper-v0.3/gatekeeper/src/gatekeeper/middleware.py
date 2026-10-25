@@ -155,7 +155,19 @@ class GatekeeperMiddleware:
 
     async def _reject(self, status: int, detail: str, scope: Scope, receive: Receive, send: Send,
                       headers: dict[str, str] | None = None) -> None:
-        await JSONResponse({"detail": detail}, status_code=status, headers=headers)(
+        """Responde con un rechazo, INCLUDINGO las cabeceras de seguridad.
+
+        Las cabeceras de seguridad (nosniff, X-Frame-Options, HSTS...) tienen que
+        ir tambien en los rechazos: una respuesta 403 sin `X-Frame-Options` ni
+        HSTS es una respuesta MAS débil que la de 200, y el rechazo es
+        justamente la respuesta que un atacante puede ver.
+
+        Se envian antes que las de la app para no poder ser sobrescritas por
+        ella (la app no deberia poder quitar una cabecera de seguridad del
+        middleware).
+        """
+        cabeceras = {**self.config.headers(), **(headers or {})}
+        await JSONResponse({"detail": detail}, status_code=status, headers=cabeceras)(
             scope, receive, send
         )
 

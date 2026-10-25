@@ -6,6 +6,18 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 ## [Sin publicar]
 
 ### Añadido
+- **Matriz de compatibilidad medida** (`docs/compatibilidad.md` y
+  `tools/compat_matrix.py`): Starlette 0.23.0–1.10.0, FastAPI
+  0.103.2–0.162.0, Python 3.10–3.14, uvicorn/hypercorn/daphne y Redis
+  5.0/7.2. La herramienta crea un entorno virtual por cada combinación y
+  comprueba que el middleware bloquea un ataque, deja pasar lo legítimo y
+  pone las cabeceras de seguridad; la tabla se regenera con ella, así que
+  no es una suposición.
+- **Política de soporte, compatibilidad de API y proceso de release**
+  (`docs/compatibilidad.md`): qué significa «soportada», qué ramas reciben
+  correcciones, qué se considera API pública (y qué no, y por qué), la
+  política de deprecaciones según SemVer, el proceso de release con sus
+  tags, y las notas de migración por versión.
 - **Límites de tiempo y memoria en el fuzzing** (`tests/test_fuzz.py`):
   además de las propiedades con Hypothesis, ahora hay límites de tiempo
   (entradas patológicas de hasta 1 MiB en menos de 1 s) y de memoria (el
@@ -125,6 +137,22 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 
 ### Corregido
+- **Las cabeceras de seguridad NO llegaban en las respuestas de rechazo.**
+  Se añadían solo en el camino de éxito; los rechazos (403, 413, 429, 503)
+  se enviaban sin pasar por el envoltorio que las añade. Es al revés de lo
+  que quieres: un 403 sin `X-Frame-Options` ni HSTS es una respuesta **más
+  débil** que la de 200, y el rechazo es la respuesta que ve el atacante.
+  Ahora todas las respuestas del middleware llevan las cabeceras.
+  Regresión en `tests/test_cabeceras_rechazo.py`.
+- **Instalar Gatekeeper rompía FastAPI 0.103.x.** El mínimo de Starlette
+  era `>=0.37`, pero FastAPI 0.103.x exige `starlette<0.28`: al instalar
+  Gatekeeper, pip subía Starlette y FastAPI dejaba de funcionar
+  (`Router.__init__() got an unexpected keyword argument 'on_startup'`).
+  Medido que el middleware funciona con Starlette desde la **0.23.0**, así
+  que el mínimo baja a `>=0.23`. El middleware solo usa `MutableHeaders`,
+  `JSONResponse` y los tipos ASGI, estables desde hace años. La cota
+  superior sigue sin ponerse, a propósito: acotar Starlette rompería
+  instalaciones legítimas.
 - **DoS de memoria con cuerpos pequeños (hallazgo de seguridad alto).** El
   puntero JSON que identifica el campo en la auditoría se construía
   concatenando un segmento por nivel de anidamiento: a profundidad N, cada

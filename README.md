@@ -9,9 +9,14 @@ seguras, detección de patrones de ataque en query y body, reglas propias por YA
 y auditoría en JSON. **Una capa adicional** delante de tu app, no un WAF ni una
 sustitución de la validación de entradas.
 
-> El proyecto activo es **v0.3**, que vive en
-> [`gatekeeper-v0.3/gatekeeper/`](gatekeeper-v0.3/gatekeeper/).
-> Las carpetas `v0.1` y `v0.2` se conservan como referencia histórica.
+> **El proyecto activo es v0.3**, y vive en
+> [`gatekeeper-v0.3/gatekeeper/`](gatekeeper-v0.3/gatekeeper/). Es la única
+> versión que se publica y que recibe mantenimiento.
+>
+> Las carpetas `v0.1` y `v0.2` se conservan **solo como referencia
+> histórica**: no reciben correcciones (incluidas las de seguridad) y sus
+> README avisan de que no se instalen. La política por rama está en
+> [Compatibilidad y soporte](gatekeeper-v0.3/gatekeeper/docs/compatibilidad.md).
 
 ## Empezar
 
