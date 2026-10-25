@@ -93,6 +93,17 @@ class Config:
     inspect_body: bool = True
     max_body_size: int = 1_048_576  # bytes; si se excede -> 413
 
+    # Inspección de multipart/form-data: se miran los NOMBRES de campo y de
+    # fichero (no el contenido de los ficheros). Implica LEER el body, asi que
+    # el limite `max_body_size` tambien se aplica a las subidas: si tu app
+    # acepta ficheros grandes, sube el limite o pon esto a False.
+    inspect_multipart: bool = True
+
+    # Inspección del handshake de WebSocket (ruta, query y cabeceras) y rate
+    # limit por IP. Los FRAMES no se inspeccionan: llegan despues de aceptar
+    # la conexion. False = los WebSockets pasan sin tocar (como antes).
+    inspect_websockets: bool = True
+
     # Cabeceras cuyo valor se inspecciona con las mismas reglas (en minúsculas;
     # vacío = desactivado).
     inspect_headers: set[str] = field(default_factory=lambda: set(DEFAULT_INSPECT_HEADERS))

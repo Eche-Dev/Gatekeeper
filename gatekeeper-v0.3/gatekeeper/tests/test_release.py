@@ -72,8 +72,10 @@ def test_la_primera_version_publicada_empieza_en_0_4():
     existe" (0.3.x nunca se publico en PyPI).
     """
     version = _proyecto()["project"]["version"]
-    assert version.startswith("0.4."), (
-        f"la version es {version}; la serie publicada deberia empezar en 0.4.x"
+    publicada = tuple(int(parte) for parte in version.split("."))
+    assert publicada >= (0, 4, 0), (
+        f"la version es {version}; la serie publicada deberia empezar en 0.4.0 "
+        "(0.3.x nunca se publico en PyPI)"
     )
 
 

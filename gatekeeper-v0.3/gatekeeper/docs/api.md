@@ -70,6 +70,8 @@ participan.
 | Campo | Tipo | Defecto |
 |---|---|---|
 | `inspect_body` | `bool` | `True` |
+| `inspect_multipart` | `bool` | `True` (nombres de campo y de fichero; el contenido del fichero no). Implica leer el body, así que también aplica `max_body_size` |
+| `inspect_websockets` | `bool` | `True` (handshake: ruta, query y cabeceras, con rate limit; los frames no) |
 | `max_body_size` | `int` | `1_048_576` bytes |
 | `allow_paths` | `list[str]` | `[]` (globs `fnmatch`) |
 

@@ -135,9 +135,25 @@ def test_desconexion_del_cliente_durante_el_body_no_rompe_el_middleware():
     assert sent, "el middleware no respondio tras la desconexion"
 
 
-def test_multipart_no_se_inspecciona():
-    """multipart queda fuera de la inspeccion (documentado): el ataque pasa."""
+def test_multipart_se_inspecciona():
+    """Desde 0.5.0 el multipart se inspecciona: los nombres de campo y de
+    fichero, no el contenido. Un payload en un campo de texto se bloquea."""
     app = make_app()
+    with TestClient(app) as client:
+        r = client.post(
+            "/x",
+            content=(
+                b"--b\r\nContent-Disposition: form-data; name=f\r\n\r\n"
+                b"<script>alert(1)</script>\r\n--b--\r\n"
+            ),
+            headers={"content-type": "multipart/form-data; boundary=b"},
+        )
+    assert r.status_code == 403, r.text
+
+
+def test_multipart_se_puede_desactivar():
+    """Con `inspect_multipart=False` vuelve a quedar fuera (documentado)."""
+    app = make_app(inspect_multipart=False)
     with TestClient(app) as client:
         r = client.post(
             "/x",

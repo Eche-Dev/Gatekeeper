@@ -9,7 +9,7 @@ seguras, detección de patrones de ataque en query y body, reglas propias por YA
 y auditoría en JSON. **Una capa adicional** delante de tu app, no un WAF ni una
 sustitución de la validación de entradas.
 
-> **La versión publicada es la 0.4.x**, y su código vive en
+> **La versión publicada es la 0.5.x**, y su código vive en
 > [`gatekeeper-v0.3/gatekeeper/`](gatekeeper-v0.3/gatekeeper/) — el nombre de
 > la carpeta es histórico y no coincide con la versión del paquete. Es la única
 > versión que se publica y que recibe mantenimiento.

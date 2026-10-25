@@ -4,8 +4,9 @@
 
 | Rama | Estado | Recibe correcciones |
 |---|---|---|
-| 0.4.x | **Activa** | Seguridad, errores y features |
-| 0.3.x, 0.2.x, 0.1.x | Históricas | Solo seguridad crítica |
+| 0.5.x | **Activa** | Seguridad, errores y features |
+| 0.4.x | Histórica | Solo seguridad crítica |
+| 0.3.x, 0.2.x, 0.1.x | Históricas | Nada (0.3.x nunca se publicó en PyPI) |
 
 Una versión está soportada si no se rompe a propósito dentro de su major. La
 tabla de versiones **medidas** (Python, Starlette, FastAPI, servidores ASGI y
@@ -90,10 +91,11 @@ detección y registro, no sustitución de controles fundamentales.
 - Autenticación, autorización o gestión de sesiones.
 - Consultas parametrizadas: **si concatenas SQL con entradas del usuario, ninguna
   capa de detección te salva**. Es el control nº 1 y va en tu código.
-- Contenido `multipart/form-data`, tráfico cifrado, ataques a nivel de red,
-  ataques de denegación de servicio distribuidos, o lógica de negocio.
+- El **contenido** de los ficheros adjuntos, los **frames** de un WebSocket y
+  el tráfico cifrado, ataques a nivel de red, ataques de denegación de servicio
+  distribuidos, o lógica de negocio.
 - Ataques repartidos entre query y body si `inspect_cross_carrier=False`,
-  entre query y cabeceras, o dentro de bodies multipart.
+  entre query y cabeceras, o dentro de un fichero adjunto.
 
 ## Decisiones de diseño y su porqué
 

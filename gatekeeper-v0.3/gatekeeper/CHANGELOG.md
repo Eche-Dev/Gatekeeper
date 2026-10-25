@@ -7,6 +7,51 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 Nada pendiente.
 
+## [0.5.0] - 2026-10-25
+
+Cierra tres de los bypasses que encontró la auditoría de seguridad del 25 de
+octubre (ver `AUDITORIA-2026-10-25.md` en el repo). Los tres eran **superficies
+que el atacante elige**: el protocolo, el content-type y el formato del body.
+
+### Añadido
+- **WebSocket: el handshake se inspecciona y tiene rate limit.** Antes el
+  middleware salía con `scope["type"] != "http"` y dejaba pasar todo lo que no
+  fuera HTTP: un handshake como `/ws?q=union%20select...` se aceptaba sin
+  mirar, y **sin rate limit** (con `rate_limit=1` entraban 6 conexiones de 6).
+  Ahora del handshake se revisan la ruta, la query y las cabeceras, la IP
+  cuenta igual que en HTTP (bloqueo y rate limit), y el handshake rechazado se
+  cierra con el código 1008 (el servidor responde 403). Los **frames** no se
+  inspeccionan: llegan después de aceptar la conexión. Se desactiva con
+  `inspect_websockets=False`.
+- **`application/octet-stream` se sniffea.** El content-type genérico lo
+  controla el atacante, así que no decide: decide el **contenido**. Si el
+  cuerpo es JSON (empieza por `{` o `[`), se inspecciona como JSON. Antes,
+  mandar la consulta con ese content-type esquivaba la detección entera, y una
+  app con `await request.json()` lo parsea igual.
+- **Multipart: se inspeccionan los nombres de campo y de fichero.** Un
+  `filename=../../etc/passwd` o un campo de texto con un payload ahora se
+  bloquean (403). El **contenido** del fichero no se inspecciona: es binario y
+  leerlo entero no aporta nada. El parser es mínimo y conservador (sin
+  dependencias nuevas): si el multipart no se entiende, no se inventa nada.
+  Se desactiva con `inspect_multipart=False`.
+
+### Cambiado
+- **Los bodies multipart ahora se leen**, así que les aplica el
+  `max_body_size` (1 MiB por defecto) como a los demás: una subida de más de
+  1 MiB recibe un **413**. Si tu app acepta ficheros grandes, sube
+  `max_body_size` o pon `inspect_multipart=False`. Es el precio de poder
+  inspeccionar el multipart: no se puede revisar lo que no se lee.
+- `docs/amenazas.md`, `docs/uso.md`, `README.md` y `SECURITY.md`: la tabla de
+  transportes inspeccionados refleja las tres superficies nuevas, y la lista
+  de lo que **no** se cubre dice exactamente qué queda fuera (el contenido de
+  los ficheros, los frames de WebSocket y los binarios que no son JSON).
+
+### Sin cambios
+- Las cifras de detección **no se mueven**: corpus propio 159/159 (100 %),
+  corpus retenido 94,5 % con 0 falsos positivos no documentados, OWASP CRS
+  41,0 % de detección y 4,7 % de falsos positivos, modo cruzado 7/7. Ninguna
+  regla nueva: se ha cerrado el alcance de las que ya había.
+
 ## [0.4.1] - 2026-10-25
 
 ### Corregido

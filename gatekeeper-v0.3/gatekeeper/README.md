@@ -45,6 +45,9 @@ app.add_middleware(GatekeeperMiddleware, config=Config(rate_limit=100, rate_wind
 | Proto-pollución | `__proto__` en cualquier posición y `constructor.prototype` |
 | Evasiones | URL-encoding repetido (3 rondas), escapes IIS `%uXXXX` mayúsculas o no, ancho completo (`＜script` vía NFKC), comentarios SQL `/**/` y versionados (`/*!50000union*/`), entidades HTML numéricas **y nombradas** (`&lt;script`), tab/NL dentro del esquema (`java\tscript:`) |
 | Límite de body | `max_body_size` (1 MiB por defecto) → 413 si el tamaño declarado o leído lo supera |
+| Content-type genérico | `application/octet-stream` se **sniffea**: si el cuerpo es JSON, se inspecciona como JSON (la cabecera la controla el atacante) |
+| Multipart | Se inspeccionan los **nombres de campo y de fichero** (`filename=../../etc/passwd`), no el contenido de los ficheros. `inspect_multipart=False` lo desactiva |
+| WebSocket | El **handshake** (ruta, query y cabeceras) se inspecciona y tiene **rate limit**; los frames no. `inspect_websockets=False` lo desactiva |
 | Cruce query + body | Opt-in con `inspect_cross_carrier=True`; combina ruta/query con valores textuales no excluidos del body, puede añadir falsos positivos, probar primero con `monitor_only=True` |
 | Reglas propias | Regex en YAML o `Config(custom_rules=...)`, validadas al arrancar |
 | Exclusión de rutas | `allow_paths` (globs). Rutas con `..`, `\` o codificación residual nunca se eximen |
@@ -187,7 +190,11 @@ Contribuir: [CONTRIBUTING.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/C
 
 - La detección por regex tiene falsos positivos y falsos negativos: **no sustituye**
   a consultas parametrizadas, a validación de entradas ni a un WAF.
-- `multipart/form-data` y bodies binarios no se inspeccionan (las subidas de archivos pasan intactas; parser en v0.4).
+- El **contenido** de los ficheros adjuntos no se inspecciona (las subidas pasan
+  intactas; sí se inspeccionan los nombres de campo y de fichero).
+- Los **frames** de un WebSocket no se inspeccionan: sí el handshake (ruta, query
+  y cabeceras), que además tiene rate limit.
+- Los binarios que no son JSON (imagen, PDF, zip…) no se leen.
 - Por defecto, cada valor del body se analiza por separado. Con `inspect_cross_carrier=True`, los valores textuales no excluidos se combinan con ruta/query; las claves JSON y las cabeceras no participan.
 - `inspect_cross_carrier=True` combina ruta/query con los valores textuales no excluidos del body cuando los escaneos individuales no detectan nada. Las claves se inspeccionan individualmente, pero no se combinan. Es opt-in; su resultado no está incluido en las métricas publicadas del corpus.
 - Los operadores `$gt`/`$lt`/`$in` de Mongo quedan fuera de la firma NoSQL a propósito (los usan los filtros legítimos); `localhost` y `127.0.0.1` no cuentan como SSRF (OAuth de desarrollo).

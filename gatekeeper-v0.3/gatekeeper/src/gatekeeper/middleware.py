@@ -10,7 +10,10 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .body import (
+    SNIFFABLE_CONTENT_TYPES,
     content_type_of,
+    effective_content_type,
+    extract_multipart,
     extract_strings,
     extract_strings_and_values,
     is_inspectable,
@@ -131,6 +134,15 @@ def _query_without_excluded(query: str, cfg: Config) -> str:
     return urlencode(pares)
 
 
+async def _close_websocket(send: Send, code: int) -> None:
+    """Cierra un WebSocket antes de aceptar la conexión (rechaza el handshake).
+
+    En ASGI, enviar `websocket.close` sin haber enviado `websocket.accept`
+    hace que el servidor rechace el handshake. El cliente ve un 403.
+    """
+    await send({"type": "websocket.close", "code": code})
+
+
 class GatekeeperMiddleware:
     def __init__(self, app: ASGIApp, config: Config | None = None) -> None:
         self.app = app
@@ -171,7 +183,94 @@ class GatekeeperMiddleware:
             scope, receive, send
         )
 
+    async def _handle_websocket(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Aplica el rate limit y la inspección al HANDSHAKE de un WebSocket.
+
+        Antes el middleware salía con `scope["type"] != "http"` y dejaba pasar
+        TODO lo que no fuera HTTP: los WebSockets no tenían ni rate limit ni
+        inspección, y un handshake como `/ws?q=union%20select...` se aceptaba
+        sin mirar. Para un atacante, un WAF con un hueco de WebSocket es un
+        WAF con un hueco.
+
+        Lo que se inspecciona es el HANDSHAKE (ruta, query y cabeceras). Los
+        FRAMES no se inspeccionan: llegan después de aceptar la conexión y
+        revisarlos exigiría interceptar cada mensaje. Queda documentado como
+        límite conocido.
+
+        Rechazar un handshake en ASGI es enviar `websocket.close` antes de
+        `websocket.accept`: el servidor responde 403 y el cliente no entra.
+        """
+        cfg = self.config
+        if not cfg.inspect_websockets:
+            await self.app(scope, receive, send)
+            return
+
+        ip = _client_ip(scope, cfg)
+
+        blocked_entry = cfg.blocked_match(ip)
+        if blocked_entry is not None:
+            self._audit("blocked_ip", ip, scope, entry=blocked_entry)
+            await _close_websocket(send, 1008)
+            return
+
+        if self.limiter:
+            try:
+                allowed = await self.limiter.allow(ip)
+            except BackendUnavailable as exc:
+                # Redis no responde: la política (seguir o cortar) es
+                # rate_fail_open, igual que en HTTP.
+                self._audit(
+                    "rate_backend_error", ip, scope,
+                    fail_open=cfg.rate_fail_open, error=str(exc)[:200],
+                )
+                if not cfg.rate_fail_open:
+                    await _close_websocket(send, 1013)
+                    return
+                allowed = True
+            if not allowed:
+                self._audit("rate_limited", ip, scope)
+                await _close_websocket(send, 1008)
+                return
+
+        path = scope.get("path", "")
+        if cfg.inspect_requests and not is_path_allowed(path, cfg.allow_paths):
+            query = scope.get("query_string", b"").decode("latin-1")
+            target = path + "?" + _query_without_excluded(query, cfg)
+
+            hit = scan_detailed(target, cfg.disabled_rules, cfg.compiled_custom,
+                                cfg.active_rules)
+            if hit:
+                rule, pattern = hit
+                self._audit("attack_detected", ip, scope, rule=rule, source="query",
+                            field=_query_field(path, query, cfg), pattern=pattern[:160],
+                            blocked=not cfg.monitor_only)
+                if not cfg.monitor_only:
+                    await _close_websocket(send, 1008)
+                    return
+
+            for header_name in sorted(cfg.inspect_headers):
+                if cfg.field_excluded(header_name):
+                    continue
+                raw_header = _header(scope, header_name.encode("latin-1"))
+                if not raw_header:
+                    continue
+                hit = scan_detailed(raw_header, cfg.disabled_rules, cfg.compiled_custom,
+                                    cfg.active_rules)
+                if hit:
+                    rule, pattern = hit
+                    self._audit("attack_detected", ip, scope, rule=rule, source="header",
+                                field=header_name, pattern=pattern[:160],
+                                blocked=not cfg.monitor_only)
+                    if not cfg.monitor_only:
+                        await _close_websocket(send, 1008)
+                        return
+
+        await self.app(scope, receive, send)
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "websocket":
+            await self._handle_websocket(scope, receive, send)
+            return
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -249,12 +348,26 @@ class GatekeeperMiddleware:
                         return
 
             # 3) body: cualquier content-type textual (JSON, form, text/plain,
-            #    XML o incluso sin content-type); los binarios y multipart no.
-            ctype = content_type_of(_header(scope, b"content-type"))
+            #    XML o incluso sin content-type); los binarios que no se
+            #    sniffean, no.
+            # El content-type CRUDO se guarda aparte: el `boundary` de un
+            # multipart va en sus parametros, y `content_type_of` los tira.
+            ctype_crudo = _header(scope, b"content-type")
+            ctype = content_type_of(ctype_crudo)
+            es_multipart = ctype.startswith("multipart/form-data")
+            # El body se lee si su content-type es inspeccionable, si es un
+            # binario "generico" (octet-stream) cuyo contenido decide el sniff
+            # del primer byte, o si es multipart (que tiene su parser propio
+            # para los nombres de campo y de fichero).
+            se_lee = (
+                is_inspectable(ctype)
+                or ctype in SNIFFABLE_CONTENT_TYPES
+                or (es_multipart and cfg.inspect_multipart)
+            )
             if (
                 cfg.inspect_body
                 and scope.get("method") in BODY_METHODS
-                and is_inspectable(ctype)
+                and se_lee
             ):
                 declared = _content_length(scope)
                 if declared is not None and declared > cfg.max_body_size:
@@ -270,11 +383,26 @@ class GatekeeperMiddleware:
                 receive = replay(messages, receive)
 
                 has_inspectable_body_value = False
-                if cfg.inspect_cross_carrier:
-                    body_fields, cross_values = extract_strings_and_values(ctype, body)
+                cross_values: list[tuple[str, str]] = []
+                if es_multipart:
+                    # multipart: se inspeccionan los NOMBRES de campo y de
+                    # fichero (ahi van los `../../etc/passwd`), no el contenido
+                    # binario de los ficheros.
+                    body_fields = [
+                        (f"/{nombre}", valor)
+                        for nombre, valor in extract_multipart(ctype_crudo or "", body)
+                    ]
                 else:
-                    body_fields = extract_strings(ctype, body)
-                    cross_values = []
+                    # El content-type generico lo decide el CONTENIDO, no la
+                    # cabecera (que controla el atacante): un octet-stream con
+                    # cuerpo JSON se inspecciona como JSON.
+                    ctype_real = effective_content_type(ctype, body)
+                    if not is_inspectable(ctype_real):
+                        body_fields = []
+                    elif cfg.inspect_cross_carrier:
+                        body_fields, cross_values = extract_strings_and_values(ctype_real, body)
+                    else:
+                        body_fields = extract_strings(ctype_real, body)
 
                 for pointer, value in body_fields:
                     if cfg.field_excluded(pointer):

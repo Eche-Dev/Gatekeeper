@@ -18,16 +18,17 @@
 re.sub(r"/\*.*?\*/", " ", text, flags=re.DOTALL)
 ```
 
-El cuantificador `.*?` es *no greedily* pero la búsqueda **no está acotada**: por
-cada `/*` **sin cierre**, el motor de regex recorre el resto del texto hasta
-encontrar un `*/` o llegar al final. Como no hay cierre, **cada `/*` recorre el
-texto entero**, de modo que el coste total crece como **O(n²)**.
+El cuantificador `.*?` es perezoso (no greedy), pero la búsqueda **no está
+acotada**: por cada `/*` **sin cierre**, el motor de regex recorre el resto
+del texto hasta encontrar un `*/` o llegar al final. Como no hay cierre,
+**cada `/*` recorre el texto entero**, de modo que el coste total crece como
+**O(n²)**.
 
 Como el motor `re` de CPython **no suelta el GIL**, el cálculo no se puede
 ejecutar en un hilo aparte: **bloquea el event loop completo** del worker
 ASGI mientras dura.
 
-Una petición HTTP basta paraarlo. El caso más simple es un `POST` con
+Una petición HTTP basta para pararlo. El caso más simple es un `POST` con
 `Content-Type: text/plain` y el cuerpo formado por `/*a` repetido, que es
 texto perfectamente válido para cualquier aplicación.
 
@@ -138,3 +139,25 @@ Las cifras de detección **no cambian**: corpus propio 159/159, corpus retenido
 Detectado y corregido por el autor del proyecto durante una revisión interna
 de seguridad, con el informe completo y los scripts de reproducción en el
 repositorio (`AUDITORIA-2026-10-25.md` y `.audit/`).
+
+---
+
+## Valores exactos del formulario de GitHub
+
+| Campo | Valor |
+|---|---|
+| Title | `DoS cuadrático en la normalización de comentarios SQL (Gatekeeper 0.4.0)` |
+| CVE identifier | *Request CVE ID later* |
+| Summary | (el resumen corto de la cabecera de este documento) |
+| Details | el texto de «Descripción» de este documento |
+| Proof of concept | el bloque de la sección «PoC» |
+| Impact | la lista de la sección «Impacto» |
+| **Ecosystem** | **`pip`** (NO «Other» + escribir `pypi`: con «Other» el advisory no queda vinculado al proyecto de PyPI y las herramientas como `pip-audit` no lo leen) |
+| Package name | `gatekeeper-asgi` |
+| Affected versions | `= 0.4.0` |
+| Patched versions | `0.4.1` |
+| Severity | `High` |
+| CVSS vector | `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H` (7,5) |
+| Weaknesses | `CWE-1333` (Inefficient Regular Expression Complexity) y `CWE-400` (Uncontrolled Resource Consumption) |
+| Credits | `@Eche-Dev` como Analyst |
+

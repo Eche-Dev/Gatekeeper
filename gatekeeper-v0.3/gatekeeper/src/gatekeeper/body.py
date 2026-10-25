@@ -44,6 +44,128 @@ def is_inspectable(content_type: str) -> bool:
     return content_type not in _BINARY_CONTENT_TYPES
 
 
+# Content-type GENERICO de "te mando bytes y tu decides". La cabecera no dice
+# nada, pero el contenido si: si el cuerpo es JSON, la app lo parsea igual con
+# `await request.json()`. Se SNIFFEA el primer byte en vez de fiarse de la
+# cabecera, que la controla el atacante.
+OCTET_STREAM = "application/octet-stream"
+
+# Los content-types cuyo contenido decide si se inspeccionan. Los demas
+# binarios (image/*, application/pdf, application/zip...) NO se sniffean: son
+# binarios de verdad y leerlos seria gastar CPU y memoria a cambio de nada.
+SNIFFABLE_CONTENT_TYPES = frozenset({OCTET_STREAM})
+
+# Cuantos bytes se miran para decidir si un body "generico" es JSON. Solo el
+# principio: un JSON empieza por { o [ casi siempre. Con un limite fijo, un
+# atacante no gana metiendo espacios delante.
+SNIFF_WINDOW = 64
+
+
+def looks_like_json(body: bytes) -> bool:
+    """¿El cuerpo parece JSON? Se mira el primer byte no blanco.
+
+    `{` o `[` al principio (ignorando espacios) es la señal de que el cuerpo
+    es JSON. No es un parser: decide COMO se inspecciona, no si es valido.
+    """
+    for byte in body[:SNIFF_WINDOW]:
+        if byte in (0x20, 0x09, 0x0A, 0x0D):  # espacio, tab, LF, CR
+            continue
+        return byte in (0x7B, 0x5B)  # { [
+    return False
+
+
+def effective_content_type(content_type: str, body: bytes) -> str:
+    """El content-type con el que se INSPECTA el body.
+
+    Un `application/octet-stream` cuyo cuerpo es JSON se inspecciona como
+    JSON. Sin esto, mandar la consulta con el content-type equivocado
+    esquivaba la deteccion entera.
+    """
+    if content_type in SNIFFABLE_CONTENT_TYPES and looks_like_json(body):
+        return "application/json"
+    return content_type
+
+
+def _split_params(value: str) -> list[str]:
+    """Divide `a="1; b"; c="2"` en partes, sin partir dentro de comillas."""
+    partes: list[str] = []
+    actual: list[str] = []
+    en_comillas = False
+    for ch in value:
+        if ch == '"':
+            en_comillas = not en_comillas
+            actual.append(ch)
+        elif ch == ";" and not en_comillas:
+            partes.append("".join(actual))
+            actual = []
+        else:
+            actual.append(ch)
+    partes.append("".join(actual))
+    return partes
+
+
+def _multipart_boundary(content_type: str) -> str | None:
+    """Saca el `boundary` de un Content-Type multipart/form-data."""
+    for piece in content_type.split(";")[1:]:
+        nombre, _, valor = piece.strip().partition("=")
+        if nombre.strip().lower() == "boundary":
+            return valor.strip().strip('"') or None
+    return None
+
+
+def _content_disposition_params(value: str) -> dict[str, str]:
+    """Parametros de un Content-Disposition: `name="x"; filename="y"`."""
+    params: dict[str, str] = {}
+    for piece in _split_params(value):
+        nombre, _, valor = piece.partition("=")
+        params[nombre.strip().lower()] = valor.strip().strip('"')
+    return params
+
+
+def extract_multipart(content_type: str, body: bytes) -> list[tuple[str, str]]:
+    """`(campo, valor)` de las partes de un body multipart/form-data.
+
+    - de una parte de TEXTO, el valor es su contenido;
+    - de una parte de FICHERO, el valor es su `filename` (el contenido
+      binario no se inspecciona, pero el nombre del fichero si: ahi van los
+      `../../etc/passwd` y los payloads).
+
+    Es un parser MINIMO y conservador: si el multipart no se entiende,
+    devuelve `[]` en vez de inventarse una estructura. No es un parser de
+    RFC 7578 (para eso esta `python-multipart`), pero cubre lo que se
+    ataca de verdad —los nombres de campo y de fichero— sin anadir una
+    dependencia ni abrir superficie de parsing.
+    """
+    boundary = _multipart_boundary(content_type)
+    if not boundary:
+        return []
+    separador = b"--" + boundary.encode("latin-1", "replace")
+    campos: list[tuple[str, str]] = []
+    for parte in body.split(separador)[1:]:
+        if parte.startswith(b"--"):
+            break  # cierre del multipart
+        parte = parte.lstrip(b"\r\n")
+        cabecera, _, datos = parte.partition(b"\r\n\r\n")
+        if not cabecera:
+            continue
+        disposicion = None
+        for linea in cabecera.decode("latin-1", "replace").split("\r\n"):
+            if linea.lower().startswith("content-disposition:"):
+                disposicion = linea.split(":", 1)[1]
+                break
+        if disposicion is None:
+            continue
+        params = _content_disposition_params(disposicion)
+        nombre = params.get("name")
+        if not nombre:
+            continue
+        if "filename" in params:
+            campos.append((nombre, params["filename"]))
+        else:
+            campos.append((nombre, datos.rstrip(b"\r\n").decode("utf-8", "replace")))
+    return campos
+
+
 async def read_body(receive: Receive, max_size: int) -> tuple[list[Message], bytes | None]:
     """Lee el body completo. Devuelve (mensajes originales, body) o (mensajes, None) si excede.
 

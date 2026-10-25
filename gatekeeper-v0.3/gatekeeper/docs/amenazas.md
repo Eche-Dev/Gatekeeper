@@ -53,8 +53,10 @@ el resto de la cobertura.
 |---|---|---|
 | Path y query | Siempre | Incluye el path completo (`/api/v1/<payload>` es vector) |
 | Cabeceras | `user-agent`, `referer`, `cookie`, `x-forwarded-for` por defecto | Configurable con `inspect_headers`; añade las tuyas si tu app las lee |
-| Body JSON/text/form | Hasta `max_body_size` (1 MiB) | `Content-Type: multipart/*` y octet-stream quedan fuera (ver límites) |
+| Body JSON/text/form | Hasta `max_body_size` (1 MiB) | Un `application/octet-stream` se **sniffea**: si el cuerpo es JSON, se inspecciona |
+| Body multipart | Hasta `max_body_size` (1 MiB) | Se inspeccionan los **nombres de campo y de fichero**, no el contenido de los ficheros (`inspect_multipart`) |
 | Body sin `Content-Length` | Se lee con límite | 413 si el stream supera `max_body_size` |
+| Handshake de WebSocket | Ruta, query y cabeceras | El **rate limit también se aplica**; los frames no se inspeccionan (`inspect_websockets`) |
 
 ## Qué NO cubre Gatekeeper
 
@@ -69,8 +71,18 @@ Esto no son carencias por arreglar: son las fronteras del diseño.
   inspección. Query y cabeceras siguen analizándose por separado. La opción de
   cruce combina query con valores textuales no excluidos del body; no incluye
   claves JSON ni cabeceras.
-- **Bodies multipart y binarios.** Un ataque dentro de un fichero adjunto no se
-  inspecciona en v0.3; si aceptas uploads, sanea en la app o espera v0.4.
+- **El contenido de los ficheros adjuntos.** De un `multipart/form-data` se
+  inspeccionan los **nombres** de campo y de fichero (ahí van los
+  `../../etc/passwd` y los payloads en el nombre), pero el **contenido** del
+  fichero no: es binario, y un WAF no puede saber qué hay dentro sin leer el
+  fichero entero. Sanea en la app lo que suba tu usuario.
+- **Los frames de un WebSocket.** Del handshake se inspeccionan la ruta, la
+  query y las cabeceras, y el rate limit se aplica igual que en HTTP; los
+  mensajes posteriores no se inspeccionan.
+- **Binarios que no son JSON.** Un `image/png` o un `application/pdf` no se
+  leen ni se sniffean. Solo se sniffea el content-type genérico
+  (`application/octet-stream`), que es el que usa una app que manda JSON sin
+  decirlo.
 - **WAF gestionado.** Gatekeeper no sustituye a ModSecurity/CRS ni a Cloudflare
   en un perímetro; mide contra CRS como referencia externa y pierde de largo
   (ver [medición](deteccion.md)). Es una capa adicional con coste cero.
