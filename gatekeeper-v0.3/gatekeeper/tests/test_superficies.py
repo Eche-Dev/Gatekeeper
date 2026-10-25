@@ -124,6 +124,31 @@ def test_json_como_octet_stream_con_espacios_al_ppio_tambien():
     assert r.status_code == 403, r.text
 
 
+def test_json_con_muchos_espacios_al_ppio_no_esquiva_el_sniff():
+    """REGRESION: el sniffeo tiene que coincidir con lo que acepta json.loads.
+
+    `json.loads` acepta espacios en blanco delante, sin límite. Si el sniffeo
+    mirase solo los primeros N bytes, un JSON con 5.000 espacios delante
+    esquivaría la inspección entera mandando el content-type equivocado.
+    """
+    cuerpo = b" " * 5000 + json.dumps({"q": SQLI}).encode()
+    assert json.loads(cuerpo)  # la app lo parsea
+    with TestClient(_app()) as client:
+        r = client.post("/", content=cuerpo,
+                        headers={"content-type": "application/octet-stream"})
+    assert r.status_code == 403, r.text
+
+
+def test_json_con_bom_utf8_no_esquiva_el_sniff():
+    """REGRESION: en modo bytes, json.loads acepta un BOM UTF-8 delante."""
+    cuerpo = b"\xef\xbb\xbf" + json.dumps({"q": SQLI}).encode()
+    assert json.loads(cuerpo)  # la app lo parsea
+    with TestClient(_app()) as client:
+        r = client.post("/", content=cuerpo,
+                        headers={"content-type": "application/octet-stream"})
+    assert r.status_code == 403, r.text
+
+
 def test_binario_de_verdad_como_octet_stream_pasa():
     """Un binario que no es JSON no se inspecciona (no es texto)."""
     with TestClient(_app()) as client:

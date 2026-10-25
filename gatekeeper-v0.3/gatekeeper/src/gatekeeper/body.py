@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator
 from typing import Any
 from urllib.parse import parse_qsl
@@ -55,23 +56,29 @@ OCTET_STREAM = "application/octet-stream"
 # binarios de verdad y leerlos seria gastar CPU y memoria a cambio de nada.
 SNIFFABLE_CONTENT_TYPES = frozenset({OCTET_STREAM})
 
-# Cuantos bytes se miran para decidir si un body "generico" es JSON. Solo el
-# principio: un JSON empieza por { o [ casi siempre. Con un limite fijo, un
-# atacante no gana metiendo espacios delante.
-SNIFF_WINDOW = 64
+# El prefijo que `json.loads` ACEPTA antes del primer { o [:
+#   - los cuatro espacios en blanco del JSON (espacio, tab, LF, CR);
+#   - y, en modo bytes, un BOM UTF-8 al principio (json usa detect_encoding(),
+#     que devuelve 'utf-8-sig' y lo quita).
+# El sniffeo tiene que coincidir EXACTAMENTE con eso: si se acepta un JSON que
+# el sniffeo no ve, el atacante tiene un bypass gratis mandando el mismo cuerpo
+# con el content-type equivocado. Por eso el prefijo se mide con una regex (en
+# C, sin copiar el body) y no con una ventana de N bytes: un JSON con 5.000
+# espacios delante lo parsea `json.loads`, y tambien lo tiene que ver Gatekeeper.
+_JSON_LEADING = re.compile(rb"\xef\xbb\xbf[ \t\n\r]*|[ \t\n\r]*")
 
 
 def looks_like_json(body: bytes) -> bool:
     """¿El cuerpo parece JSON? Se mira el primer byte no blanco.
 
-    `{` o `[` al principio (ignorando espacios) es la señal de que el cuerpo
-    es JSON. No es un parser: decide COMO se inspecciona, no si es valido.
+    `{` o `[` al principio (ignorando los espacios en blanco del JSON y un
+    posible BOM UTF-8) es la señal de que el cuerpo es JSON. No es un parser:
+    decide COMO se inspecciona, no si es valido.
     """
-    for byte in body[:SNIFF_WINDOW]:
-        if byte in (0x20, 0x09, 0x0A, 0x0D):  # espacio, tab, LF, CR
-            continue
-        return byte in (0x7B, 0x5B)  # { [
-    return False
+    match = _JSON_LEADING.match(body)
+    if match is None:
+        return False
+    return body[match.end():match.end() + 1] in (b"{", b"[")
 
 
 def effective_content_type(content_type: str, body: bytes) -> str:
@@ -207,7 +214,7 @@ def replay(messages: list[Message], receive: Receive) -> Receive:
     return wrapped
 
 
-def _escape_pointer(token: str) -> str:
+def escape_pointer(token: str) -> str:
     """Escapado RFC 6901 para los punteros de campo de los eventos de auditoría."""
     return token.replace("~", "~0").replace("/", "~1")
 
@@ -355,7 +362,7 @@ def _iter_fields(
             yield _render_pointer(segmentos), cur, False
         elif isinstance(cur, dict):
             for key, value in cur.items():
-                hijo = _child_pointer(list(segmentos), _escape_pointer(str(key)))
+                hijo = _child_pointer(list(segmentos), escape_pointer(str(key)))
                 stack.append((hijo, value, False))
                 if include_keys:
                     stack.append((list(hijo), str(key), True))
@@ -370,7 +377,7 @@ def _iter_body_fields(
     text = body.decode("utf-8", errors="replace")
     if content_type == "application/x-www-form-urlencoded":
         for key, value in parse_qsl(text, keep_blank_values=True):
-            pointer = f"/{_escape_pointer(key)}"
+            pointer = f"/{escape_pointer(key)}"
             yield pointer, key, True
             yield pointer, value, False
         return

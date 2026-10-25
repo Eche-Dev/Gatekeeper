@@ -13,6 +13,7 @@ from .body import (
     SNIFFABLE_CONTENT_TYPES,
     content_type_of,
     effective_content_type,
+    escape_pointer,
     extract_multipart,
     extract_strings,
     extract_strings_and_values,
@@ -389,7 +390,7 @@ class GatekeeperMiddleware:
                     # fichero (ahi van los `../../etc/passwd`), no el contenido
                     # binario de los ficheros.
                     body_fields = [
-                        (f"/{nombre}", valor)
+                        (f"/{escape_pointer(nombre)}", valor)
                         for nombre, valor in extract_multipart(ctype_crudo or "", body)
                     ]
                 else:
