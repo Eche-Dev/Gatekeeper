@@ -40,3 +40,4 @@ Thumbs.db
 .audit/patchtest_*/
 .audit/dist/
 .audit/site/
+.audit/wheel_*/

@@ -66,12 +66,21 @@ En este orden, y el primero que salta manda:
 5. **Body** con cualquier content-type textual (JSON, form, `text/plain`, XML
    o sin `content-type`) → 403. Si el body supera
    `max_body_size`, por tamaño declarado o al leer el stream → 413.
+6. **Body `multipart/form-data`**: se inspeccionan los **nombres** de campo y
+   de fichero (los `../../etc/passwd` van ahí) → 403. El contenido del
+   fichero no: es binario.
+7. **Body `application/octet-stream`**: el content-type no decide, decide el
+   **contenido**. Si el cuerpo es JSON, se inspecciona como JSON.
+8. **Handshake de WebSocket**: la ruta, la query y las cabeceras del handshake
+   se inspeccionan, y el rate limit se aplica igual que en HTTP. El handshake
+   rechazado se cierra con el código 1008 (el servidor responde 403).
 
 !!! note "Qué NO inspecciona (por diseño)"
-    `multipart/form-data` y bodies binarios (imagen, PDF, zip…): no son cadenas
-    que inspeccionar sin parser propio (multipart, v0.4). Son límites
-    conscientes y están declarados en la medición del corpus externo: no se
-    cuentan como fallos, se cuentan como exclusiones.
+    El **contenido** de los ficheros adjuntos, los **frames** de un WebSocket
+    (solo el handshake) y los binarios que no son JSON (imagen, PDF, zip…):
+    no son cadenas que inspeccionar sin comerse el fichero entero. Son
+    límites conscientes y están declarados en la medición del corpus externo:
+    no se cuentan como fallos, se cuentan como exclusiones.
 
 ### Bloqueo y modo observación
 
@@ -251,6 +260,8 @@ app.add_middleware(
         exclude_fields=["template"],        # ese campo sí puede llevar HTML
         allow_paths=["/docs*", "/openapi.json", "/health"],
         max_body_size=1_048_576,
+        inspect_multipart=True,              # nombres de campo y de fichero
+        inspect_websockets=True,             # handshake (ruta, query, cabeceras)
     ),
 )
 
