@@ -32,9 +32,16 @@ jobs:
           path: gatekeeper-v0.3/gatekeeper/site
 
   deploy:
-    # En los PR solo se construye (para validarlos); en push a main, tags y
+    # En los PR solo se construye (para validarlos); en push a main y en
     # despliegue manual, se publica.
-    if: github.event_name != 'pull_request'
+    #
+    # OJO con los tags: el entorno `github-pages` SOLO permite desplegar desde
+    # la rama por defecto. Intentar desplegar desde un tag falla con
+    # "Tag ... is not allowed to deploy to github-pages due to environment
+    # protection rules", y ese fallo en rojo bloquea el merge de cualquier PR
+    # que comparta commit con el tag. Por eso el tag construye y valida la
+    # documentacion, pero NO publica: quien publica es `main`.
+    if: github.event_name != 'pull_request' && github.ref_type == 'branch'
     needs: build
     permissions:
       pages: write
