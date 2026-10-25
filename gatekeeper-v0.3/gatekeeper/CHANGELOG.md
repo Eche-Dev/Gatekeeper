@@ -5,6 +5,10 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ## [Sin publicar]
 
+Nada pendiente.
+
+## [0.4.0] - 2026-10-25
+
 ### Añadido
 - **Matriz de compatibilidad medida** (`docs/compatibilidad.md` y
   `tools/compat_matrix.py`): Starlette 0.23.0–1.10.0, FastAPI
@@ -137,6 +141,12 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 
 ### Corregido
+- **`gatekeeper.__version__` se quedaba desfasada al subir la versión.
+  Estaba escrita a mano (`__version__ = "0.3.1"`): el wheel 0.4.0
+  instalado decia `0.3.1`. Ahora se lee de los metadatos del paquete
+  instalado (con `importlib.metadata`), con el `pyproject.toml` como
+  respaldo cuando se importa desde el árbol de fuentes. Encontrado al
+  preparar el release 0.4.0, antes de llegar a PyPI.
 - **Las cabeceras de seguridad NO llegaban en las respuestas de rechazo.**
   Se añadían solo en el camino de éxito; los rechazos (403, 413, 429, 503)
   se enviaban sin pasar por el envoltorio que las añade. Es al revés de lo

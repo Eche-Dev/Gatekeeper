@@ -100,12 +100,20 @@ responda en un plazo concreto.
 
 | Rama | Estado | Recibe |
 |---|---|---|
-| 0.3.x | **Activa** | Todo: seguridad, errores, nuevas features |
-| 0.2.x | Histórica | Solo correcciones de seguridad críticas |
-| 0.1.x | Histórica | Nada |
+| 0.4.x | **Activa** | Todo: seguridad, errores, nuevas features |
+| 0.3.x | Histórica (nunca publicada en PyPI) | Solo correcciones de seguridad críticas |
+| 0.2.x | Histórica (nunca publicada en PyPI) | Solo correcciones de seguridad críticas |
+| 0.1.x | Histórica (nunca publicada en PyPI) | Nada |
 
-Al sacar la 0.4.0, la 0.3.x pasa a histórica y la 0.2.x deja de recibir
-correcciones. Eso se announce en el CHANGELOG y en las release notes.
+Al sacar la 0.5.0, la 0.4.x pasa a histórica y la 0.3.x deja de recibir
+correcciones. Eso se anuncia en el CHANGELOG y en las release notes.
+
+!!! note "Por qué la serie publicada empieza en 0.4.0"
+    Las versiones 0.1.x a 0.3.x nunca se publicaron en PyPI: el paquete se
+    instalaba desde el repositorio. Empezar la serie publicada en 0.4.0 evita
+    la confusión de "instalo `gatekeeper-asgi==0.3.1` y no existe". Los
+    números de versión antiguos siguen siendo válidos en el CHANGELOG, como
+    historial.
 
 !!! warning "Una major es un corte"
     Al cambiar de major (0.3 → 0.4), se puede cambiar la configuración por
@@ -160,7 +168,23 @@ Lo que **no** es API pública (puede cambiar sin aviso en una minor):
 Las cambios que rompen compatibilidad se documentan aquí, en el CHANGELOG y
 en las release notes del tag.
 
-### 0.3.x
+### 0.4.x
+
+| Cambio | Qué hacer |
+|---|---|
+| El mínimo de Starlette baja a **0.23** | Ninguno. Antes (0.37) rompía FastAPI 0.103.x: al instalar Gatekeeper, pip subía Starlette y FastAPI dejaba de funcionar |
+| Las cabeceras de seguridad también van en los **rechazos** (403/413/429/503) | Ninguno. Solo se **añaden** cabeceras. Si tu app las ponía también, la suya gana (el middleware no pisa lo que ya venía) |
+| El puntero JSON se **recorta** a 256 caracteres | Si parseas punteros completos, deja de poder contar con la ruta entera. `exclude_fields` sigue funcionando |
+| Nuevo extra `servers` (hypercorn, daphne) | Ninguno. Es opcional |
+
+!!! warning "Sobre el recorte del puntero JSON"
+    Un JSON con más de 64 niveles de anidamiento produce punteros recortados
+    (`/bio/…/nivel`). El motivo es un DoS medido: sin recorte, un body de 83
+    KiB consumía 193,6 MiB. `exclude_fields` sigue funcionando (compara por
+    el primer y el último segmento). Ver
+    [SECURITY_REVIEW.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY_REVIEW.md).
+
+### 0.3.x (nunca publicada en PyPI)
 
 | Cambio | Qué hacer |
 |---|---|
@@ -168,20 +192,6 @@ en las release notes del tag.
 | `inspect_cross_carrier` combina query y body | Ninguno: es opt-in |
 | `trust_proxy` desactivado por defecto | Si usas un proxy: `trust_proxy=True` **y** `trusted_proxy_cidrs` con tus redes |
 | `exclude_fields` acepta globs | Los nombres exactos siguen funcionando |
-| El puntero JSON se recorta a 256 caracteres | Si parseas punteros completos, deja de poder contar con la ruta entera |
-
-!!! warning "El recorte del puntero JSON"
-    Un JSON con más de 64 niveles de anidamiento produce punteros recortados
-    (`/bio/…/nivel`). El motivo es un DoS medido: sin recorte, un body de 83
-    KiB consumía 193,6 MiB. `exclude_fields` sigue funcionando (compara por el
-    primer y el último segmento). Ver
-    [SECURITY_REVIEW.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY_REVIEW.md).
-
-### 0.4.x (previsto)
-
-| Cambio | Qué hacer |
-|---|---|
-| Nada announced todavía | — |
 
 !!! note "La política de deprecación se aplica desde 0.3"
     Antes de 0.3 no había releases en PyPI, así que no había a quién
