@@ -199,12 +199,26 @@ casillas pendientes:
     `servers` con un warning sin bloquear el pipeline, y avisa de lo que hay
     que hacer cuando salga la versión estable con los parches.
 
-Estado: **43 casillas hechas, 6 pendientes.**
+Estado: **45 casillas hechas, 4 pendientes.** Las cuatro pendientes necesitan
+**una acción fuera del repositorio**:
+
+| Pendiente | Qué falta | Quién |
+|---|---|---|
+| Publicar en PyPI (2 casillas) | Crear el proyecto `gatekeeper-asgi` en PyPI y configurar el publisher de Trusted Publishing. El workflow `publicar.yml` ya está escrito y documenta el alta | El mantenedor, una vez |
+| Instalar desde PyPI y comprobar | Instalar el paquete publicado desde PyPI en un entorno limpio | Después de publicar |
+| Revisar la instalación desde cero | Una revisión humana de los enlaces externos (los que se pueden comprobar solos, ya se comprueban) | Un lector |
+| Revisión de seguridad independiente | Que alguien ajeno al proyecto revise el informe y los 4 hallazgos aceptados | Otra persona |
+
+**Todo lo demás está hecho y verificado.** Lo que queda no es código: es
+publicar, y una segunda opinión.
 
 **Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
 son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
 reevaluación formal con esta rúbrica. No deben interpretarse como puntuaciones
 actuales ni subirse únicamente por el número de tests o reglas.
+
+**Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
+son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
 
 **Sexta revisión (2026-10-25, rama `feat/plan-verificacion-y-limites`).**
 Cerrada la sección 5 (documentación y preparación de publicación) salvo lo que
@@ -845,27 +859,33 @@ responsable de vulnerabilidades.
    sincronizar la documentación.
 2. **Medición inicial del cruce — completada en PR #22:** evaluación separada
    para el modo opt-in, con ataques divididos y peticiones benignas; resultados
-   con denominadores explícitos y sin mezclarlos con el escaneo individual. La
-   muestra no es retenida ni representa tráfico real; ampliar esa evidencia
-   sigue pendiente.
-3. **Confianza operacional — completada parcialmente (2026-10-23):** los límites
-   de confianza del body (límite exacto, fragmentado, `Content-Length`
-   mentiroso, desconexión) y la política de fallo de Redis (fail-open y
-   fail-closed) ya tienen test, y los ejemplos de la documentación se ejecutan
-   en CI. Falta Redis real con varios workers, límites de memoria/volumen y
-   la interacción con servidores de producción.
+   con denominadores explícitos y sin mezclarlos con el escaneo individual.
+3. **Confianza operacional — completada (2026-10-24):** límites de confianza
+   del body, política de fallo de Redis, **Redis real con procesos de Python
+   reales**, límites de memoria y volumen, e interacción con servidores de
+   producción reales (uvicorn, hypercorn, daphne).
 4. **Producto utilizable — completada (2026-10-24):** guía rápida copiable
    (`docs/inicio-rapido.md`) y guía de despliegue por topología
    (`docs/despliegue.md`), con los valores que cambian por topología y la
    cadena de confianza de proxies. Ambas páginas tienen tests que comprueban
    que lo que prometen es lo que el middleware hace.
-5. **Evidencia de detección y release:** crear evaluación retenida, validar
-   tráfico benigno autorizado y reportar límites; completar revisión de
-   seguridad, paquete limpio, versión etiquetada, publicación y política de
-   soporte.
-6. **Confianza operacional pendiente:** Redis real con varios workers (hoy se
-   usa `fakeredis`, que no reproduce el reparto entre procesos), límites de
-   memoria y volumen, e interacción con servidores de producción.
+5. **Evidencia de detección — completada (2026-10-24):** corpus **retenido**
+   (desarrollo y modo cruzado) que mide si las reglas generalizan, con su
+   evaluador y su guarda en CI; y el procedimiento de tráfico real, escrito y
+   probado.
+6. **Revisión de seguridad — completada salvo la independencia (2026-10-24):**
+   un DoS de memoria corregido, cuatro hallazgos aceptados con su justificación
+   y cinco límites documentados. Falta que alguien **ajeno al proyecto** lo
+   revise.
+7. **Publicación — preparada, pendiente de una acción manual (2026-10-25):**
+   matriz de compatibilidad **medida**, política de soporte, política de API y
+   versionado, notas de migración, proceso de release y nombres históricos
+   identificados. Falta el alta en PyPI y el primer tag.
+
+!!! note "Lo que queda no es código"
+    Las cuatro casillas pendientes necesitan una acción fuera del repositorio:
+    publicar en PyPI (y luego comprobar la instalación desde ahí) y que otra
+    persona revise el trabajo. Todo lo demás está hecho y verificado.
 
 
 
