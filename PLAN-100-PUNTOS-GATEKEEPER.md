@@ -245,6 +245,29 @@ reales**:
    hace años; y sin cota superior, acotar Starlette rompería instalaciones
    legítimas.
 
+**Séptima revisión (2026-10-25, misma rama): preparación del release 0.4.0.**
+Versión `0.3.1` → `0.4.0` (MINOR: features nuevas, cambio de comportamiento y
+ampliación de lo soportado; sin rotura de API ni deprecaciones), CHANGELOG
+cerrado, `RELEASE_NOTES_0.4.0.md` y tabla de migración de 0.4.x. Verificado
+con un wheel `gatekeeper_asgi-0.4.0` instalado en un venv limpio: 200 en
+legítimo y 403 con cabeceras de seguridad en el ataque. El salto a 0.4.0 y no
+a 0.3.2 es deliberado: 0.3.x nunca se publicó en PyPI.
+
+Dos bugs más encontrados **al preparar el release**:
+
+1. **`gatekeeper.__version__` estaba escrita a mano** y se quedó en `0.3.1`
+   con el wheel 0.4.0 instalado. Ahora se lee de `importlib.metadata`, con
+   `pyproject.toml` como respaldo al importar desde el árbol de fuentes.
+2. **Las notas de migración de 0.4.0 estaban bajo 0.3.x** en
+   `docs/compatibilidad.md` (el recorte del puntero JSON y el mínimo de
+   Starlette ocurrieron en 0.4.0, no en 0.3).
+
+`tests/test_release.py` (12 tests) impide que un release quede a medias:
+versión de `pyproject.toml` == última del CHANGELOG, sección "Sin publicar"
+vacía, `__version__` coincide con el paquete y **no está escrita a mano**, el
+workflow verifica el tag contra `pyproject.toml`, no hay tokens de PyPI en
+`secrets`, y existen `SECURITY.md`, `README.md` y las release notes.
+
 **Puntuaciones:** los valores de partida de cada dimensión que aparecen abajo
 son los de la auditoría inicial sobre PR #18; aún no se ha hecho una
 
@@ -264,14 +287,25 @@ Las tareas inmediatas de la auditoría original ya se completaron en la PR #20:
 - [x] **Registrar evidencia reproducible de validación.** Los comandos y
   resultados locales están en la descripción de la PR #20, que quedó integrada.
 
-**Siguiente tarea recomendada:** mejorar la facilidad de integración: publicar
-una guía rápida copiable y una guía de configuración segura para proxy/Redis
-por topología. Los ejemplos ya se ejecutan en CI desde la revisión del
-2026-10-23. Después, ampliar las pruebas operativas (Redis real con varios
-workers, límites de memoria y volumen, servidores de producción). La evaluación
-retenida y el tráfico benigno autorizado siguen siendo necesarios antes de una
-conclusión de preparación para release. No activar el modo cruzado por defecto ni
-subir las puntuaciones sin cumplir la evidencia de cada dimensión.
+**Siguiente tarea recomendada:** cerrar la publicación, que es lo único que
+queda y todo lo que bloquea las 4 casillas pendientes:
+
+1. Revisar y fusionar la PR de `feat/plan-verificacion-y-limites` en `main`.
+2. Crear el proyecto `gatekeeper-asgi` en PyPI y configurar el publisher de
+   Trusted Publishing (repositorio `Eche-Dev/Gatekeeper`, workflow
+   `publicar.yml`) — una sola vez, a mano.
+3. Crear la release con el tag **`v0.4.0`**, que dispara `publicar.yml`
+   (OIDC, sin token guardado; verifica que el tag coincida con
+   `pyproject.toml` antes de subir).
+4. Instalar `gatekeeper-asgi` desde PyPI en un venv limpio y comprobar que
+   responde 200 al legítimo y 403 con cabeceras al ataque.
+
+Después de publicar, lo que queda **no es código**: la revisión humana de los
+enlaces externos y una **revisión de seguridad independiente** hecha por
+alguien ajeno al proyecto. La evaluación retenida con tráfico benigno
+autorizado sigue siendo necesaria antes de una conclusión de preparación para
+producción. No activar el modo cruzado por defecto ni subir las puntuaciones
+sin cumplir la evidencia de cada dimensión.
 
 ## Cómo verificar el estado (comandos)
 
@@ -779,16 +813,32 @@ responsable de vulnerabilidades.
   Lo que sí está listo y verificado: el wheel y el sdist se construyen, pasan
   `twine check`, se instalan en un venv limpio, importan y la CLI responde;
   y el runtime **no tiene vulnerabilidades** según `pip-audit`.
+
+  **Release 0.4.0 preparada y verificada** (commit `489233c`): versión,
+  CHANGELOG cerrado, `RELEASE_NOTES_0.4.0.md`, tabla de migración de 0.4.x en
+  `docs/compatibilidad.md`, y wheel+sdist `gatekeeper_asgi-0.4.0` instalados en
+  un venv nuevo (200 legítimo, 403 con cabeceras de seguridad en el ataque).
+  El salto a **0.4.0** (y no 0.3.2) es deliberado: 0.3.x nunca se publicó en
+  PyPI, y empezar la serie publicada en 0.4.0 evita que alguien intente
+  instalar una versión inexistente.
+
+  Al prepararlo aparecieron **dos bugs**: `gatekeeper.__version__` estaba
+  escrita a mano y se quedó en `0.3.1` con el wheel 0.4.0 (ahora se lee de
+  `importlib.metadata`), y las notas de migración de 0.4.0 estaban puestas
+  bajo 0.3.x. Ambos con regresión en `tests/test_release.py` (12 tests).
 - [x] Etiquetar versiones y mantener notas de migración para cambios de API,
   configuración, reglas y defaults.
   El CHANGELOG sigue SemVer y hay notas por versión. El **proceso de release**
   y las **notas de migración** están escritos en
   `docs/compatibilidad.md`: qué se considera API pública, cuándo se deprecia,
-  cómo se hace un tag, y una tabla de migración por versión (incluido el
-  recorte del puntero JSON, que es el único cambio de comportamiento de 0.3).
+  cómo se hace un tag, y una tabla de migración por versión (el recorte del
+  puntero JSON y el mínimo de Starlette están bajo **0.4.x**, que es donde
+  ocurrieron). Hay `RELEASE_NOTES_0.4.0.md` y `tests/test_release.py` comprueba
+  que la versión, el CHANGELOG, `__version__`, el workflow y las notas no se
+  puedan desincronizar.
 
-  Lo que falta es **publicar el primer tag** (`v0.3.2` o similar), que es
-  una acción manual.
+  Lo que falta es **crear la release con el tag `v0.4.0`**, que es la acción
+  manual que dispara `publicar.yml`.
 - [x] Publicar una matriz explícita de compatibilidad y una lista de limitaciones
   conocidas.
   Hecho en `docs/compatibilidad.md`, con la matriz **MEDIDA** y no supuesta:
