@@ -83,6 +83,10 @@ dev = [
   "build",
   "twine",
   "hypothesis",
+  # `tomllib` es de Python 3.11. En 3.10 hace falta `tomli` para leer el
+  # pyproject.toml (lo usan tests/test_release.py y tools/release_check.py).
+  # Sin esto, el job de CI en 3.10 muere al importar el test.
+  "tomli>=2; python_version < '3.11'",
   "mkdocs",
   "mkdocs-material",
   "pyyaml>=6",

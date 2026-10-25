@@ -14,7 +14,7 @@ Conclusión: MINOR -> 0.4.0.
 
 El salto a 0.4.0 (y no 0.3.2) tiene una razon ademas: es la PRIMERA version
 que se publica en PyPI. Una 0.3.x nueva tampoco estaria en PyPI, y las
-notas de migracion de 0.3.0 yaspoken de cosas que nunca vio un usuario de
+notas de migracion de 0.3.0 hablaban de cosas que nunca vio un usuario de
 PyPI. Empezar la serie publicada en 0.4.0 deja claro que 0.3.x fue
 "pre-PyPI".
 """
@@ -29,10 +29,13 @@ CHANGELOG = ROOT / "CHANGELOG.md"
 
 
 def version_actual() -> str:
-    import tomllib
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # Python 3.10: `tomllib` es de la 3.11
+        import tomli as tomllib  # type: ignore[no-redef]
 
     with PYPROJECT.open("rb") as fh:
-        return tomllib.load(fh)["project"]["version"]
+        return str(tomllib.load(fh)["project"]["version"])
 
 
 def breaking_changes() -> list[str]:
