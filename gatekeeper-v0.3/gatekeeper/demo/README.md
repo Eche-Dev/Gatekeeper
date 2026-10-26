@@ -37,7 +37,8 @@ cd demo
 vercel --prod
 ```
 
-`requirements.txt` instala Gatekeeper desde el repo (aún no está en PyPI) y
+`requirements.txt` instala Gatekeeper desde el repo (para probar el demo con
+el código local; en producción, `pip install gatekeeper-asgi` desde PyPI) y
 `vercel.json` apunta al runtime de Python. Sale en `tu-proyecto.vercel.app`.
 
 ### Docker (cualquier sitio)

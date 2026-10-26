@@ -1,5 +1,14 @@
 # Revisión de seguridad — Gatekeeper v0.3.1
 
+> **Esta revisión es de la 0.3.1 y describe ese momento del código.** No es el
+> estado actual: desde entonces el proyecto ha seguido por la
+> [hoja de ruta](ROADMAP.md) y cada cambio con su versión está en el
+> [CHANGELOG](CHANGELOG.md). Los hallazgos que se han corregido después de esta
+> revisión (el DoS de normalización, la superficie de WebSocket/multipart, el
+> rate limiter sin cota, las reglas propias sin validar) están en el CHANGELOG
+> con su PoC y su test de regresión. El resumen que sigue vale como registro de
+> lo que se encontró, no como descripción del código actual.
+
 **Fecha:** 2026-10-24 · **Commit base:** `8c04456` (rama `feat/plan-verificacion-y-limites`)
 **Alcance:** `src/gatekeeper/` (1.807 líneas), el middleware, la configuración,
 el CLI y las herramientas de evaluación. **Método:** lectura del código buscando

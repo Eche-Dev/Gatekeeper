@@ -62,7 +62,7 @@ y no solo que «no tarde mucho».
 
 ## Cómo reportar una vulnerabilidad
 
-Usa [GitHub Security Advisories](../../security/advisories/new) para reportar de
+Usa [GitHub Security Advisories](https://github.com/Eche-Dev/Gatekeeper/security/advisories/new) para reportar de
 forma privada. No abras un issue público con un fallo explotable.
 
 Contesta dentro de 72 horas y coordino el fix y la publicación contigo. Si
@@ -125,7 +125,7 @@ detección y registro, no sustitución de controles fundamentales.
   caracteres y por tests de propiedades con hypothesis. Las reglas personalizadas
   se **validan al arrancar**: el riesgo de backtracking exponencial se rechaza
   con `ValueError` y el cuadrático se avisa (ver
-  [uso](gatekeeper-v0.3/gatekeeper/docs/uso.md)).
+  [uso](docs/uso.md)).
 - **Validación al arrancar**: una clave con typo (`rate_limt`) o una regex
   inválida rompe el arranque, no la protección en producción. Los tests de
   propiedades verifican que solo salen `ValueError`/`TypeError`, nunca errores

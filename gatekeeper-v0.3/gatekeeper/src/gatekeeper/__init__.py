@@ -1,7 +1,23 @@
+"""Gatekeeper: un WAF para FastAPI y Starlette, sin dependencias pesadas.
+
+La API publica es la que se ve aqui. Lo que no este en `__all__` es interno
+y puede cambiar: si necesitas algo de dentro, es mejor abrir una issue para
+que se exponga de forma estable.
+"""
 from .config import Config
 from .middleware import GatekeeperMiddleware
+from .rules import PACK_NAMES, RULES, resolve_rules, scan, scan_all, scan_detailed
 
-__all__ = ["Config", "GatekeeperMiddleware"]
+__all__ = [
+    "Config",
+    "GatekeeperMiddleware",
+    "PACK_NAMES",
+    "RULES",
+    "resolve_rules",
+    "scan",
+    "scan_all",
+    "scan_detailed",
+]
 
 
 def _version_desde_fuente() -> str:

@@ -1000,6 +1000,13 @@ def scan_all(
     disabled: set[str] | None = None,
     extra: dict[str, list[re.Pattern[str]]] | None = None,
 ) -> str | None:
+    """Recorre varios valores y devuelve la PRIMERA familia que coincide.
+
+    OJO con el nombre: "all" viene de que recorre *todos* los valores, no de
+    que devuelva todas las reglas. Si lo que quieres es la lista completa de
+    familias de un valor, usa `scan_detailed` (que devuelve la familia y su
+    regex) o `RULES`.
+    """
     for value in values:
         rule = scan(value, disabled, extra)
         if rule:

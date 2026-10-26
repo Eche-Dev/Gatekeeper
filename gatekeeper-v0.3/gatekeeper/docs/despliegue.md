@@ -137,8 +137,9 @@ Lo que cambia respecto a un despliegue sin contenedor:
   es el proceso. Si lanzas varios workers **dentro** del contenedor, o varias
   réplicas del contenedor, necesitas Redis.
 - **El health check** no debería pasar por las rutas inspeccionadas. Usa
-  `allow_paths=["/health"]` para que el probe no consuma rate limit ni pueda
-  ser bloqueado por un falso positivo.
+  `allow_paths=["/health"]` para que el probe no pueda ser bloqueado por un
+  falso positivo. Ojo: exime de **inspección**, no de rate limit (aviso
+  abajo).
 
 ```python
 config=Config(rate_limit=100, rate_window=60, allow_paths=["/health"])
@@ -152,7 +153,7 @@ config=Config(rate_limit=100, rate_window=60, allow_paths=["/health"])
 El [`demo/Dockerfile`](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/demo/Dockerfile)
 del repositorio es un ejemplo ejecutable.
 
-## Detrás de un proxy inverso
+## Detrás de un proxy inverso {#detras-de-un-proxy-inverso}
 
 nginx, Traefik, un load balancer de nube, un CDN… **La parte importante**: con un
 proxy delante, la conexión TCP la abre el proxy, no el cliente. Gatekeeper ve

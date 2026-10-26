@@ -114,14 +114,20 @@ Si tu app tiene vectores propios (WP probes, firmas internas), añádelos como
 reglas personalizadas sin esperar a un release:
 
 ```python
-import re
-from gatekeeper import GatekeeperMiddleware
+from gatekeeper import Config
 
-GatekeeperMiddleware(app, custom_rules={
-    "wp-probe": [re.compile(r"wp-login\.php")],
-    "backup-leak": [re.compile(r"\.(?:sql|bak|old)\.zip\b")],
+config = Config(custom_rules={
+    "wp-probe": r"wp-login\.php",
+    "backup-leak": r"\.(?:sql|bak|old)\.zip\b",
 })
 ```
+
+Y se le pasa al middleware: `app.add_middleware(GatekeeperMiddleware,
+config=config)`.
+
+`custom_rules` son **patrones como texto** (`{nombre: regex}` o
+`[{name, pattern}]`), no objetos `re.Pattern`: se compilan al arrancar, que es
+donde se validan contra el ReDoS.
 
 Las reglas personalizadas pasan por la misma normalización que las
 integradas (decodificación, NFKC, comentarios SQL), y se pueden desactivar con

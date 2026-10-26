@@ -42,6 +42,10 @@ nav:
   - Desarrollo: desarrollo.md
 markdown_extensions:
   - admonition
+  # `attr_list` habilita las anclas explicitas `{#mi-ancla}` en los titulos.
+  # Sin esto, el ancla de un titulo con tilde depende de la normalizacion
+  # Unicode y los enlaces se rompen segun como se escriban.
+  - attr_list
   - pymdownx.superfences
   - pymdownx.highlight:
       anchor_linenums: true

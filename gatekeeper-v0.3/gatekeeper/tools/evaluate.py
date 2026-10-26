@@ -41,9 +41,14 @@ CRS_FILE = CORPUS_DIR / "crs_payloads.json"
 DEFAULT_MIN_DETECTION = 1.00  # el corpus propio es la promesa pública: 100% o CI en rojo
 DEFAULT_MAX_FP = 0.0  # umbral de CI sobre falsos positivos NO documentados
 # Umbrales sobre el corpus externo de CRS: guardas de regresión sobre la línea
-# base medida (219/1135 = 19.3% de detección, 9/232 = 3.9% de FP), redondeada al
-# entero por debajo (detección) y por encima (FP). Se recalculan al reimportar.
-DEFAULT_MIN_CRS_DETECTION = 0.19  # con cabeceras y bodies textuales en alcance
+# base MEDIDA (465/1135 = 41,0 % de detección, 11/232 = 4,7 % de FP). El umbral
+# de detección se queda un punto por debajo de la línea base, y el de FP un
+# punto por encima, para que la guarda avise ANTES de que la regresion llegue.
+#
+# Antes el umbral era 0,19 (la línea base de la 0.3.1) y el README decía que
+# el CI vigilaba el 41 %: una regresión del 41 % al 20 % pasaba el CI. Medido
+# en la auditoría B-7 y corregido en la Fase 4.
+DEFAULT_MIN_CRS_DETECTION = 0.40
 DEFAULT_MAX_CRS_FP = 0.05
 
 

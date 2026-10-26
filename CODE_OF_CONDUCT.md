@@ -25,8 +25,10 @@ cualquier otra conducta que sería ilegal en un entorno profesional.
 
 ## Aplicación
 
-Si presientes o sufres un comportamiento inaceptable, repórtalo escribiendo a
-**angel98dev26@gmail.com**. Todas las quejas se revisarán y investigarán con
+Si presientes o sufres un comportamiento inaceptable, repórtalo por el canal
+privado del repo (**Security Advisories**, en la pestaña *Security*): es
+privado y solo lo ve quien mantiene el proyecto. Todas las quejas se
+revisarán e investigarán con
 celeridad y confidencialidad; la información solo se compartirá con quien sea
 necesario para la investigación. Se tomarán las medidas que correspondan.
 

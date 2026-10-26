@@ -5,6 +5,8 @@
 ![mypy](https://img.shields.io/badge/mypy-strict-2a6db2)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
+> **In English: [README.en.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/README.en.md)**
+
 Middleware ASGI de seguridad para FastAPI/Starlette. Una capa extra delante de tu
 app: rate limiting, cabeceras seguras, detección de patrones de ataque en query y
 body, reglas propias por YAML y auditoría en JSON.
@@ -58,7 +60,7 @@ app.add_middleware(GatekeeperMiddleware, config=Config(rate_limit=100, rate_wind
 ## Qué mide (no qué promete)
 
 Se miden tres corpus. El primero es nuestro, redactado y con procedencia
-documentada ([corpus/](corpus/)):
+documentada ([corpus/](https://github.com/Eche-Dev/Gatekeeper/tree/main/gatekeeper-v0.3/gatekeeper/corpus/)):
 
 | Métrica (corpus propio) | Valor |
 |---|---|
@@ -71,7 +73,7 @@ documentada ([corpus/](corpus/)):
 Once familias de detección: SQLi, XSS, path traversal, ficheros sensibles, NoSQL,
 comandos del sistema, SSRF, SSTI, CRLF, Log4Shell y proto-pollución. El
 desglose con la frontera de falsos positivos de cada una está en
-[docs/amenazas.md](docs/amenazas.md).
+[docs/amenazas.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/amenazas.md).
 
 El segundo es el **retenido**: un corpus escrito una vez, sin mirar las
 firmas de las reglas, y desde entonces solo medido. Es el que dice si las
@@ -87,7 +89,7 @@ reglas generalizan o solo se acuerdan de los casos con los que se escribieron:
 Que dé 94,5% y no 100% es lo esperado: el corpus propio se puede usar para
 ajustar las reglas y el retenido no. La metodología, y los fallos que este
 corpus encontró en las reglas, están en
-[corpus/HELDOUT.md](corpus/HELDOUT.md).
+[corpus/HELDOUT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/HELDOUT.md).
 
 El tercero es **ajeno**: los tests de regresión de
 [OWASP Core Rule Set](https://github.com/coreruleset/coreruleset) (Apache-2.0,
@@ -108,19 +110,19 @@ Estas cifras miden los escaneos individuales; no incluyen
 `inspect_cross_carrier=True`.
 
 El detalle, incluidos los payloads que se escapan y por qué, está en
-[corpus/REPORT.md](corpus/REPORT.md). El workflow falla si una regla nueva
+[corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md). El workflow falla si una regla nueva
 empeora esas cifras (`python tools/evaluate.py --check`).
 
 ## Demo
 
-Una sesión real contra [`demo/app.py`](demo/) (uvicorn + curl, sin trucos):
+Una sesión real contra [`demo/app.py`](https://github.com/Eche-Dev/Gatekeeper/tree/main/gatekeeper-v0.3/gatekeeper/demo/) (uvicorn + curl, sin trucos):
 tráfico normal pasa, los payloads reciben 403 y la auditoría registra la
 regla, el campo y el patrón que saltó — nunca el contenido.
 
-![Demo de Gatekeeper](docs/assets/demo.gif)
+![Demo de Gatekeeper](https://github.com/Eche-Dev/Gatekeeper/raw/main/gatekeeper-v0.3/gatekeeper/docs/assets/demo.gif)
 
 La app de la demo incluye un playground con botones y configs de despliegue
-para Vercel (`vercel --prod`) y Docker: [`demo/`](demo/).
+para Vercel (`vercel --prod`) y Docker: [`demo/`](https://github.com/Eche-Dev/Gatekeeper/tree/main/gatekeeper-v0.3/gatekeeper/demo/).
 
 ## Latencia
 
@@ -149,7 +151,7 @@ verifican que el caso benigno responde 200 y el cruce de ataque 403.
 texto contiene un literal obligatorio de cada familia y omite las que no
 pueden coincidir. Para textos de menos de 128 caracteres no lo aplica. Esta
 optimización no debe cambiar detecciones. `tests/test_prefilter.py` compara el
-escaneo con y sin pre filtro sobre los 1787 valores de ambos corpus (payloads
+escaneo con y sin pre filtro sobre los 2086 valores de ambos corpus (payloads
 propios, solicitudes CRS y valores de cabecera) y exige el mismo resultado.
 
 El benchmark publica p50, p95 y p99 por petición para que la cola no quede
@@ -169,18 +171,36 @@ No hay un umbral fijo de latencia en CI: los runners compartidos no son una
 base estable. El benchmark es un informe local; para comparar cambios, guarda
 una línea base y ejecuta ambas versiones en la misma máquina:
 
+```bash
+# 1. Con el código actual, guarda la línea base
+python benchmarks/latency.py --save base.json
+
+# 2. Cambia el código (o cambia de rama) y mide otra vez
+python benchmarks/latency.py --baseline base.json
+```
+
+La comparación es **de la misma máquina**: los runners compartidos no valen
+para comparar nada. El script sale con código distinto de cero si algún
+escenario empeoró más de un margen del 25 % (`--margen` para ajustarlo), y
+dice cuál. Para afinar el ruido del sistema, `--repeats` mide cada escenario
+varias veces y se queda con la mediana.
+
+Si el cambio toca el camino caliente (las reglas, la normalización o el
+`prefilter`), compara antes de abrir el PR: una regresión de latencia no la
+detecta ningún test.
+
 ## Documentación
 
 Guía completa con [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
-en [`docs/`](docs/): uso, detección y medición, modelo de amenazas, seguridad,
+en [`docs/`](https://github.com/Eche-Dev/Gatekeeper/tree/main/gatekeeper-v0.3/gatekeeper/docs/): uso, detección y medición, modelo de amenazas, seguridad,
 referencia de API y desarrollo. En local: `mkdocs serve`. Se publica en
 <https://eche-dev.github.io/Gatekeeper/> en cada push a `main` (build
 `--strict` en CI: un enlace roto rompe el workflow).
 
 ¿Acabas de llegar? Empieza por la
-[guía de inicio rápido](docs/inicio-rapido.md): dos comandos `curl` verifican
+[guía de inicio rápido](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/inicio-rapido.md): dos comandos `curl` verifican
 que una petición normal da 200 y un ataque da 403. Y si decides **dónde**
-desplegarlo, la [guía de despliegue](docs/despliegue.md) dice qué valor cambia
+desplegarlo, la [guía de despliegue](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/despliegue.md) dice qué valor cambia
 en cada topología (un proceso, varios workers, Docker, proxy inverso).
 
 Contribuir: [CONTRIBUTING.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/CONTRIBUTING.md)
@@ -308,8 +328,8 @@ python -m build && twine check dist/*   # el paquete se puede publicar
 
 ## Proyecto
 
-- [CHANGELOG.md](CHANGELOG.md) — qué cambia en cada versión.
-- [SECURITY.md](SECURITY.md) — modelo de amenazas, límites y cómo reportar fallos.
-- [corpus/REPORT.md](corpus/REPORT.md) — informe de detección generado.
+- [CHANGELOG.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/CHANGELOG.md) — qué cambia en cada versión.
+- [SECURITY.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY.md) — modelo de amenazas, límites y cómo reportar fallos.
+- [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md) — informe de detección generado.
 
 Licencia MIT.

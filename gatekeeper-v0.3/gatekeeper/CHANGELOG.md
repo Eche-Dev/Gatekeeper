@@ -5,7 +5,63 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ## [Sin publicar]
 
-Nada pendiente.
+### Distribución y repositorio
+
+- **El sdist pasa de 514 KiB a 95 KiB.** Se carryendo el corpus (588 KiB sin
+  comprimir), la web, las demos, los benchmarks y los tests. Eso vive en
+  GitHub y el README lo enlaza; lo que se baja de PyPI es el WAF.
+  - El CI lo **vigila**: el job `package` falla si el sdist pasa de 100 KiB, y
+    además instala el sdist en un entorno limpio (es lo que se baja quien
+    instala "desde el código").
+- **`AGENTS.md`** en la raíz del repo: el método con el que se trabaja el
+  proyecto (verificar, no creer; medir antes de endurecer una firma; test
+  antes del arreglo; los falsos positivos se documentan, no se esconden).
+- **Limpieza de la raíz**: `anchor_check.py` y `link_check.py` (sueltos,
+  sustituidos por `tools/check_docs.py`), el parche suelto del fix de ReDoS y
+  los dos planes antiguos se mueven a `.audit/`, que es donde vive la
+  evidencia del proyecto. `Evaluacion-ia/` también.
+- `corpus/events.json` actualizado a la **0.7.0** (el catálogo de eventos
+  decía 0.3.1).
+
+### Documentación
+
+- **La documentación no miente, y ahora se comprueba.** `tools/check_docs.py`
+  (nuevo, en CI) verifica tres cosas de forma automática: que la versión que
+  dicen el README, la guía de instalación, la tabla de `SECURITY.md` y el
+  CHANGELOG sea **la misma** que la de `pyproject.toml`; que los enlaces
+  internos y sus **anclas** existan (un ancla con tilde se rompía según cómo
+  se escribiera, y ahora los títulos llevan ancla explícita `{#id}`); y que no
+  vuelvan a colarse las erratas que ya se colaron una vez (`aThird parties`,
+  `functionality`, `consequences`, el email personal…).
+- **README en inglés** (`README.en.md`), enlazado desde el español. La
+  documentación y el CHANGELOG siguen en español.
+- **Los enlaces del README son absolutos.** En la ficha de PyPI un enlace
+  relativo a `docs/…` daba 404: ahora apuntan al repo.
+- **`Config.validate()` fuera de la documentación**: ese método no existe (la
+  validación ocurre en `__post_init__`). Y el ejemplo de `custom_rules` usaba
+  `re.compile(...)` donde la API espera **patrones de texto**.
+- **La API pública es explícita**: `gatekeeper.scan`, `gatekeeper.scan_all`,
+  `gatekeeper.scan_detailed`, `gatekeeper.RULES`, `gatekeeper.PACK_NAMES` y
+  `gatekeeper.resolve_rules` se exportan y se testean (`tests/test_api_publica.py`).
+  `scan_all` recorre **varios valores** y devuelve la primera coincidencia
+  (su docstring lo dice, porque el nombre puede hacer pensar otra cosa).
+- **Sin email personal en los metadatos** de PyPI: el canal de contacto es
+  GitHub Security Advisories.
+- **El umbral de CI del corpus de CRS sube a la línea base real** (0,19 → 0,40).
+  Con 0,19, una regresión del 41 % al 20 % pasaba el CI mientras el README
+  prometía lo contrario.
+- `ROADMAP.md` al día (seguía en la v0.3) y `SECURITY_REVIEW.md` con una nota
+  que aclara que describe **la 0.3.1**, no el código actual.
+- Corregidos: `aThird parties`, `functionality`, `consequences`, la frase
+  truncada de «Comparar rendimiento» (ahora con la receta completa) y la
+  contradicción de `allow_paths` con el rate limit en la guía de despliegue.
+- `attr_list` activado en MkDocs para que las anclas explícitas funcionen.
+- `tools/metrics.py` tiene **tests** (`tests/test_metrics.py`): los
+  contadores cuentan lo que dicen y las métricas **no filtran** IPs, rutas,
+  nombres de campo ni patrones.
+- El job `compat` del CI (programado, no bloqueante) **mide** la matriz de
+  compatibilidad: `tools/compat_matrix.py` ya estaba escrito y no se ejecutaba
+  nunca.
 
 ## [0.7.0] - 2026-10-26
 

@@ -1,5 +1,8 @@
 # Hoja de ruta
 
+Lo que está hecho, lo que está en curso y lo que queda. Cada versión publicada
+tiene su entrada en el [CHANGELOG](CHANGELOG.md) y sus notas de versión.
+
 ## v0.1 — núcleo
 - [x] Rate limiting en memoria (ventana deslizante)
 - [x] Cabeceras de seguridad por defecto
@@ -14,8 +17,7 @@
 - [x] Regex acotadas (anti-ReDoS) y limpieza de IPs inactivas en el rate limiter
 
 ## v0.3 — medida, Redis y honestidad
-- [x] Corpus público de 83 ataques + 62 peticiones benignas (`corpus/`) con
-      procedencia y límites documentados
+- [x] Corpus público con procedencia y límites documentados (`corpus/`)
 - [x] Evaluador `tools/evaluate.py`: tasa de detección, falsos positivos y
       umbral de CI (`--check`)
 - [x] Reglas nuevas midiendo antes y después: sondeo de columnas, EXISTS,
@@ -40,18 +42,69 @@
 - [x] Artículo de publicación (`ARTICLE.md`)
 - [x] GitHub Pages publicando la docs en cada push a main
       (https://eche-dev.github.io/Gatekeeper/)
+
+## v0.4 — superficie
+- [x] WebSocket: se inspecciona el **handshake** (ruta, query y cabeceras), los
+      frames no
+- [x] `multipart/form-data`: se inspeccionan los **nombres** de campo y de
+      fichero, no el contenido
+- [x] `application/octet-stream`: se **sniffea** el cuerpo (si es JSON, se
+      inspecciona como JSON)
+- [x] DoS cuadrático en la normalización corregido (advisory
+      `GHSA-p5w5-hwqh-78hc`, publicado)
+
+## v0.5 — superficie y honestidad del log
+- [x] Cabeceras de seguridad también en los rechazos (403/413/429/503)
+- [x] El log lleva la regla, la ruta y el tamaño, **nunca** los valores
+- [x] `Config` valida al arrancar y los valores unknown son un error
+
+## v0.6 — recursos, logs y operación
+- [x] Presupuestos: `max_fields` y `max_inspection_ms` (fail-closed, nunca
+      fail-open: agotar el presupuesto a propósito sería un bypass)
+- [x] Rate limiter acotado (LRU), IPv6 `/64` e IPv4-mapped
+- [x] Salida saneada (el atacante no puede escribir en la terminal de quien
+      lee el log) y punteros JSON acotados
+- [x] Reglas propias validadas contra ReDoS al arrancar (`redos.py`)
+- [x] Límite de body a 256 KiB (documentado como cambio de comportamiento)
+
+## v0.7 — detección
+- [x] 4 falsos negativos reales cerrados (tautología con literales vacíos,
+      booleano ciego, SSRF con la IP de metadata en decimal/hex/octal, y
+      comandos separados por salto de línea)
+- [x] El `+` de un query string ya no se pierde al decodificar
+- [x] 6 falsos positivos de prosa cerrados (`<script>`, `sleep(8 hours)`,
+      `union all`, `waitfor delay`, `like null`, operadores NoSQL citados)
+- [x] **Corpus de falsos positivos en español e inglés**: 100 peticiones
+      legítimas nuevas (50 de desarrollo + 50 retenidas), publicadas
+
+## v0.8 — coherencia documental (en curso)
+- [x] Verificador propio de coherencia (`tools/check_docs.py`): la versión,
+      los enlaces internos, las anclas y la higiene editorial, en CI
+- [x] API pública exportada de forma explícita (`scan`, `scan_all`,
+      `scan_detailed`, `RULES`, `PACK_NAMES`) y testeada
+- [x] Umbral de CI del corpus de CRS subido a la línea base real (0,40)
+- [x] Sin email personal en los metadatos: el canal es GitHub Advisories
+- [x] README en inglés (`README.en.md`) con enlace desde el español
+- [x] Empaquetado: el sdist baja de **514 KiB a 95 KiB** (sin corpus, web,
+      demos ni tests) y el CI lo vigila
+- [x] `AGENTS.md` con las reglas de trabajo del proyecto
+- [x] `tools/metrics.py` con tests y `tools/compat_matrix.py` como job de CI
+- [ ] Aplanar el repo (`src/`, `tests/`, `docs/` a la raíz) y mover las
+      versiones viejas a tags
+- [ ] Métricas Prometheus (contadores de bloqueos y de rate limit)
+
+## Validación externa (pendiente)
+- [ ] Revisión de seguridad **independiente**, publicada
+- [ ] `semgrep` y `zizmor` en CI, además de `bandit` y `pip-audit`
+- [ ] Benchmarks reproducibles en CI con umbrales (hoy no es viable: el ruido
+      de un runner compartido es mayor que la señal)
+- [ ] Tests diferenciales contra FastAPI y Starlette en varias versiones
+
+## Publicación
+- [x] Publicado en PyPI como `gatekeeper-asgi` con *Trusted Publishing* y
+      provenance verificado (0.4.0, 0.4.1, 0.5.0, 0.6.0, 0.7.0)
+- [ ] Nombre y versión definitivos del paquete (hoy `gatekeeper-asgi`, con la
+      carpeta del repo en `v0.3` por razones históricas)
 - [ ] Demo en Vercel (`vercel --prod` desde `demo/`) — credenciales del
       propietario
 - [ ] Publicación del artículo (`ARTICLE.md` listo, sin placeholders)
-- [ ] (opcional) CodeQL y Release v0.3.0 en GitHub
-
-## v0.4 — siguiente
-- [ ] Inspección de `multipart/form-data` (nombres de campo y de archivo, no el contenido)
-- [ ] Métricas Prometheus (contadores de bloqueos y de rate limit)
-- [ ] Integración con Starlette/FastAPI como dependencia declarada en tests
-- [ ] Decodificación de entidades HTML y de UTF-8 sobre-long para cerrar los
-      falsos negativos documentados
-
-## Publicación (pendiente hasta cerrar el proyecto)
-- [ ] Nombre y versión finales, TestPyPI, tag v0.1.0 y release notes
-- [ ] GIF de antes/después con `examples/vulnerable_vs_protected.py`

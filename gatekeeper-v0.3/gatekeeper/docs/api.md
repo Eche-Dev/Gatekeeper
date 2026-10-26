@@ -120,7 +120,6 @@ sería un bypass.
 |---|---|
 | `Config.from_dict(data)` | Valida claves desconocidas (error) y convierte listas a sets |
 | `Config.from_yaml(path)` | Extra `[yaml]`; mismo esquema, claves: valor |
-| `Config.validate()` | Re-valida después de mutar campos (se llama solo al construir) |
 | `config.headers()` | Cabeceras de seguridad efectivas |
 
 ## Tipado

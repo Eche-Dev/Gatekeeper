@@ -9,7 +9,7 @@ seguras, detección de patrones de ataque en query y body, reglas propias por YA
 y auditoría en JSON. **Una capa adicional** delante de tu app, no un WAF ni una
 sustitución de la validación de entradas.
 
-> **La versión publicada es la 0.5.x**, y su código vive en
+> **La versión publicada es la 0.7.x**, y su código vive en
 > [`gatekeeper-v0.3/gatekeeper/`](gatekeeper-v0.3/gatekeeper/) — el nombre de
 > la carpeta es histórico y no coincide con la versión del paquete. Es la única
 > versión que se publica y que recibe mantenimiento.
@@ -18,6 +18,8 @@ sustitución de la validación de entradas.
 > histórica**: no reciben correcciones (incluidas las de seguridad) y sus
 > README avisan de que no se instalen. La política por rama está en
 > [Compatibilidad y soporte](gatekeeper-v0.3/gatekeeper/docs/compatibilidad.md).
+>
+> **In English: [README.en.md](gatekeeper-v0.3/gatekeeper/README.en.md)**
 
 ## Empezar
 
@@ -57,7 +59,7 @@ inverso).
 
 Tres corpus, todos con guarda en CI:
 
-| Métrica | Corpus propio (159 + 81) | **Retenido** (109 + 90) | OWASP CRS externo (1379 tests) |
+| Métrica | Corpus propio (159 + 131) | **Retenido** (109 + 140) | OWASP CRS externo (1379 tests) |
 |---|---|---|---|
 | Ataques detectados | **100.0%** (159/159) | **94.5%** (103/109) | **41.0%** (465/1135, familias 930/941/942) |
 | Falsos positivos sin documentar | **0** | **0** | 4.7% (11/232 negativos de CRS, línea base) |
@@ -80,7 +82,9 @@ bajo del corpus ajeno es tan importante como el alto del propio.
 - **Guía**: <https://eche-dev.github.io/Gatekeeper/> (se publica desde
   [`docs/`](gatekeeper-v0.3/gatekeeper/docs/) en cada push a `main`; `mkdocs serve` en local)
 - [README completo](gatekeeper-v0.3/gatekeeper/README.md) ·
+  [README in English](gatekeeper-v0.3/gatekeeper/README.en.md) ·
   [Contribuir](CONTRIBUTING.md) ·
+  [AGENTS.md](AGENTS.md) (cómo se trabaja en el repo) ·
   [Seguridad](gatekeeper-v0.3/gatekeeper/SECURITY.md) ·
   [Changelog](gatekeeper-v0.3/gatekeeper/CHANGELOG.md)
 

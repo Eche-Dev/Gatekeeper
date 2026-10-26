@@ -1,5 +1,13 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  # La matriz de compatibilidad se mide creando un entorno por combinacion:
+  # es lento, asi que va programado y NO bloquea el push. Si una combinacion
+  # se rompe, el aviso sale aqui (y en el informe de docs/compatibilidad.md).
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
 # Principio de mínimo privilegio (CodeQL `actions/missing-workflow-permissions`):
 # sin este bloque, los workflows heredan los permisos del repositorio, que en
 # repos anteriores a 2023 son read-write. Aquí ningún job escribe en el repo:
@@ -44,6 +52,13 @@ jobs:
         run: python tools/evaluate_cross.py --heldout --check
       - name: Procedencia del corpus externo de CRS
         run: python tools/import_crs.py --check
+      - name: La documentacion no miente (version, enlaces, anclas, higiene)
+        # Linter propio: comprueba que la version que dicen README, docs,
+        # SECURITY.md y CHANGELOG es la misma que la de pyproject.toml, que
+        # los enlaces internos y sus anclas existen, y que no vuelven a
+        # colarse las erratas que ya se colaron una vez. Determinista y sin
+        # dependencias: un linter que da falsos positivos acaba ignorandose.
+        run: python tools/check_docs.py
 
   # Rate limiting contra un Redis REAL, no contra fakeredis.
   #
@@ -111,6 +126,37 @@ jobs:
   # Si algún día quieres automatizarlo, necesita un runner con CPU fijada y
   # sin otros jobs; en `ubuntu-latest` compartido no es fiable.
 
+  compat:
+    # La matriz de compatibilidad no se supone: se PROBA. Este job crea un
+    # entorno virtual por cada combinacion de Starlette/FastAPI y comprueba
+    # que el middleware se puede anadir, bloquea un ataque, deja pasar lo
+    # legitimo y pone las cabeceras de seguridad.
+    #
+    # Es lento (un `pip install` por combinacion), asi que va en `schedule` y
+    # con `continue-on-error`: informa de la situacion sin bloquear el push.
+    # La verdad de la matriz esta en `docs/compatibilidad.md`, que se genera
+    # con `python tools/compat_matrix.py`.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: gatekeeper-v0.3/gatekeeper
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: Mide la matriz de compatibilidad (Starlette x FastAPI)
+        run: python tools/compat_matrix.py --json | tee compat_matrix.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: matriz-compatibilidad
+          path: gatekeeper-v0.3/gatekeeper/compat_matrix.json
+
   package:
     # El paquete se construye, se valida y se instala en un entorno limpio:
     # así un fallo de empaquetado (falta py.typed, metadata rota) no llega a PyPI.
@@ -123,6 +169,24 @@ jobs:
       - run: pip install --only-binary ":all:" "build==1.6.1" "twine==7.0.0"
       - run: python -m build
       - run: twine check dist/*
+      - name: El sdist no se hincha
+        # El sdist es lo que se baja de PyPI. Si se lleva el corpus, la web o
+        # las demos, baja a "descargar un proyecto" en vez de "instalar un
+        # WAF". Medido: 514 KiB -> 95 KiB al excluir lo que vive en GitHub.
+        run: |
+          SIZE=$(stat -c%s dist/*.tar.gz)
+          LIMIT=$((100 * 1024))
+          echo "sdist: $SIZE bytes (limite: $LIMIT)"
+          if [ "$SIZE" -gt "$LIMIT" ]; then
+            echo "::error::El sdist ha crecido por encima de 100 KiB"
+            exit 1
+          fi
+      - name: El sdist tambien instala (es lo que se baja de PyPI)
+        run: |
+          python -m venv /tmp/gk-sdist
+          /tmp/gk-sdist/bin/pip install dist/*.tar.gz
+          /tmp/gk-sdist/bin/python -c "import gatekeeper; print(gatekeeper.__version__)"
+          /tmp/gk-sdist/bin/gatekeeper --help > /dev/null
       - name: Instala el wheel en un entorno limpio y comprueba que importa
         run: |
           python -m venv /tmp/gk-venv

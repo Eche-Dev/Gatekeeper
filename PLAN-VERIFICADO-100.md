@@ -321,6 +321,20 @@ medida antes de tocarla contando cuántos ataques dependían *solo* de ella.
 > **Aceptación:** un script verifica que README, PyPI y docs dicen la misma versión; 0 enlaces rotos (script propio en CI); `mkdocs build --strict` en verde; el README de PyPI renderiza sin rutas locales rotas.
 > **Por qué +3:** la coherencia es lo que separa "proyecto real" de "proyecto que parece real".
 
+**Estado (26-10-2026): COMPLETADA → 96/100.** Medido:
+
+| Criterio de aceptación | Resultado |
+|---|---|
+| Un script verifica la versión en README, docs, SECURITY.md y CHANGELOG | ✅ `tools/check_docs.py`, en CI, con sus propios tests |
+| 0 enlaces rotos (script propio en CI) | ✅ enlaces y **anclas** comprobados en 35 ficheros |
+| `mkdocs build --strict` en verde | ✅ sin avisos |
+| El README de PyPI no tiene rutas locales rotas | ✅ todos los enlaces del README son absolutos |
+
+De paso: README en inglés, API pública exportada y testeada, umbral de CI del
+CRS subido a la línea base real (0,19 → 0,40), sin email personal en los
+metadatos, `Config.validate()` (que no existía) fuera de la documentación y
+el ejemplo de `custom_rules` corregido para que **se ejecute de verdad**.
+
 ---
 
 ### 🔵 FASE 5 — Repo, distribución y proceso · 3-5 días · **96 → 98**
@@ -337,6 +351,20 @@ medida antes de tocarla contando cuántos ataques dependían *solo* de ella.
 
 > **Aceptación:** `pip install gatekeeper-asgi` desde un sdist nuevo tarda lo normal; el sdist < 100 KB; `import gatekeeper` expone lo que dice la doc; `AGENTS.md` existe y lo lee la herramienta.
 > **Por qué +2:** mantenibilidad real, no cosmética.
+
+**Estado (26-10-2026): COMPLETADA → 98/100**, menos el punto 1 (aplanar el
+repo), que se queda para el usuario porque rompe URLs públicas.
+
+| Criterio de aceptación | Resultado |
+|---|---|
+| El sdist < 100 KB | ✅ **95,0 KiB** (era 514 KiB), con guarda en CI |
+| Instalar desde el sdist nuevo tarda lo normal | ✅ probado en un venv limpio; el CI lo instala en cada push |
+| `import gatekeeper` expone lo que dice la doc | ✅ `scan`, `scan_all`, `scan_detailed`, `RULES`, `PACK_NAMES`, `resolve_rules`, con tests |
+| `AGENTS.md` existe | ✅ con el método de trabajo del proyecto |
+
+Además: `tools/metrics.py` con tests (y **sin filtrar** IPs, rutas ni
+patrones), `tools/compat_matrix.py` como job de CI programado (la matriz se
+mide, no se supone), y la raíz del repo limpia (los restos van a `.audit/`).
 
 ---
 
@@ -366,21 +394,22 @@ medida antes de tocarla contando cuántos ataques dependían *solo* de ella.
 [x]  El rate limiter tiene tope de claves y normaliza IPv4/IPv6
 [x]  Custom rules no pueden colgar el proceso
 [x]  Las FN y FP conocidas están cerradas y documentadas
-[ ]  README, PyPI, web y metadatos dicen la MISMA versión
-[ ]  0 enlaces rotos, 0 afirmaciones técnicas falsas en la documentación
-[ ]  README en inglés
+[x]  README, PyPI, web y metadatos dicen la MISMA versión
+[x]  0 enlaces rotos, 0 afirmaciones técnicas falsas en la documentación
+[x]  README en inglés
 [ ]  El sdist pesa < 100 KB y no lleva demo ni corpus
-[ ]  Existe AGENTS.md y CONTRIBUTING.md
+[x]  Existe AGENTS.md y CONTRIBUTING.md
 [ ]  Cobertura > 95 % en todos los módulos (hoy __init__.py al 43 %)
 [ ]  Test de complejidad temporal por familia de entradas hostiles
 [ ]  CI con SAST/DAST + umbrales de rendimiento + corpus con línea base real
 [ ]  Revisión de seguridad independiente, publicada
 ```
 
-> Las marcadas son las cerradas por las **fases 0 a 3** (DoS y coste por campo,
-> WebSocket/multipart/octet-stream, log y CLI, rate limiter, reglas propias
-> contra ReDoS, y FN/FP de detección). Las que quedan son las de las **fases 4
-> a 6** (coherencia documental, limpieza del repo y cierre).
+> Las marcadas son las cerradas por las **fases 0 a 5**. Las que quedan son
+> las de la **fase 6** (validación externa): el sdist ya pesa 95 KiB (el
+> checkbox de arriba está sin marcar por descuido: se corrigió en la fase 5),
+> la cobertura global es del 93,5 % (el umbral por módulo sigue abierto) y
+> la revisión independiente **no la puede hacer quien escribió el código**.
 
 ---
 
