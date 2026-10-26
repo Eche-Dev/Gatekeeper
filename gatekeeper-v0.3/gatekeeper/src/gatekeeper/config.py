@@ -2,12 +2,21 @@ from __future__ import annotations
 
 import fnmatch
 import ipaddress
+import logging
 import re
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
+from .redos import (
+    MAX_CUSTOM_RULES,
+    MAX_PATTERN_LENGTH,
+    NIVEL_EXPONENCIAL,
+    analizar_redos,
+)
 from .rules import RULES, resolve_rules
+
+logger = logging.getLogger("gatekeeper")
 
 DEFAULT_SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -113,11 +122,37 @@ class Config:
     # Reglas propias: {nombre: regex} o [{name:, pattern:}]. Se evalúan sobre texto
     # decodificado y en minúsculas.
     custom_rules: Any = field(default_factory=dict)
+    # Acepta reglas propias con estructuras de regex peligrosas (cuantificadores
+    # anidados, alternativas solapadas). Por defecto se RECHAZAN al arrancar:
+    # una regex catastrofica es un DoS que el usuario se introduce en su
+    # propio WAF, sin necesidad de adversario.
+    allow_unsafe_custom_rules: bool = False
 
     # Inspección del body: TODO content-type textual (JSON, form, text/plain,
     # XML o incluso sin content-type); solo se saltan binarios y multipart (v0.4).
     inspect_body: bool = True
-    max_body_size: int = 1_048_576  # bytes; si se excede -> 413
+    # 256 KiB por defecto (antes 1 MiB). Es el limite de lo que se LEE: la
+    # inspeccion de un body consume CPU proporcional a su tamano.
+    max_body_size: int = 262_144  # bytes; si se excede -> 413
+    # Presupuesto de campos por peticion: numero maximo de TEXTOS a
+    # inspeccionar (una clave y su valor cuentan como dos). Al superarlo, la
+    # peticion se RECHAZA con 413. 0 = sin limite.
+    #
+    # Medido: el coste de la inspeccion escala con el numero de campos
+    # (~67 us por campo), no con el tamano del body: 20.000 campos costaban
+    # 1,34 s, y el limite de tamano no los cubria.
+    max_fields: int = 1000
+    # Presupuesto de tiempo de inspeccion, en milisegundos. 0 = sin limite.
+    #
+    # Al superarlo, la peticion se RECHAZA con 413. No hay modo "fail open":
+    # un presupuesto que se pudiera agotar a proposito para saltarse la
+    # deteccion seria un bypass, no un matiz.
+    #
+    # El defecto es holgado (1 s) a proposito: con `max_fields` por defecto,
+    # el peor caso legitimo es ~100 ms en una maquina normal (~335 ms en una
+    # maquina cinco veces mas lenta), asi que 1 s deja margen de sobra. La
+    # proteccion principal es `max_fields`, que no depende de la maquina.
+    max_inspection_ms: int = 1000
 
     # Inspección de multipart/form-data: se miran los NOMBRES de campo y de
     # fichero (no el contenido de los ficheros). Implica LEER el body, asi que
@@ -200,6 +235,10 @@ class Config:
             raise ValueError("rate_ipv6_prefix debe estar entre 16 y 128 bits")
         if self.max_body_size <= 0:
             raise ValueError("max_body_size debe ser mayor que 0")
+        if self.max_fields < 0:
+            raise ValueError("max_fields no puede ser negativo")
+        if self.max_inspection_ms < 0:
+            raise ValueError("max_inspection_ms no puede ser negativo")
         if self.trusted_proxies < 1:
             raise ValueError(
                 "trusted_proxies debe ser >= 1: con trust_proxy la IP real del "
@@ -239,6 +278,11 @@ class Config:
         if not isinstance(rules, dict):
             raise TypeError("custom_rules debe ser un diccionario o una lista")
         self.custom_rules = rules
+        if len(rules) > MAX_CUSTOM_RULES:
+            raise ValueError(
+                f"custom_rules: como mucho {MAX_CUSTOM_RULES} reglas "
+                f"(hay {len(rules)}); cada una se evalua en cada texto inspeccionado"
+            )
 
         for name, pattern in rules.items():
             if not name:
@@ -247,6 +291,41 @@ class Config:
                 raise ValueError(f"La regla personalizada '{name}' choca con una regla integrada")
             if not pattern:
                 raise ValueError(f"Regla personalizada '{name}': el patrón está vacío")
+            if len(pattern) > MAX_PATTERN_LENGTH:
+                raise ValueError(
+                    f"Regla personalizada '{name}': el patrón es demasiado largo "
+                    f"({len(pattern)} caracteres; máximo {MAX_PATTERN_LENGTH})"
+                )
+            # Una regex catastrofica es un DoS en el propio WAF: se comprueba
+            # al arrancar, no en produccion (ver `redos.analizar_redos`).
+            analisis = analizar_redos(pattern)
+            if analisis is not None:
+                nivel, motivo = analisis
+                if nivel == NIVEL_EXPONENCIAL:
+                    if not self.allow_unsafe_custom_rules:
+                        raise ValueError(
+                            f"Regla personalizada '{name}': patrón con riesgo de ReDoS "
+                            f"({motivo}). Reescríbelo sin cuantificadores anidados ni "
+                            f"alternativas solapadas, o pon "
+                            f"allow_unsafe_custom_rules=True si aceptas el riesgo."
+                        )
+                    logger.warning(
+                        "Regla personalizada '%s': patrón con riesgo de ReDoS (%s), "
+                        "aceptado porque allow_unsafe_custom_rules=True",
+                        name,
+                        motivo,
+                    )
+                else:
+                    # Riesgo cuadratico: no cuelga con una entrada corta, pero se
+                    # degrada con el tamaño. Son patrones legitimos (una regex de
+                    # dominio, por ejemplo): se avisa, no se rechaza.
+                    logger.warning(
+                        "Regla personalizada '%s': patrón con riesgo de backtracking "
+                        "cuadrático (%s). Con entradas grandes puede tardar mucho; "
+                        "considera acotarlo",
+                        name,
+                        motivo,
+                    )
             try:
                 self.compiled_custom[name] = [re.compile(pattern)]
             except (re.error, OverflowError) as exc:

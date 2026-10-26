@@ -1,5 +1,13 @@
 """Coste end-to-end por peticion segun el numero de campos del body.
-Se mide a traves del middleware real (no en aislamiento)."""
+
+Se mide a traves del middleware real (no en aislamiento) y se contrasta el
+comportamiento CON presupuesto (el de ahora) y SIN presupuesto (el
+configuracion que unlimited permite, y que es el vector que se cierro).
+
+Uso (desde ``gatekeeper-v0.3/gatekeeper``)::
+
+    python .audit/fields_e2e.py
+"""
 from __future__ import annotations
 
 import json
@@ -25,6 +33,13 @@ def make_client(**cfg):
     return TestClient(app)
 
 
+def medir(cfg, cuerpo):
+    c = make_client(**cfg)
+    t0 = time.perf_counter()
+    r = c.post("/", content=cuerpo, headers={"content-type": "application/json"})
+    return time.perf_counter() - t0, r.status_code
+
+
 print("=" * 78)
 print("COSTE END-TO-END POR PETICION (a traves del middleware real)")
 print("=" * 78)
@@ -32,33 +47,30 @@ print(f"{'campos':>8} {'KiB body':>9} {'segundos':>9} {'x campos':>9}   estado")
 prev = None
 for n in (2_500, 5_000, 10_000, 20_000):
     cuerpo = json.dumps({f"campo_{i}": "valor" for i in range(n)}).encode()
-    c = make_client()
-    t0 = time.perf_counter()
-    r = c.post("/", content=cuerpo, headers={"content-type": "application/json"})
-    dt = time.perf_counter() - t0
+    dt, status = medir({}, cuerpo)
     x = f"{n/prev[0]:.1f}" if prev else "-"
-    print(f"{n:>8} {len(cuerpo)/1024:>9.0f} {dt:>9.3f} {x:>9}   {r.status_code}")
+    print(f"{n:>8} {len(cuerpo)/1024:>9.0f} {dt:>9.3f} {x:>9}   {status}")
     prev = (n, dt)
 
 print()
-print("PEOR CASO con max_body_size = 1 MiB (el valor por defecto):")
+print("SIN presupuesto (max_fields=0, max_body_size=1 MiB): ahi esta el vector")
 for etiqueta, n, valor in (("campos cortos", 55_000, "v"), ("claves largas", 26_000, "x" * 20)):
     cuerpo = json.dumps({f"campo_{i}": valor for i in range(n)}).encode()
     if len(cuerpo) > 1_048_576:
-        # ajusta n para no pasarse
         continue
-    c = make_client()
-    t0 = time.perf_counter()
-    r = c.post("/", content=cuerpo, headers={"content-type": "application/json"})
-    dt = time.perf_counter() - t0
-    print(f"  {etiqueta}: {n} campos, {len(cuerpo)/1024:.0f} KiB -> {dt:.2f} s  (status {r.status_code})")
+    dt, status = medir({"max_fields": 0, "max_body_size": 1_048_576}, cuerpo)
+    print(f"  {etiqueta}: {n} campos, {len(cuerpo)/1024:.0f} KiB -> {dt:.2f} s  (status {status})")
+
+print()
+print("CON presupuesto (el de ahora): se rechaza y en seguida")
+for etiqueta, n, valor in (("campos cortos", 55_000, "v"), ("claves largas", 26_000, "x" * 20)):
+    cuerpo = json.dumps({f"campo_{i}": valor for i in range(n)}).encode()
+    dt, status = medir({}, cuerpo)
+    print(f"  {etiqueta}: {n} campos, {len(cuerpo)/1024:.0f} KiB -> {dt:.3f} s  (status {status})")
 
 print()
 print("Y con inspect_cross_carrier=True (el modo que concatena query + body):")
 cuerpo = json.dumps({f"campo_{i}": "valor" for i in range(20_000)}).encode()
 for cross in (False, True):
-    c = make_client(inspect_cross_carrier=cross)
-    t0 = time.perf_counter()
-    r = c.post("/", content=cuerpo, headers={"content-type": "application/json"})
-    dt = time.perf_counter() - t0
-    print(f"  inspect_cross_carrier={cross!s:<5} -> {dt:.2f} s (status {r.status_code})")
+    dt, status = medir({"inspect_cross_carrier": cross}, cuerpo)
+    print(f"  inspect_cross_carrier={cross!s:<5} -> {dt:.3f} s (status {status})")

@@ -77,7 +77,9 @@ En este orden, y el primero que salta manda:
    `X-Forwarded-For`) → 403.
 5. **Body** con cualquier content-type textual (JSON, form, `text/plain`, XML
    o sin `content-type`) → 403. Si el body supera
-   `max_body_size`, por tamaño declarado o al leer el stream → 413.
+   `max_body_size`, por tamaño declarado o al leer el stream → 413. Si la
+   petición agota el presupuesto de campos (`max_fields`) o de tiempo de
+   inspección (`max_inspection_ms`) → 413 también.
 6. **Body `multipart/form-data`**: se inspeccionan los **nombres** de campo y
    de fichero (los `../../etc/passwd` van ahí) → 403. El contenido del
    fichero no: es binario.
@@ -224,30 +226,39 @@ app.add_middleware(GatekeeperMiddleware, config=Config.from_yaml("gatekeeper.yam
 ```
 
 Las reglas personalizadas se evalúan sobre texto decodificado y en minúsculas,
-iguales que las integradas. **No están acotadas contra ReDoS**: revisa tus
-patrones (las integradas sí lo están; ver [Seguridad](seguridad.md)).
+iguales que las integradas. A diferencia de las integradas, **las tuyas se
+validan al arrancar**: una regex con backtracking exponencial se rechaza con
+un `ValueError` que dice exactamente qué parte del patrón es la problema.
 
-!!! danger "Tus reglas pueden colgar el proceso"
+!!! danger "Tus reglas pueden colgar el proceso (por eso ahora se comprueban)"
     Las reglas integradas tienen **todos** los cuantificadores acotados
     (`\s{0,16}`), y un test vigila que nadie introduzca un `\s*` sin cota: un
     `\s*` adyacente sobre una racha de espacios es O(n²).
 
-    Las tuyas se compilan **tal cual**. Una regex con backtracking exponencial
-    (por ejemplo `(a+)+$`) puede tardar minutos con una entrada crafted, y
-    eso para el proceso entero, no solo para esa petición.
+    Las tuyas las escribes tú, y una regex con backtracking exponencial (por
+    ejemplo `(a+)+$`) puede tardar minutos con una entrada crafted, y eso para
+    el proceso entero, no solo para esa petición. Gatekeeper lo comprueba
+    **al arrancar**, de forma estática (sin ejecutar el regex: medirlo sería el
+    propio DoS).
 
-    Cómo evitarlo:
+    - **Se rechaza** (`ValueError` al arrancar) el riesgo **exponencial**:
+      cuantificadores anidados sin nada obligatorio detrás (`(a+)+`, `(.*)*`),
+      alternativas que se solapan dentro de un grupo repetido (`(a|a)+`,
+      `(a|ab)+`) y referencias atrás repetidas (`(\w+)\1+`). Con esos, 60
+      caracteres ya bastan para colgar el proceso.
+    - **Se avisa** (warning en el log; la app arranca) el riesgo
+      **cuadrático**: cuantificadores anidados con un separador detrás
+      (`(?:\w+\.)+\w+`). No cuelga con una entrada corta, pero se degrada con
+      el tamaño: medido, 7,4 s con 50.000 caracteres.
 
-    - acota los cuantificadores: `\s{0,16}`, `[a-z]{1,32}`, no `\s*` ni `+`;
-    - evita anidar cuantificadores sobre el mismo grupo (`(a+)+`, `(a*)*`);
-    - usa alternancias en vez de repeticiones ambigua (`foo|foobar` en vez de
-      `foo(bar)?`);
-    - evita las referencias hacia atrás (`(a+)\1`) cuando el texto pueda ser
-      largo.
+    Si tu patrón es legítimo y prefieres aceptar el riesgo:
 
-    Si necesitas un patrón que no se puede acotar, no lo apliques sobre el
-    body entero: usa `exclude_fields` para sacarlo del escaneo, o ponlo en una
-    regla integrada con la forma acotada equivalente.
+    ```python
+    Config(custom_rules={"mia": r"(a+)+$"}, allow_unsafe_custom_rules=True)
+    ```
+
+    Y si puedes acotarlo, mejor: `\s{0,16}`, `[a-z]{1,32}`, no `\s*` ni `+`.
+    También puedes sacarlo del escaneo con `exclude_fields`.
 
 !!! danger "Fallar al arrancar, no en producción"
     Una clave con typo (`rate_limt`) o un patrón inválido **rompe el arranque**
@@ -271,7 +282,9 @@ app.add_middleware(
         rule_packs=["web"],                 # families (opt-in; por defecto, todas)
         exclude_fields=["template"],        # ese campo sí puede llevar HTML
         allow_paths=["/docs*", "/openapi.json", "/health"],
-        max_body_size=1_048_576,
+        max_body_size=262_144,               # 256 KiB; sube si tu app lo necesita
+        max_fields=1000,                     # textos inspeccionados por peticion
+        max_inspection_ms=1000,              # presupuesto de CPU por peticion
         inspect_multipart=True,              # nombres de campo y de fichero
         inspect_websockets=True,             # handshake (ruta, query, cabeceras)
     ),

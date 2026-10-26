@@ -11,6 +11,9 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .body import (
     SNIFFABLE_CONTENT_TYPES,
+    BudgetExceeded,
+    InspectionBudget,
+    TooManyFields,
     content_type_of,
     effective_content_type,
     escape_pointer,
@@ -31,6 +34,7 @@ from .ratelimit import (
     normalize_rate_key,
 )
 from .rules import scan_detailed
+from .sanitize import sanear, sanear_y_acotar
 
 logger = logging.getLogger("gatekeeper")
 
@@ -161,18 +165,47 @@ class GatekeeperMiddleware:
     def _audit(self, event: str, ip: str, scope: Scope, **extra: object) -> None:
         # Nunca se registra el contenido del payload: sí la regla, el campo y
         # el patrón que lo disparó, que es lo que hace falta para tunear FP.
-        logger.warning(
-            json.dumps(
-                {
-                    "ts": time.time(),
-                    "event": event,
-                    "ip": ip,
-                    "method": scope.get("method"),
-                    "path": scope.get("path"),
-                    **extra,
-                }
-            )
-        )
+        #
+        # TODO lo que se escribe aqui es texto que puede haber puesto el
+        # atacante (la ruta, el nombre del campo, el propio patron), asi que
+        # se sanea y se acota ANTES de escribir: sin eso, un `\x1b[2J` en la
+        # URL llega a la terminal de quien lee el log.
+        datos: dict[str, object] = {
+            "ts": time.time(),
+            "event": event,
+            "ip": sanear(ip),
+            "method": scope.get("method"),
+            "path": sanear(str(scope.get("path", ""))),
+            **extra,
+        }
+        for clave, valor in list(datos.items()):
+            if isinstance(valor, str):
+                datos[clave] = sanear_y_acotar(valor)
+        logger.warning(json.dumps(datos))
+
+    def _auditar_presupuesto(self, exc: BudgetExceeded, ip: str, scope: Scope) -> None:
+        """Audita el agotamiento del presupuesto con el nombre de su evento.
+
+        El nombre va escrito aqui a proposito: el catalogo de eventos
+        (`corpus/events.json`) se comprueba contra el codigo, y un evento que
+        solo existe como constante en otro modulo no se podria verificar.
+        """
+        if isinstance(exc, TooManyFields):
+            self._audit("too_many_fields", ip, scope, limite=exc.limite, campos=exc.campos)
+        else:
+            self._audit("inspection_timeout", ip, scope, limite=exc.limite, campos=exc.campos)
+
+    async def _rechazar_presupuesto(self, exc: BudgetExceeded, ip: str, scope: Scope,
+                                    receive: Receive, send: Send) -> None:
+        """Rechaza (413) la peticion que agota el presupuesto de inspeccion.
+
+        Agotar el presupuesto NO es un modo fail-open: la peticion se
+        rechaza. Si se admitiera, el atacante podria gastar el presupuesto a
+        proposito para que su payload se quedara SIN inspeccionar, y eso seria
+        un bypass, no una degradacion.
+        """
+        self._auditar_presupuesto(exc, ip, scope)
+        await self._reject(413, "Payload Too Large", scope, receive, send)
 
     async def _reject(self, status: int, detail: str, scope: Scope, receive: Receive, send: Send,
                       headers: dict[str, str] | None = None) -> None:
@@ -246,6 +279,16 @@ class GatekeeperMiddleware:
         path = scope.get("path", "")
         if cfg.inspect_requests and not is_path_allowed(path, cfg.allow_paths):
             query = scope.get("query_string", b"").decode("latin-1")
+            # Mismo presupuesto que en HTTP: el handshake tambien se inspecciona.
+            presupuesto = InspectionBudget(
+                max_fields=cfg.max_fields, max_ms=cfg.max_inspection_ms
+            )
+            try:
+                presupuesto.cuenta(2 * (query.count("&") + 1) if query else 0)
+            except BudgetExceeded as exc:
+                self._auditar_presupuesto(exc, ip, scope)
+                await _close_websocket(send, 1008)
+                return
             target = path + "?" + _query_without_excluded(query, cfg)
 
             hit = scan_detailed(target, cfg.disabled_rules, cfg.compiled_custom,
@@ -321,8 +364,21 @@ class GatekeeperMiddleware:
                 return
 
         path = scope.get("path", "")
+        # El presupuesto es por peticion: campos y tiempo de inspeccion. Se
+        # agota (rechazando), nunca se ignora.
+        presupuesto = InspectionBudget(
+            max_fields=cfg.max_fields, max_ms=cfg.max_inspection_ms
+        )
         if cfg.inspect_requests and not is_path_allowed(path, cfg.allow_paths):
             query = scope.get("query_string", b"").decode("latin-1")
+            # Los parametros de la query se cuentan ANTES de parsearlos: un
+            # query enorme no llega a convertirse en una lista enorme en
+            # memoria. Cada parametro aporta dos textos (clave y valor).
+            try:
+                presupuesto.cuenta(2 * (query.count("&") + 1) if query else 0)
+            except BudgetExceeded as exc:
+                await self._rechazar_presupuesto(exc, ip, scope, receive, send)
+                return
             # Los campos exentos se quitan del objetivo ANTES de escanear: la
             # detección sigue cruzando parámetros, pero no sobre lo excluido.
             target = path + "?" + _query_without_excluded(query, cfg)
@@ -395,33 +451,51 @@ class GatekeeperMiddleware:
                     await self._reject(413, "Payload Too Large", scope, receive, send)
                     return
                 receive = replay(messages, receive)
+                # Leer el body no es inspeccionarlo: el tiempo de espera por
+                # la red no cuenta contra el presupuesto de CPU.
+                presupuesto.reinicia_reloj()
 
                 has_inspectable_body_value = False
                 cross_values: list[tuple[str, str]] = []
-                if es_multipart:
-                    # multipart: se inspeccionan los NOMBRES de campo y de
-                    # fichero (ahi van los `../../etc/passwd`), no el contenido
-                    # binario de los ficheros.
-                    body_fields = [
-                        (f"/{escape_pointer(nombre)}", valor)
-                        for nombre, valor in extract_multipart(ctype_crudo or "", body)
-                    ]
-                else:
-                    # El content-type generico lo decide el CONTENIDO, no la
-                    # cabecera (que controla el atacante): un octet-stream con
-                    # cuerpo JSON se inspecciona como JSON.
-                    ctype_real = effective_content_type(ctype, body)
-                    if not is_inspectable(ctype_real):
-                        body_fields = []
-                    elif cfg.inspect_cross_carrier:
-                        body_fields, cross_values = extract_strings_and_values(ctype_real, body)
+                try:
+                    if es_multipart:
+                        # multipart: se inspeccionan los NOMBRES de campo y de
+                        # fichero (ahi van los `../../etc/passwd`), no el contenido
+                        # binario de los ficheros.
+                        body_fields = [
+                            (f"/{escape_pointer(nombre)}", valor)
+                            for nombre, valor in extract_multipart(
+                                ctype_crudo or "", body, presupuesto
+                            )
+                        ]
                     else:
-                        body_fields = extract_strings(ctype_real, body)
+                        # El content-type generico lo decide el CONTENIDO, no la
+                        # cabecera (que controla el atacante): un octet-stream con
+                        # cuerpo JSON se inspecciona como JSON.
+                        ctype_real = effective_content_type(ctype, body)
+                        if not is_inspectable(ctype_real):
+                            body_fields = []
+                        elif cfg.inspect_cross_carrier:
+                            body_fields, cross_values = extract_strings_and_values(
+                                ctype_real, body, presupuesto
+                            )
+                        else:
+                            body_fields = extract_strings(
+                                ctype_real, body, budget=presupuesto
+                            )
+                except BudgetExceeded as exc:
+                    await self._rechazar_presupuesto(exc, ip, scope, receive, send)
+                    return
 
                 for pointer, value in body_fields:
                     if cfg.field_excluded(pointer):
                         continue
                     has_inspectable_body_value = True
+                    try:
+                        presupuesto.comprueba_tiempo()
+                    except BudgetExceeded as exc:
+                        await self._rechazar_presupuesto(exc, ip, scope, receive, send)
+                        return
                     hit = scan_detailed(value, cfg.disabled_rules, cfg.compiled_custom,
                                         cfg.active_rules)
                     if not hit:
@@ -443,6 +517,11 @@ class GatekeeperMiddleware:
                 ):
                     # Only non-excluded fields participate; audit never stores
                     # their text. The body size is bounded before this join.
+                    try:
+                        presupuesto.comprueba_tiempo()
+                    except BudgetExceeded as exc:
+                        await self._rechazar_presupuesto(exc, ip, scope, receive, send)
+                        return
                     cross_body = " ".join(
                         value
                         for pointer, value in cross_values

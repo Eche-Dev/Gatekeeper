@@ -247,7 +247,8 @@ Gatekeeper **no adivina**: usa el peer y sigue siendo conservador.
 ## Lo que **no** cambia
 
 - **El body se inspecciona siempre**, sin importar la topología. El límite de
-  1 MiB (`max_body_size`) también.
+  256 KiB (`max_body_size`) también, con los presupuestos de campos
+  (`max_fields`) y de tiempo de inspección (`max_inspection_ms`).
 - **Las cabeceras de seguridad** se añaden siempre.
 - **La auditoría** va al logger `gatekeeper` en todos los casos. Si recoges
   logs centralizados (Loki, ELK, CloudWatch), los eventos JSON se pueden

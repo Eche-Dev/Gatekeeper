@@ -2,11 +2,86 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
 from typing import Any
 from urllib.parse import parse_qsl
 
 from starlette.types import Message, Receive
+
+
+class BudgetExceeded(Exception):
+    """El presupuesto de inspeccion de la peticion se ha agotado.
+
+    Agotar el presupuesto RECHAZA la peticion (413). Ignorar en silencio los
+    campos que sobran seria un BYPASS: el atacante mandaria el payload en el
+    campo que se queda sin inspeccionar y la deteccion no lo veria nunca.
+    """
+
+    code = "budget_exceeded"
+
+    def __init__(self, limite: int, campos: int | None = None):
+        self.limite = limite
+        self.campos = campos
+        super().__init__(f"{self.code}: limite={limite} campos={campos}")
+
+
+class TooManyFields(BudgetExceeded):
+    """La peticion tiene mas campos de los que permite `max_fields`."""
+
+    code = "too_many_fields"
+
+
+class InspectionTimeout(BudgetExceeded):
+    """La inspeccion ha superado el presupuesto de `max_inspection_ms`."""
+
+    code = "inspection_timeout"
+
+
+class InspectionBudget:
+    """Presupuesto de trabajo por peticion: cuantos campos y cuanto tiempo.
+
+    El tiempo que se cuenta es el de CPU (extraer y escanear), no el de
+    espera: leer un body de una red lenta no es trabajo de Gatekeeper, y
+    penalizarlo seria un falso positivo. Por eso el reloj se reinicia
+    despues de leer el body.
+
+    Medido: el coste de la inspeccion escala con el numero de campos (~67 us
+    por campo), no con el tamano del body. Un body de 1 MiB con 20.000 campos
+    tardaba 1,34 s en inspeccionarse, y el limite de tamano no lo cubria.
+    """
+
+    def __init__(
+        self,
+        max_fields: int = 0,
+        max_ms: int = 0,
+        clock: Callable[[], float] = time.perf_counter,
+    ):
+        self.max_fields = max_fields
+        self.max_ms = max_ms
+        self.clock = clock
+        self.campos = 0
+        self.deadline = self._plazo()
+
+    def _plazo(self) -> float | None:
+        if self.max_ms <= 0:
+            return None
+        return self.clock() + self.max_ms / 1000.0
+
+    def reinicia_reloj(self) -> None:
+        """Reinicia el reloj: esperar por la red no es inspeccionar."""
+        self.deadline = self._plazo()
+
+    def cuenta(self, n: int = 1) -> None:
+        """Cuenta n campos inspeccionados y comprueba los dos presupuestos."""
+        self.campos += n
+        if self.max_fields and self.campos > self.max_fields:
+            raise TooManyFields(self.max_fields, self.campos)
+        self.comprueba_tiempo()
+
+    def comprueba_tiempo(self) -> None:
+        if self.deadline is not None and self.clock() > self.deadline:
+            raise InspectionTimeout(self.max_ms, self.campos)
 
 
 def content_type_of(raw: str | None) -> str:
@@ -129,7 +204,9 @@ def _content_disposition_params(value: str) -> dict[str, str]:
     return params
 
 
-def extract_multipart(content_type: str, body: bytes) -> list[tuple[str, str]]:
+def extract_multipart(
+    content_type: str, body: bytes, budget: InspectionBudget | None = None
+) -> list[tuple[str, str]]:
     """`(campo, valor)` de las partes de un body multipart/form-data.
 
     - de una parte de TEXTO, el valor es su contenido;
@@ -166,6 +243,9 @@ def extract_multipart(content_type: str, body: bytes) -> list[tuple[str, str]]:
         nombre = params.get("name")
         if not nombre:
             continue
+        if budget is not None:
+            # Cada parte aporta un campo (el nombre) y su valor: dos textos.
+            budget.cuenta(2)
         if "filename" in params:
             campos.append((nombre, params["filename"]))
         else:
@@ -372,6 +452,22 @@ def _iter_fields(
 
 
 def _iter_body_fields(
+    content_type: str, body: bytes, budget: InspectionBudget | None = None
+) -> Iterator[tuple[str, str, bool]]:
+    """Campos del body, contando el presupuesto en cada texto entregado.
+
+    El conteo es perezoso (el generador se detiene en cuanto se agota el
+    presupuesto), asi que el trabajo se corta en el limite y no despues.
+    """
+    if budget is None:
+        yield from _iter_body_fields_raw(content_type, body)
+        return
+    for puntero, texto, es_clave in _iter_body_fields_raw(content_type, body):
+        budget.cuenta()
+        yield puntero, texto, es_clave
+
+
+def _iter_body_fields_raw(
     content_type: str, body: bytes
 ) -> Iterator[tuple[str, str, bool]]:
     text = body.decode("utf-8", errors="replace")
@@ -390,7 +486,10 @@ def _iter_body_fields(
 
 
 def extract_strings(
-    content_type: str, body: bytes, include_keys: bool = True
+    content_type: str,
+    body: bytes,
+    include_keys: bool = True,
+    budget: InspectionBudget | None = None,
 ) -> list[tuple[str, str]]:
     """Extrae `(puntero, texto)` a inspeccionar.
 
@@ -401,18 +500,18 @@ def extract_strings(
     """
     return [
         (pointer, value)
-        for pointer, value, is_key in _iter_body_fields(content_type, body)
+        for pointer, value, is_key in _iter_body_fields(content_type, body, budget)
         if include_keys or not is_key
     ]
 
 
 def extract_strings_and_values(
-    content_type: str, body: bytes
+    content_type: str, body: bytes, budget: InspectionBudget | None = None
 ) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     """Extrae una vez todos los textos y separa valores de claves."""
     fields: list[tuple[str, str]] = []
     values: list[tuple[str, str]] = []
-    for pointer, text, is_key in _iter_body_fields(content_type, body):
+    for pointer, text, is_key in _iter_body_fields(content_type, body, budget):
         fields.append((pointer, text))
         if not is_key:
             values.append((pointer, text))

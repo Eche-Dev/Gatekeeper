@@ -107,16 +107,23 @@ detección y registro, no sustitución de controles fundamentales.
   `trusted_proxy_cidrs` para ignorar el XFF de peers que no son tuyos.
 - **`rate_fail_open=True` por defecto**: si Redis cae, se sigue sirviendo
   tráfico. Cambia a `False` si tu prioridad es rechazar en vez de servir (503).
-- **Los logs de auditoría nunca contienen el payload**: registran la regla que
-  saltó, el campo (JSON pointer o parámetro), el patrón que lo disparó y el
-  origen, no el contenido. Un log con payloads es un vector de
+- **Los logs de auditoría nunca contienen los valores del payload**: registran
+  la regla que saltó, el campo (JSON pointer o parámetro), el patrón que lo
+  disparó y el origen, no el contenido. Un log con payloads es un vector de
   inyección de log y expone datos de usuarios.
+  **Matiz importante:** el *nombre* del campo sí se registra, y ese nombre lo
+  elige el atacante (un parámetro cuyo nombre es el payload entero). Por eso
+  todo el texto que se registra va **saneado** (sin ESC ni otros caracteres
+  de control, para que no pueda manipular la terminal de quien lee el log) y
+  **acotado** a 256 caracteres. Trata el log como texto no confiable.
 - **Regex con cuantificadores acotados**: todos los cuantificadores de las reglas
   integradas van con límite (`\s{0,16}`). En v0.3 se encontró, con la batería de
   rendimiento, un ReDoS cuadrático real (`or` + 80.000 espacios = 118 s de CPU);
   está corregido y cubierto por tests con entradas patológicas de 1M de
   caracteres y por tests de propiedades con hypothesis. Las reglas personalizadas
-  **no** están acotadas: revisa las tuyas.
+  se **validan al arrancar**: el riesgo de backtracking exponencial se rechaza
+  con `ValueError` y el cuadrático se avisa (ver
+  [uso](gatekeeper-v0.3/gatekeeper/docs/uso.md)).
 - **Validación al arrancar**: una clave con typo (`rate_limt`) o una regex
   inválida rompe el arranque, no la protección en producción. Los tests de
   propiedades verifican que solo salen `ValueError`/`TypeError`, nunca errores

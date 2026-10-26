@@ -14,9 +14,11 @@ tu aplicación recibe de forma habitual, y solo se publican datos agregados.
       tenga el derecho sobre ese tráfico.
     - **Nunca** captures peticiones de terceros que no sean usuarios tuyos, ni
       las escales a un escáner, ni las compartas.
-    - Los logs de auditoría **no llevan el payload** (solo la regla, el campo y
-      el patrón). Aun así, la IP y la ruta son datos personales: trátalos como
-      tales y publícate solo los agregados.
+    - Los logs de auditoría **no llevan los valores** de los payloads (solo
+      la regla, el patrón y el **nombre** del campo). Ese nombre lo elige el
+      atacante, así que puede acabar en el log: va saneado y acotado, pero
+      trátalo como texto no confiable. Aun así, la IP y la ruta son datos
+      personales: trátalos como tales y publícate solo los agregados.
 
 ## 1. Poner en modo monitor
 

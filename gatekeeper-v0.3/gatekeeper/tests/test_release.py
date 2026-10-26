@@ -55,13 +55,29 @@ def test_la_version_del_paquete_coincide_con_la_del_changelog():
     )
 
 
-def test_la_seccion_sin_publicar_no_tiene_contenido_tras_un_release():
-    """Tras un release, "Sin publicar" está vacía (o dice que no hay nada)."""
+def test_la_seccion_sin_publicar_no_repite_lo_ya_publicado():
+    """"Sin publicar" es trabajo en curso, no una copia de un release ya hecho.
+
+    Tras cortar un release, la sección "Sin publicar" queda vacía; entre
+    releases, acumula el trabajo siguiente (Keep a Changelog). Lo que no puede
+    pasar es que contenga el contenido de una versión ya publicada: eso
+    significaría que el corte se hizo mal y las notas quedaron duplicadas.
+    """
     texto = _changelog()
     bloque = texto.split("## [Sin publicar]", 1)[1].split("\n## [", 1)[0]
     lineas = [x.strip() for x in bloque.splitlines() if x.strip()]
-    assert not lineas or lineas == ["Nada pendiente."], (
-        f"la seccion 'Sin publicar' tiene contenido sin publicar: {lineas}"
+    if not lineas:
+        return  # tras un release, vacia: correcto
+
+    # Las vinetas de la version publicada mas reciente no pueden aparecer
+    # tambien en "Sin publicar".
+    publicada = texto.split("\n## [", 2)[2]
+    vinetas_publicadas = {
+        x.strip() for x in publicada.splitlines() if x.strip().startswith("- ")
+    }
+    repetidas = vinetas_publicadas.intersection(lineas)
+    assert not repetidas, (
+        f"la seccion 'Sin publicar' repite contenido ya publicado: {sorted(repetidas)}"
     )
 
 

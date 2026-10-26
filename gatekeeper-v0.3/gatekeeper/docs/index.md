@@ -72,8 +72,8 @@ botones en [`demo/`](https://github.com/Eche-Dev/Gatekeeper/tree/main/gatekeeper
 | NoSQL · Comandos · SSRF | `$ne`/`$where`; `; ls` y `` `id` ``; metadata cloud y `file://` |
 | SSTI · CRLF · Log4Shell · Proto | `{{7*7}}`; splitting con cabecera; `${jndi:…}`; `__proto__` |
 | Evasiones | URL-encoding repetido, escapes `%uXXXX` (IIS), ancho completo (NFKC), comentarios versionados `/*!…*/` |
-| Límite de body | 1 MiB por defecto → 413 |
-| Auditoría | Eventos JSON en el logger `gatekeeper`, sin contenido de payloads |
+| Límite de body | 256 KiB por defecto → 413 |
+| Auditoría | Eventos JSON en el logger `gatekeeper`, sin los valores de los campos (el nombre del que saltó, saneado y acotado) |
 
 El desglose completo por familia, con su frontera de falsos positivos, está en
 [Modelo de amenazas](amenazas.md).

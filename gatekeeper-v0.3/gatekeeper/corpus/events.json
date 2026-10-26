@@ -26,7 +26,7 @@
         "counter": "gatekeeper_attacks_total",
         "labels": ["rule", "source"]
       },
-      "notes": "NUNCA lleva el payload: solo la regla, el campo y el patron."
+      "notes": "No lleva los VALORES del payload: solo la regla, el campo (su nombre) y el patron. El nombre del campo lo elige el atacante, asi que va saneado y acotado."
     },
     "rate_limited": {
       "meaning": "La peticion supera el limite del backend de rate limit.",
@@ -59,6 +59,30 @@
       },
       "notes": "Un 413 sostenido es casi siempre un cliente que envia bodies enormes, no un ataque."
     },
+    "too_many_fields": {
+      "meaning": "La peticion tiene mas campos de los que permite `max_fields`.",
+      "when": "Al extraer los campos del body, de la query o del multipart. La respuesta es 413.",
+      "extra_fields": {
+        "limite": "El valor de `max_fields` que se ha superado.",
+        "campos": "Cuantos campos (textos) se habían contado al agotarse."
+      },
+      "metrics": {
+        "counter": "gatekeeper_too_many_fields_total"
+      },
+      "notes": "El presupuesto se AGOTA: los campos que sobran NO se ignoran (ignorarlos seria un bypass, porque el payload pasaria sin inspeccionar)."
+    },
+    "inspection_timeout": {
+      "meaning": "La inspeccion ha superado `max_inspection_ms`.",
+      "when": "Al extraer o escanear los campos. La respuesta es 413.",
+      "extra_fields": {
+        "limite": "El valor de `max_inspection_ms` que se ha superado.",
+        "campos": "Cuantos campos (textos) se habían contado al agotarse."
+      },
+      "metrics": {
+        "counter": "gatekeeper_inspection_timeout_total"
+      },
+      "notes": "No hay modo fail-open: si la peticion pasara, el atacante podria agotar el presupuesto a proposito para que su payload se quedara sin inspeccionar."
+    },
     "rate_backend_error": {
       "meaning": "El backend de rate limit no ha respondido.",
       "when": "Redis no contesta (caido, timeout, red). Es el unico evento que indica un problema de infraestructura.",
@@ -76,7 +100,7 @@
   "response_codes": {
     "200": "La peticion pasa. Incluye el modo monitor: ahi se registra el ataque pero no se bloquea.",
     "403": "Bloqueada: `blocked_ips`, o una firma de ataque (en modo monitor no se bloquea).",
-    "413": "Body mayor que `max_body_size`.",
+    "413": "Body mayor que `max_body_size`, o peticion que agota el presupuesto de campos (`max_fields`) o de tiempo de inspeccion (`max_inspection_ms`).",
     "429": "Limite de rate limit superado. Incluye la cabecera `Retry-After` con los segundos que faltan.",
     "503": "El backend de rate limit no responde y `rate_fail_open=False`."
   },
@@ -85,9 +109,13 @@
     "use": "Para medir falsos positivos sobre trafico real antes de activar el bloqueo."
   },
   "what_is_never_logged": [
-    "El payload de la peticion (ni el cuerpo, ni la query, ni los valores de las cabeceras).",
+    "Los VALORES de los campos: ni el cuerpo, ni la query, ni los valores de las cabeceras.",
     "Cookies, tokens o credenciales: solo se registra el NOMBRE de la cabecera que salto la regla.",
-    "El cuerpo de la peticion en los eventos de 413: solo el tamano declarado."
+    "El cuerpo de la peticion en los eventos de 413: solo el tamano declarado.",
+    "Los caracteres de control: todo el texto que se registra va saneado (sin ESC ni C0), para que no pueda manipular la terminal de quien lo lee."
+  ],
+  "what_is_logged": [
+    "El NOMBRE del campo que salto (puntero JSON o parametro). Es texto del atacante: va saneado (sin caracteres de control) y acotado a 256 caracteres. Si el atacante pone el payload en el NOMBRE de un parametro, ese nombre aparece aqui: el log es texto no confiable, no un deposito de credenciales."
   ],
   "privacy": {
     "warning": "El evento lleva IP y ruta: son datos personales. El log en crudo NO se publica.",

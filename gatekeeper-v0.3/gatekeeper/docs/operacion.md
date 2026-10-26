@@ -15,6 +15,8 @@ y hay un test que comprueba que el catálogo y el código no se desincronizan.
 | `rate_limited` | La IP pasó del límite | 429 con `Retry-After` |
 | `blocked_ip` | La IP está en `blocked_ips` | 403 |
 | `body_too_large` | El body pasó de `max_body_size` | 413 |
+| `too_many_fields` | La petición pasó de `max_fields` | 413 |
+| `inspection_timeout` | La inspección pasó de `max_inspection_ms` | 413 |
 | `rate_backend_error` | El backend de rate limit no responde | 503 o la petición pasa |
 
 Cada evento lleva `ts`, `event`, `ip`, `method` y `path`, más los campos
@@ -155,7 +157,9 @@ reconstruir imagen.
 
 | Límite | Defecto | Qué pasa |
 |---|---|---|
-| Tamaño de body | 1 MiB (`max_body_size`) | 413. El corte es por bytes acumulados, tanto con `Content-Length` como leyendo el stream |
+| Tamaño de body | 256 KiB (`max_body_size`) | 413. El corte es por bytes acumulados, tanto con `Content-Length` como leyendo el stream |
+| Número de campos | 1000 textos (`max_fields`) | 413. El coste de inspeccionar escala con los campos (~67 µs por campo), no con los bytes |
+| Tiempo de inspección | 1000 ms (`max_inspection_ms`) | 413. Red de seguridad para lo que no se puede prever por estructura |
 | Memoria por petición | ~2× el tamaño del body | Acotado por `max_body_size`. Un body que excede el límite se corta sin acumularlo |
 | Velocidad de escaneo | ~200-400 µs por petición | Medido en local; ver el README del paquete. No es un SLA |
 | Inspeccionado | Ruta, query, headers configurados, body textual | `multipart` y los binarios **no** se inspeccionan |

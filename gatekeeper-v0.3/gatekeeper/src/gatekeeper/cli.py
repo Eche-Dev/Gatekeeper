@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .rules import scan_detailed
+from .sanitize import sanear_y_acotar
 
 # Eventos que son "el middleware bloqueó/registró algo sobre una petición".
 _ATTACK_EVENTS = {"attack_detected"}
@@ -90,9 +91,29 @@ def _fmt_tabla(titulo: str, counter: Counter[str], limite: int) -> list[str]:
     return lineas
 
 
+def _sanea_eventos(eventos: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Sanea los valores de texto antes de imprimirlos.
+
+    Lo que hay aqui lo eligio el atacante: el nombre de un campo, la ruta, la
+    propia regla. Sin sanear, un `\x1b[2J` en la URL puede borrar la pantalla
+    del operador o reescribir el titulo de su ventana.
+
+    En el formato JSON de Gatekeeper, `json.loads` ya devuelve el ESC como un
+    caracter real (el `\u001b` del archivo lo decodifica), asi que sanear en
+    este punto es lo unico que hay.
+    """
+    limpios: list[dict[str, object]] = []
+    for evento in eventos:
+        limpio: dict[str, object] = {}
+        for clave, valor in evento.items():
+            limpio[clave] = sanear_y_acotar(valor) if isinstance(valor, str) else valor
+        limpios.append(limpio)
+    return limpios
+
+
 def construir_informe(ruta_log: Path, limite: int = 15) -> str:
     with open(ruta_log, encoding="utf-8", errors="replace") as fh:
-        eventos = list(_iter_events(fh))
+        eventos = _sanea_eventos(list(_iter_events(fh)))
 
     reglas = Counter(str(e.get("rule", "?")) for e in eventos)
     rutas = Counter(str(e.get("path", "?")) for e in eventos)
@@ -157,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.json:
             with open(args.log, encoding="utf-8", errors="replace") as fh:
-                eventos = list(_iter_events(fh))
+                eventos = _sanea_eventos(list(_iter_events(fh)))
             reglas = Counter(str(e.get("rule", "?")) for e in eventos)
             campos = Counter(str(e.get("field")) for e in eventos if e.get("field"))
             print(json.dumps(

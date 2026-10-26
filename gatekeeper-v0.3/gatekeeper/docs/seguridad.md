@@ -33,7 +33,7 @@ consultas parametrizadas y validación.
 |---|---|
 | Red/proxy | `trust_proxy` con lectura XFF de derecha a izquierda (`trusted_proxies` / `trusted_proxy_cidrs`) y `blocked_ips` (IP o CIDR) |
 | Abuso | Rate limiting por IP, memoria o Redis atómico |
-| Transporte | Límite de body (1 MiB → 413 si el tamaño declarado o leído lo supera) |
+| Transporte | Límite de body (256 KiB → 413 si el tamaño declarado o leído lo supera) y presupuestos de campos y de tiempo de inspección |
 | Contenido | Normalización (3 rondas, `%uXXXX`, NFKC) + reglas acotadas |
 
 ## Políticas de fallo
@@ -83,8 +83,10 @@ MySQL los ejecuta, y un `/*` sin cierre se deja tal cual. Con el arreglo,
 no solo que «no tarde mucho». Detalle completo y PoC en
 [SECURITY.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY.md).
 
-Las reglas personalizadas del usuario **no** están acotadas: revisa tus
-patrones.
+Las reglas personalizadas del usuario se **validan al arrancar**: el riesgo
+de backtracking exponencial se rechaza con `ValueError` y el cuadrático se
+avisa en el log. Si necesitas un patrón que no se puede acotar, pon
+`allow_unsafe_custom_rules=True` (queda avisado).
 
 ## Auditoría sin fugas
 
@@ -99,6 +101,11 @@ sin volcar credenciales.
     Ese nombre lo elige el atacante, así que puede acabar en el log (acotado a
     256 caracteres). Los **valores** no se registran nunca; los **nombres** sí.
     Si vas a mandar estos logs a un tercero, tenlo en cuenta.
+
+    Todo el texto que se registra va además **saneado**: sin ESC ni otros
+    caracteres de control. Sin eso, un `\x1b[2J` en la URL podría borrar la
+    pantalla del operador que abre el log (o reescribir el título de su
+    ventana).
 
 !!! note "El puntero JSON se recorta"
     El campo que aparece en la auditoría es un puntero JSON (`/users/0/bio`).

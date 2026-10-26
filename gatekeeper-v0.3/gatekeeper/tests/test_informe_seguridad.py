@@ -76,14 +76,19 @@ def test_las_reglas_integradas_siguen_todas_acotadas():
                 pytest.fail(f"{familia}: cuantificador sin cota en {patron.pattern!r}")
 
 
-def test_las_reglas_del_usuario_siguen_sin_proteccion():
-    """A-1: las reglas propias NO tienen proteccion de ReDoS.
+def test_las_reglas_del_usuario_ahora_si_estan_validadas():
+    """A-1 decia que las reglas propias NO tenian proteccion de ReDoS.
 
-    Si esto cambia, el informe tiene que cambiar con ello.
+    Desde la Fase 2.3 (0.6.0) si la tienen: una regex con backtracking
+    exponencial se rechaza al arrancar. Este test fija ese cambio: si vuelve
+    a aceptarse en silencio, el informe de seguridad tiene que actualizarse.
     """
-    config = Config(custom_rules={"mia": r"(a+)+$"})
+    with pytest.raises(ValueError):
+        Config(custom_rules={"mia": r"(a+)+$"})
+
+    # Con la salida explicita, se acepta (y el usuario es responsable).
+    config = Config(custom_rules={"mia": r"(a+)+$"}, allow_unsafe_custom_rules=True)
     assert "mia" in config.compiled_custom
-    # Se compilan tal cual: el usuario es responsable.
     assert config.compiled_custom["mia"][0].pattern == r"(a+)+$"
 
 

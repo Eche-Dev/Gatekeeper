@@ -146,12 +146,12 @@ def test_el_caso_peor_esta_acotado():
 # ----------------------------------------------- a traves del middleware real
 
 
-def _middleware() -> GatekeeperMiddleware:
+def _middleware(**cfg) -> GatekeeperMiddleware:
     async def ok(request):
         return PlainTextResponse("ok")
 
     app = Starlette(routes=[Route("/{path:path}", ok, methods=["POST"])])
-    return GatekeeperMiddleware(app, Config(rate_limit=0))
+    return GatekeeperMiddleware(app, Config(rate_limit=0, **cfg))
 
 
 def test_el_middleware_real_no_sufre_la_amplificacion():
@@ -159,6 +159,47 @@ def test_el_middleware_real_no_sufre_la_amplificacion():
 
     Este es el test que importa: el fallo original se reproducía mandando una
     peticion HTTP de verdad a un `GatekeeperMiddleware`.
+
+    El presupuesto de campos se desactiva aqui (`max_fields=0`) a proposito:
+    este test mide el recorte del PUNTERO, que es una proteccion distinta y
+    anterior. Con el presupuesto puesto, esta peticion ni siquiera llega al
+    puntero (ver `test_el_presupuesto_de_campos_corta_el_json_profundo`).
+    """
+    cuerpo = _json_profundo(10000)
+
+    async def receive():
+        return {"type": "http.request", "body": cuerpo, "more_body": False}
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/x",
+        "headers": [(b"content-type", b"application/json")],
+        "client": ("1.2.3.4", 1234),
+    }
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    app = _middleware(max_fields=0, max_inspection_ms=0)
+    tracemalloc.start()
+    asyncio.run(app(scope, receive, send))
+    _, pico = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    assert sent[0]["status"] == 200, sent
+    assert pico < 32 * 1024 * 1024, (
+        f"el middleware consumio {pico / 1024 / 1024:.1f} MiB con un body de "
+        f"{len(cuerpo) / 1024:.0f} KiB"
+    )
+
+
+def test_el_presupuesto_de_campos_corta_el_json_profundo():
+    """Un JSON de 10.000 niveles agota el presupuesto de campos: 413.
+
+    Es una proteccion ADICIONAL a la del puntero: ahora el ataque se corta
+    antes de construir ningun puntero, y con un cuerpo mucho mas pequeno.
     """
     cuerpo = _json_profundo(10000)
 
@@ -178,16 +219,8 @@ def test_el_middleware_real_no_sufre_la_amplificacion():
         sent.append(message)
 
     app = _middleware()
-    tracemalloc.start()
     asyncio.run(app(scope, receive, send))
-    _, pico = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
-
-    assert sent[0]["status"] == 200, sent
-    assert pico < 32 * 1024 * 1024, (
-        f"el middleware consumio {pico / 1024 / 1024:.1f} MiB con un body de "
-        f"{len(cuerpo) / 1024:.0f} KiB"
-    )
+    assert sent[0]["status"] == 413, sent
 
 
 def test_veinte_peticiones_concurrentes_no_revientan_la_memoria():
@@ -196,7 +229,7 @@ def test_veinte_peticiones_concurrentes_no_revientan_la_memoria():
     Antes del arreglo, 10 peticiones simultaneas llegaban a 1,9 GiB.
     """
     cuerpo = _json_profundo(5000)
-    app = _middleware()
+    app = _middleware(max_fields=0, max_inspection_ms=0)
 
     async def una():
         async def receive():

@@ -31,7 +31,73 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 - `Config(rate_max_keys=...)`: tope de IPs distintas que el backend en memoria
   recuerda (10.000). `Config(rate_ipv6_prefix=...)`: bits de prefijo IPv6 que se
   agrupan al contar (64).
+- **Presupuesto de campos por petición** (`Config.max_fields`, 1000 textos
+  inspeccionados: una clave y su valor cuentan como dos). Al superarlo, la
+  petición se **rechaza con 413** y se audita `too_many_fields`. Los campos que
+  sobran **no se ignoran**: ignorarlos sería un bypass, porque el atacante
+  mandaría el payload en el campo que se queda sin inspeccionar.
+- **Presupuesto de tiempo de inspección** (`Config.max_inspection_ms`, 1 s).
+  Al superarlo, la petición se **rechaza con 413** y se audita
+  `inspection_timeout`. No hay modo fail-open: un presupuesto que se pudiera
+  agotar a propósito para saltarse la detección sería un bypass. El defecto
+  es holgado a propósito: la protección principal es `max_fields`, que no
+  depende de la velocidad de la máquina.
 - 23 tests que fijan el contrato de lo anterior (`tests/test_ratelimit_hardening.py`).
+- 18 tests que fijan el contrato del presupuesto
+  (`tests/test_presupuesto_inspeccion.py`), dos contadores nuevos en
+  `tools/metrics.py` (`gatekeeper_too_many_fields_total`,
+  `gatekeeper_inspection_timeout_total`) y dos eventos nuevos en el catálogo
+  `corpus/events.json`.
+- **Las reglas propias se validan al arrancar** (`src/gatekeeper/redos.py`).
+  Antes se compilaban tal cual: `(a+)+$` sobre 60 caracteres no terminaba en
+  20 segundos, y eso era un DoS en el propio WAF, sin necesidad de adversario.
+  Ahora el patrón se analiza **de forma estática** (sin ejecutarlo: medirlo
+  sería el propio DoS) y hay dos niveles:
+  - **Exponencial** → `ValueError` al arrancar: cuantificadores anidados sin
+    nada obligatorio detrás (`(a+)+`), alternativas solapadas en un grupo
+    repetido (`(a|a)+`, `(a|ab)+`) y referencias atrás repetidas.
+  - **Cuadrático** → warning en el log, la app arranca: cuantificadores
+    anidados con separador detrás (`(?:\w+\.)+\w+`). No cuelga con una
+    entrada corta, pero se degrada con el tamaño (medido: 7,4 s con 50.000
+    caracteres).
+  - `Config(allow_unsafe_custom_rules=True)` acepta el riesgo exponencial
+    (y avisa). También hay topes de longitud de patrón (1000) y de número de
+    reglas (100).
+  - 33 tests que fijan el contrato (`tests/test_custom_rules_redos.py`).
+
+### Corregido
+- **El escape de terminal en `gatekeeper report`** (ambos formatos). Lo que el
+  CLI imprime lo elige el atacante (el nombre de un campo, la ruta): un
+  `\x1b[2J` en la URL podía borrar la pantalla del operador o reescribir el
+  título de su ventana. En el formato JSON, `json.loads` convertía el
+  `\u001b` del archivo en un ESC real, que llegaba a la terminal tal cual. Ahora
+  todo el texto que se imprime va **saneado** (sin ESC ni otros caracteres de
+  control; el ESC se marca como `\e` para que se vea que había algo).
+- **El log de auditoría se sanea y se acota.** El mismo texto no confiable
+  llegaba al archivo de log, y de ahí a la terminal de quien lo abría (o a un
+  SIEM). Ahora el texto que se registra va sin caracteres de control y
+  acotado a 256 caracteres: un nombre de campo de 100 KB ya no produce una
+  línea de log de 100 KB.
+- **La promesa del log era falsa.** Documentaba que "nunca se registra el
+  contenido del payload", pero el **nombre** de un campo lo elige el atacante:
+  un parámetro cuyo nombre es el payload entero llegaba entero al log. Lo que
+  se garantiza (y ahora se dice con precisión en `SECURITY.md`, `docs/`,
+  `README.md` y `corpus/events.json`) es que los **valores** nunca se
+  registran; los **nombres** sí, porque sin ellos no se puede atribuir un
+  falso positivo. El log es texto no confiable, no un depósito de
+  credenciales interceptadas.
+
+### Cambiado
+- **`max_body_size` baja de 1 MiB a 256 KiB por defecto.** Es el límite de lo
+  que se lee: la inspección consume CPU. Si tu app acepta bodies mayores,
+  súbelo (por endpoint, con dos instancias de `Config` si hace falta).
+
+### Corregido
+- **El coste de inspeccionar escalaba con el número de campos, y el límite de
+  tamaño no lo cubría.** Medido: ~67 µs por campo, así que 20.000 campos
+  costaban **1,34 s** de CPU en una sola petición (y el `max_body_size` no
+  los frenaba: un cuerpo de muchos campos es pequeño). Con el presupuesto,
+  26.000 campos se rechazan en **0,003 s**.
 
 ## [0.5.0] - 2026-10-25
 
