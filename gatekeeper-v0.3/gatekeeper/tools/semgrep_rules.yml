@@ -45,9 +45,14 @@ rules:
 
   # --- 2. Las regex con el cuantificador acotado --------------------------
   # Excepcion: un cuantificador seguido de `$` (fin de linea) es lineal y no
-  # puede hacer backtracking: `\s*$` no es un DoS. Por eso el `$` literal se
-  # excluye. El `$` del texto es un caracter, no el fin de linea del regex de
-  # semgrep: por eso va escapado como `\$`.
+  # puede hacer backtracking: `\s*$` no es un DoS. Por eso, despues del
+  # cuantificador tiene que haber un caracter que no sea `$` (el `$` del
+  # texto es un caracter, no el fin de linea del regex de semgrep: por eso
+  # va escapado como `\$`).
+  #
+  # Es un unico `pattern-regex` a proposito: las combinaciones de `pattern-inside`
+  # con `pattern-not-regex` dependen de la build de semgrep-core y en Linux
+  # (la del CI) dan "invalid configuration file".
   - id: gatekeeper-regex-sin-cota
     languages: [python]
     severity: ERROR
@@ -56,10 +61,7 @@ rules:
       `*` o un `+` sin cota es un DoS esperando (el texto de entrada puede
       ser largo). Es la regla estatica del test de fuzzing de
       `tests/test_fuzz.py`.
-    patterns:
-      - pattern-inside: re.compile(...)
-      - pattern-regex: '(\\s\*|\\S\*|\\w\*|\\W\*|\\d\*|\\D\*|\.\*|\.\+|\{[0-9]+,\})([^\$]|$)'
-      - pattern-not-regex: '(\\s\*|\\S\*|\\w\*|\\W\*|\\d\*|\\D\*|\.\*|\.\+|\{[0-9]+,\})\$'
+    pattern-regex: 're\.compile\(.*(\\s\*|\\S\*|\\w\*|\\W\*|\\d\*|\\D\*|\.\*|\.\+|\{[0-9]+,\})[^$]'
 
   # --- 3. Nada bloqueante dentro de async def -----------------------------
   - id: gatekeeper-bloqueante-en-el-event-loop

@@ -338,13 +338,30 @@ jobs:
           semgrep scan \
             --config gatekeeper-v0.3/gatekeeper/tools/semgrep_rules.yml \
             --metrics=off --error \
-            gatekeeper-v0.3/gatekeeper/src
+            gatekeeper-v0.3/gatekeeper/src 2>&1 | tee /tmp/semgrep.log || true
+          CODE=${PIPESTATUS[0]}
+          if [ "$CODE" -ne 0 ]; then
+            echo "::error::semgrep con las reglas propias devolvio el codigo $CODE"
+            { echo "### semgrep (reglas propias)"; echo '```'; tail -n 25 /tmp/semgrep.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$CODE"
       - name: semgrep con las reglas de la comunidad (informa)
         run: |
           semgrep scan \
             --config p/default \
             --metrics=off \
-            gatekeeper-v0.3/gatekeeper/src \
-            || echo "::warning::semgrep (p/default) ha encontrado algo. No bloquea: las reglas de la comunidad cambian sin avisar."
+            gatekeeper-v0.3/gatekeeper/src 2>&1 | tee /tmp/semgrep-comunidad.log || true
+          CODE=${PIPESTATUS[0]}
+          if [ "$CODE" -ne 0 ]; then
+            echo "::warning::semgrep (p/default) ha encontrado algo o no ha podido correr (codigo $CODE). No bloquea: las reglas de la comunidad cambian sin avisar."
+            { echo "### semgrep (p/default)"; echo '```'; tail -n 25 /tmp/semgrep-comunidad.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: zizmor sobre los workflows de GitHub Actions (bloquea)
-        run: zizmor --min-severity medium .github/workflows
+        run: |
+          zizmor --min-severity medium .github/workflows 2>&1 | tee /tmp/zizmor.log || true
+          CODE=${PIPESTATUS[0]}
+          if [ "$CODE" -ne 0 ]; then
+            echo "::error::zizmor ha encontrado hallazgos de severidad medium o mas (codigo $CODE)"
+            { echo "### zizmor"; echo '```'; tail -n 25 /tmp/zizmor.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$CODE"
