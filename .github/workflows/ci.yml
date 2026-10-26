@@ -30,6 +30,10 @@ jobs:
         python: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # El token de GitHub no se queda en `.git/config`: este job no hace
+          # push, y un token persistido puede acabar en un artefacto.
+          persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: ${{ matrix.python }}
@@ -93,6 +97,10 @@ jobs:
         working-directory: gatekeeper-v0.3/gatekeeper
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # El token de GitHub no se queda en `.git/config`: este job no hace
+          # push, y un token persistido puede acabar en un artefacto.
+          persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.12"
@@ -145,6 +153,10 @@ jobs:
         working-directory: gatekeeper-v0.3/gatekeeper
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # El token de GitHub no se queda en `.git/config`: este job no hace
+          # push, y un token persistido puede acabar en un artefacto.
+          persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.12"
@@ -163,6 +175,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # El token de GitHub no se queda en `.git/config`: este job no hace
+          # push, y un token persistido puede acabar en un artefacto.
+          persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.12"
@@ -220,6 +236,10 @@ jobs:
         working-directory: gatekeeper-v0.3/gatekeeper
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # El token de GitHub no se queda en `.git/config`: este job no hace
+          # push, y un token persistido puede acabar en un artefacto.
+          persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.12"
@@ -283,3 +303,48 @@ jobs:
             --ignore-vuln CVE-2026-115877 \
             -r /tmp/servers.txt
           echo "::warning::El extra 'servers' arrastra Twisted con avisos sin parche estable. No afecta al runtime del paquete."
+
+  sast:
+    # Analisis estatico: `semgrep` (reglas de la comunidad + las reglas
+    # propias del proyecto) y `zizmor` para los workflows de GitHub Actions.
+    #
+    # Las reglas PROPIAS (gatekeeper-v0.3/gatekeeper/tools/semgrep_rules.yml)
+    # bloquean: son del proyecto, estan versionadas, y cada una se midio en
+    # las dos direcciones (0 hallazgos con el codigo bueno, y salta con el
+    # bug que vigila). Las de la COMUNIDAD solo informan: `p/default` cambia
+    # con el tiempo, y un hallazgo nuevo de la comunidad no es un fallo de
+    # este repositorio.
+    #
+    # El objetivo del plan es cero hallazgos de severidad alta: `zizmor` sale
+    # con error a partir de `medium`, y las reglas propias de semgrep fallan
+    # siempre.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # El token de GitHub no se queda en `.git/config`: este job no hace
+          # push, y un token persistido puede acabar en un artefacto.
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12"
+      # Versiones fijadas: el resultado del analisis tiene que ser el mismo
+      # manana que hoy.
+      - run: pip install -q "semgrep==1.182.1" "zizmor==1.30.1"
+      - name: semgrep con las reglas propias del proyecto (bloquea)
+        run: |
+          semgrep scan \
+            --config gatekeeper-v0.3/gatekeeper/tools/semgrep_rules.yml \
+            --metrics=off --error \
+            gatekeeper-v0.3/gatekeeper/src
+      - name: semgrep con las reglas de la comunidad (informa)
+        run: |
+          semgrep scan \
+            --config p/default \
+            --metrics=off \
+            gatekeeper-v0.3/gatekeeper/src \
+            || echo "::warning::semgrep (p/default) ha encontrado algo. No bloquea: las reglas de la comunidad cambian sin avisar."
+      - name: zizmor sobre los workflows de GitHub Actions (bloquea)
+        run: zizmor --min-severity medium .github/workflows

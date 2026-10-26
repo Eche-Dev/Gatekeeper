@@ -15,6 +15,7 @@ from .redos import (
     analizar_redos,
 )
 from .rules import RULES, resolve_rules
+from .sanitize import sanear_y_acotar
 
 logger = logging.getLogger("gatekeeper")
 
@@ -285,15 +286,21 @@ class Config:
             )
 
         for name, pattern in rules.items():
+            # El nombre de la regla lo elige quien configura, pero eso no lo
+            # hace de fiar: puede traer un ESC (que limpia la terminal de
+            # quien lee el log) o ser larguisimo (una linea de log de 100 KB).
+            # Al log y al traceback va saneado y acotado, como el resto del
+            # texto que sale del proceso (ver `sanitize.py`).
+            nombre_log = sanear_y_acotar(str(name))
             if not name:
                 raise ValueError("Una regla personalizada tiene el nombre vacío")
             if name in RULES:
-                raise ValueError(f"La regla personalizada '{name}' choca con una regla integrada")
+                raise ValueError(f"La regla personalizada '{nombre_log}' choca con una regla integrada")
             if not pattern:
-                raise ValueError(f"Regla personalizada '{name}': el patrón está vacío")
+                raise ValueError(f"Regla personalizada '{nombre_log}': el patrón está vacío")
             if len(pattern) > MAX_PATTERN_LENGTH:
                 raise ValueError(
-                    f"Regla personalizada '{name}': el patrón es demasiado largo "
+                    f"Regla personalizada '{nombre_log}': el patrón es demasiado largo "
                     f"({len(pattern)} caracteres; máximo {MAX_PATTERN_LENGTH})"
                 )
             # Una regex catastrofica es un DoS en el propio WAF: se comprueba
@@ -301,19 +308,22 @@ class Config:
             analisis = analizar_redos(pattern)
             if analisis is not None:
                 nivel, motivo = analisis
+                # El motivo incluye fragmentos del propio patron: es texto no
+                # confiable y va acotado antes de escribirlo.
+                motivo_log = sanear_y_acotar(motivo)
                 if nivel == NIVEL_EXPONENCIAL:
                     if not self.allow_unsafe_custom_rules:
                         raise ValueError(
-                            f"Regla personalizada '{name}': patrón con riesgo de ReDoS "
-                            f"({motivo}). Reescríbelo sin cuantificadores anidados ni "
+                            f"Regla personalizada '{nombre_log}': patrón con riesgo de ReDoS "
+                            f"({motivo_log}). Reescríbelo sin cuantificadores anidados ni "
                             f"alternativas solapadas, o pon "
                             f"allow_unsafe_custom_rules=True si aceptas el riesgo."
                         )
                     logger.warning(
                         "Regla personalizada '%s': patrón con riesgo de ReDoS (%s), "
                         "aceptado porque allow_unsafe_custom_rules=True",
-                        name,
-                        motivo,
+                        nombre_log,
+                        motivo_log,
                     )
                 else:
                     # Riesgo cuadratico: no cuelga con una entrada corta, pero se
@@ -323,13 +333,13 @@ class Config:
                         "Regla personalizada '%s': patrón con riesgo de backtracking "
                         "cuadrático (%s). Con entradas grandes puede tardar mucho; "
                         "considera acotarlo",
-                        name,
-                        motivo,
+                        nombre_log,
+                        motivo_log,
                     )
             try:
                 self.compiled_custom[name] = [re.compile(pattern)]
             except (re.error, OverflowError) as exc:
-                raise ValueError(f"Regla personalizada '{name}': patrón inválido ({exc})") from exc
+                raise ValueError(f"Regla personalizada '{nombre_log}': patrón inválido ({sanear_y_acotar(str(exc))})") from exc
 
         unknown = set(self.disabled_rules) - set(RULES) - set(rules)
         if unknown:

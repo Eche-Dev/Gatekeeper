@@ -1,0 +1,90 @@
+# Reglas propias de Gatekeeper para semgrep.
+#
+# `p/default` (las reglas de la comunidad) miran patrones genericos de
+# Python: `eval`, `shell=True`, `verify=False`... En este proyecto hay fallos
+# que un linter generico no ve porque son fallos DE ESTE proyecto:
+#
+# 1. El log nunca lleva texto sin sanear. `sanitize.py` existe porque un ESC
+#    en la ruta llega al archivo de log y de ahi a la terminal de quien lo
+#    mira.
+# 2. Las regex de deteccion llevan los cuantificadores acotados (`\s{0,16}`
+#    y no `\s*`): un `*` sin cota es un DoS esperando, y ya hay un test de
+#    fuzzing que lo caza. Esta regla es la version estatica de ese test.
+# 3. El middleware es async: una llamada bloqueante dentro de `async def`
+#    congela el event loop de todo el proceso.
+# 4. `trust_proxy` no se activa por defecto: el cliente podria falsear su IP.
+#
+# Cada regla se mide antes de entrar en el CI, y en las DOS direcciones: con
+# el codigo bueno tiene que dar 0 hallazgos, y con el bug metido a proposito
+# tiene que dar el hallazgo. Una regla que no suena con el bug presente no
+# esta vigilando nada, y una que suena de mas acaba ignorandose.
+#
+# OJO: `metavariable-pattern` con `pattern: re.compile(...)` no funciona en
+# esta version de semgrep (no filtra nada y la regla se queda muda). Por eso
+# las reglas de abajo usan `pattern-regex` y `pattern-inside`.
+rules:
+  # --- 1. El log no interpola texto ----------------------------------------
+  # Un f-string (o un `%`, o un `.format()`) mete en la linea lo que tenia el
+  # valor: si ese valor trae un ESC, limpia la terminal de quien lee el log.
+  # El valor tiene que pasar por `sanear_y_acotar()` y escribirse con `%s`.
+  #
+  # Que el texto que llega al log este SANEADO de verdad lo fija el test
+  # (`tests/test_config.py`): el motor de semgrep no distingue "este valor se
+  # saneo antes" de "este valor no se saneo nunca".
+  - id: gatekeeper-log-con-interpolacion
+    languages: [python]
+    severity: ERROR
+    message: >-
+      El log no interpola texto con f-string, `%` ni `.format()`: eso mete en
+      la linea lo que tenia el valor (un ESC limpia la terminal de quien lee
+      el log). Pasa el valor por `sanear_y_acotar()` y escribelo con `%s`.
+    pattern-either:
+      - pattern: logger.$METODO(f"...")
+      - pattern: logger.$METODO("..." % ...)
+      - pattern: logger.$METODO("...".format(...))
+
+  # --- 2. Las regex con el cuantificador acotado --------------------------
+  # Excepcion: un cuantificador seguido de `$` (fin de linea) es lineal y no
+  # puede hacer backtracking: `\s*$` no es un DoS. Por eso el `$` literal se
+  # excluye. El `$` del texto es un caracter, no el fin de linea del regex de
+  # semgrep: por eso va escapado como `\$`.
+  - id: gatekeeper-regex-sin-cota
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Cuantificador sin cota en una regex. Usa `\s{0,16}` en vez de `\s*`: un
+      `*` o un `+` sin cota es un DoS esperando (el texto de entrada puede
+      ser largo). Es la regla estatica del test de fuzzing de
+      `tests/test_fuzz.py`.
+    patterns:
+      - pattern-inside: re.compile(...)
+      - pattern-regex: '(\\s\*|\\S\*|\\w\*|\\W\*|\\d\*|\\D\*|\.\*|\.\+|\{[0-9]+,\})([^\$]|$)'
+      - pattern-not-regex: '(\\s\*|\\S\*|\\w\*|\\W\*|\\d\*|\\D\*|\.\*|\.\+|\{[0-9]+,\})\$'
+
+  # --- 3. Nada bloqueante dentro de async def -----------------------------
+  - id: gatekeeper-bloqueante-en-el-event-loop
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Llamada bloqueante dentro de `async def`: congela el event loop de todo
+      el proceso. Usa la variante asincrona (`httpx`, `redis.asyncio`) o
+      `await asyncio.sleep()`.
+    patterns:
+      - pattern-inside: |
+          async def $FUNC(...):
+              ...
+      - pattern-either:
+          - pattern: time.sleep(...)
+          - pattern: requests.$METODO(...)
+          - pattern: urllib.request.urlopen(...)
+          - pattern: subprocess.run(...)
+
+  # --- 4. El proxy no se confiar por defecto --------------------------------
+  - id: gatekeeper-confiar-en-el-proxy-por-defecto
+    languages: [python]
+    severity: ERROR
+    message: >-
+      `trust_proxy=True` dentro del paquete: el cliente podria falsear su IP
+      (y con ella, su rate limit). Confiar en el proxy es una decision de
+      quien despliega, y va en la configuracion de la aplicacion.
+    pattern: $FUNC(trust_proxy=True)

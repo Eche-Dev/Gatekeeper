@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from gatekeeper import Config
@@ -80,3 +82,43 @@ def test_custom_rules_wrong_type_is_rejected():
 def test_disabling_a_custom_rule_is_allowed():
     cfg = Config(custom_rules={"probe": r"\.env"}, disabled_rules={"probe"})
     assert cfg.disabled_rules == {"probe"}
+
+
+# --- F6: al log solo sale texto saneado y acotado --------------------------
+# El nombre de una regla personalizada lo elige quien configura, pero eso no
+# lo hace de fiar: un ESC en el nombre limpia la terminal de quien lee el
+# log (el mismo motivo por el que existe `sanitize.py`), y un nombre de
+# 100 KB produce una linea de log de 100 KB.
+
+
+def test_el_nombre_de_una_regla_llega_saneado_al_log(caplog):
+    with caplog.at_level(logging.WARNING, logger="gatekeeper"):
+        Config(
+            custom_rules={"regla\x1b[2Jmaliciosa": r"(a+)+"},
+            allow_unsafe_custom_rules=True,
+        )
+    assert "\x1b" not in caplog.text
+    assert "\\e[2J" in caplog.text
+
+
+def test_el_nombre_largo_se_acota_al_log(caplog):
+    with caplog.at_level(logging.WARNING, logger="gatekeeper"):
+        Config(
+            custom_rules={"x" * 5000: r"(a+)+"},
+            allow_unsafe_custom_rules=True,
+        )
+    assert len(caplog.text) < 1000
+    assert "…" in caplog.text
+
+
+def test_el_error_de_configuracion_tambien_lleva_el_nombre_saneado():
+    with pytest.raises(ValueError) as exc:
+        Config(custom_rules={"regla\x1b[2J": "("})
+    assert "\x1b" not in str(exc.value)
+
+
+def test_un_nombre_no_texto_sigue_funcionando():
+    """El nombre se sanea al escribirlo, no al validarlo: un nombre raro no
+    cambia el comportamiento del resto de la configuracion."""
+    cfg = Config(custom_rules={5: r"\.env"})
+    assert 5 in cfg.compiled_custom

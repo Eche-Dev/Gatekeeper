@@ -5,6 +5,40 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ## [Sin publicar]
 
+### Corregido
+
+- **El nombre de una regla personalizada llegaba al log sin sanear.** El log
+  de auditoría (`middleware._audit`) sanea y acota todo lo que escribe —la
+  ruta, el nombre del campo, el patrón—, pero los avisos de `config.py` (una
+  regla personalizada con riesgo de ReDoS) escribían el nombre de la regla y
+  el motivo del análisis tal cual. Un ESC en el nombre limpiaba la terminal de
+  quien leía el log, y un nombre de 100 KB producía una línea de log de 100
+  KB. Ahora el nombre y el motivo pasan por `sanear_y_acotar()`.
+  - **Cómo se ha encontrado**: en la Fase 6, montando las reglas de semgrep.
+  - **Sin cambios de comportamiento**: el nombre se sanea al escribirlo, no al
+    validarlo. Un nombre que no sea texto sigue aceptándose igual que antes.
+
+### Añadido
+
+- **Job `sast` en el CI**: `semgrep` con las reglas de la comunidad y con
+  **cuatro reglas propias del proyecto**, y `zizmor` para los workflows de
+  GitHub Actions.
+  - Las reglas propias (`tools/semgrep_rules.yml`) **bloquean**; las de la
+    comunidad solo informan, porque `p/default` cambia con el tiempo y un
+    hallazgo nuevo de la comunidad no es un fallo de este repositorio.
+  - Cada regla se midió **en las dos direcciones**: 0 hallazgos con el código
+    bueno, y salta con el bug que vigila. El script que lo comprueba está en
+    `.audit/f6_mide_reglas.py`.
+  - Las cuatro: el log no interpola texto con f-string, `%` ni `.format()`; las
+    regex de detección no llevan cuantificadores sin cota (un `\s*` es un DoS
+    esperando: es la versión estática del test de fuzzing); nada bloqueante
+    dentro de `async def` (congelaría el event loop de todo el proceso); y
+    `trust_proxy=True` no se activa dentro del paquete.
+- **`persist-credentials: false` en los siete `actions/checkout`** de los tres
+  workflows. El token de GitHub no se queda en `.git/config`, donde puede
+  acabar en un artefacto. `zizmor` lo auditaba: 7 hallazgos de severidad
+  media, ahora **0**.
+
 ## [0.8.0] - 2026-10-26
 
 ### Distribución y repositorio
