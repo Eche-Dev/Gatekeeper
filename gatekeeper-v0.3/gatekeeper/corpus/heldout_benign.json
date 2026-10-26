@@ -3,6 +3,11 @@
   "provenance": "Redactado para este proyecto. Casos de trafico real de aplicaciones (busquedas, filtros, formularios, parametrizacion) que NO deben bloquearse. Escritos sin consultar las firmas de las reglas de Gatekeeper.",
   "held_out": true,
   "rules_frozen_at": "v0.3.1",
+  "batch2": {
+    "count": 50,
+    "written_after": "Fase 3 (firmas congeladas en la rama objetivo100)",
+    "note": "Segundo lote de trafico legitimo benigno, escrito DESPUES de congelar las firmas de la Fase 3 (tautologia con literales vacios, booleano ciego, sleep numerico, XSS por atributos, cmdi con salto de linea, SSRF con IP en decimal/hex/octal). Se mide una vez: un falso positivo aqui NO se corrige con una firma nueva, se documenta. Antes de los ajustes que el lote de desarrollo si motivaron, este lote tenia 3 falsos positivos; dos los resolvieron esos ajustes (union all y waitfor delay) y el tercero (la IP de metadata citada en una explicacion) sigue abierto y documentado."
+  },
   "payloads": [
     {
       "id": "hob-001",
@@ -457,6 +462,257 @@
       "id": "hob-090",
       "payload": "/api/search?q=c%C3%B3mo+configurar+docker+compose",
       "note": "acento en busqueda"
+    },
+    {
+      "id": "hob-091",
+      "payload": "/catalogo/zapatillas?marca=nike&talla=42&precio_max=99.90",
+      "note": "filtros de catalogo"
+    },
+    {
+      "id": "hob-092",
+      "payload": "/banking/transfer?amount=250.50&currency=EUR&beneficiary=ES9121",
+      "note": "transferencia bancaria"
+    },
+    {
+      "id": "hob-093",
+      "payload": "/hospital/appointments?specialty=cardiology&date=2026-03-10",
+      "note": "citas medicas"
+    },
+    {
+      "id": "hob-094",
+      "payload": "/university/courses?code=CS101&term=2026S&mode=hybrid",
+      "note": "matriculas universitaire"
+    },
+    {
+      "id": "hob-095",
+      "payload": "/vuelos?origen=BCN&destino=PMI&fecha=2026-04-01",
+      "note": "busqueda de vuelos"
+    },
+    {
+      "id": "hob-096",
+      "payload": "/tramites?tramite=renovacion+dni&comunidad=cataluna",
+      "note": "tramite administrativo"
+    },
+    {
+      "id": "hob-097",
+      "payload": "/recipes/search?ingredients=tomato%2C+ajo&q=arrroz",
+      "note": "recetas con lista de ingredientes"
+    },
+    {
+      "id": "hob-098",
+      "payload": "/jobs?role=backend+developer&remote=yes&salary_min=45000",
+      "note": "ofertas de empleo"
+    },
+    {
+      "id": "hob-099",
+      "payload": "/forum/thread?title=how+to+use+union+all+in+sql&page=2",
+      "note": "titulo de hilo que explica SQL"
+    },
+    {
+      "id": "hob-100",
+      "payload": "/support/ticket?subject=Error+en+la+consulta+SQL+al+guardar",
+      "note": "ticket de soporte que menciona SQL"
+    },
+    {
+      "id": "hob-101",
+      "payload": "/docs/sql?query=SELECT+name+FROM+users+WHERE+id+%3D+42",
+      "note": "consulta SQL de ejemplo en la documentacion"
+    },
+    {
+      "id": "hob-102",
+      "payload": "/blog/notes/using+select+and+order+by+in+reports",
+      "note": "«select» y «order by» en un titulo"
+    },
+    {
+      "id": "hob-103",
+      "payload": "/news?tag=union+europea+de+baloncesto",
+      "note": "«union» en el nombre de una institucion"
+    },
+    {
+      "id": "hob-104",
+      "payload": "/weather?city=Oviedo&units=metric&lang=es",
+      "note": "consulta de tiempo"
+    },
+    {
+      "id": "hob-105",
+      "payload": "/music/search?artist=Ramones&album=leave+it+to+moon",
+      "note": "busqueda musical"
+    },
+    {
+      "id": "hob-106",
+      "payload": "/photos?tag=gato&size=large&page=3",
+      "note": "galeria de fotos"
+    },
+    {
+      "id": "hob-107",
+      "payload": "/sports/matches?team=real+madrid&competition=liga&season=2026",
+      "note": "resultados deportivos"
+    },
+    {
+      "id": "hob-108",
+      "payload": "/library/search?author=Garcia+Marquez&title=ciudad+de+los+espias",
+      "note": "catalogo de biblioteca"
+    },
+    {
+      "id": "hob-109",
+      "payload": "/gaming/guides?game=elden+ring&query=boss+de+la+primera+zona",
+      "note": "guia de videojuego"
+    },
+    {
+      "id": "hob-110",
+      "payload": "/travel/tips?tag=backpacking+europe&lang=en",
+      "note": "consejos de viaje"
+    },
+    {
+      "id": "hob-111",
+      "payload": "/faq?q=como+configurar+un+webhook+de+github",
+      "note": "pregunta frecuente sobre webhooks"
+    },
+    {
+      "id": "hob-112",
+      "payload": "/faq?q=how+to+escape+single+quotes+in+sql",
+      "note": "pregunta sobre escapar comillas"
+    },
+    {
+      "id": "hob-113",
+      "payload": "/faq?q=que+significa+coalesce+en+sql",
+      "note": "nombre de funcion SQL en prosa"
+    },
+    {
+      "id": "hob-114",
+      "payload": "/faq?q=difference+between+cast+and+convert+in+sql",
+      "note": "comparacion de funciones en prosa"
+    },
+    {
+      "id": "hob-115",
+      "payload": "/faq?q=como+usar+like+con+patrones+en+sql",
+      "note": "«like» con otra palabra detras"
+    },
+    {
+      "id": "hob-116",
+      "payload": "/faq?q=how+to+use+group+by+with+having+clause",
+      "note": "«group by»/«having» sin numeros"
+    },
+    {
+      "id": "hob-117",
+      "payload": "/faq?q=ejemplo+de+having+en+consultas+sql",
+      "note": "«having» sin comparacion numerica"
+    },
+    {
+      "id": "hob-118",
+      "payload": "/faq?q=como+usar+benchmark+en+go+para+medir",
+      "note": "«benchmark» sin parentesis"
+    },
+    {
+      "id": "hob-119",
+      "payload": "/faq?q=what+is+waitfor+delay+in+sql+server",
+      "note": "«waitfor delay» explicado en ingles"
+    },
+    {
+      "id": "hob-120",
+      "payload": "/faq?q=cuando+usar+substring+en+sql+server",
+      "note": "«substring» sin parentesis"
+    },
+    {
+      "id": "hob-121",
+      "payload": "/faq?q=how+to+use+mid+function+in+oracle+sql",
+      "note": "«mid» sin parentesis"
+    },
+    {
+      "id": "hob-122",
+      "payload": "/faq?q=como+extraer+caracteres+con+ascii+en+sql",
+      "note": "«ascii» sin parentesis"
+    },
+    {
+      "id": "hob-123",
+      "payload": "/faq?q=java+script+o+javascript+que+diferencia",
+      "note": "«javascript» sin esquema"
+    },
+    {
+      "id": "hob-124",
+      "payload": "/faq?q=how+to+load+javascript+on+page+load+without+blocking",
+      "note": "carga de un script en una pagina"
+    },
+    {
+      "id": "hob-125",
+      "payload": "/faq?q=como+incrustar+codigo+de+tercero+en+mi+web",
+      "note": "insercion de codigo de terceros"
+    },
+    {
+      "id": "hob-126",
+      "payload": "/faq?q=is+it+safe+to+use+eval+in+javascript",
+      "note": "«eval» sin parentesis"
+    },
+    {
+      "id": "hob-127",
+      "payload": "/faq?q=que+es+el+prototype+en+javascript",
+      "note": "«prototype» sin «constructor»"
+    },
+    {
+      "id": "hob-128",
+      "payload": "/faq?q=how+to+avoid+prototype+pollution+in+nodejs",
+      "note": "«prototype pollution» sin «constructor»"
+    },
+    {
+      "id": "hob-129",
+      "payload": "/faq?q=como+prevenir+ataques+ssrf+en+tu+api",
+      "note": "pregunta sobre SSRF"
+    },
+    {
+      "id": "hob-130",
+      "payload": "/faq?q=how+to+block+ssrf+attacks+with+allowlist",
+      "note": "pregunta sobre SSRF en ingles"
+    },
+    {
+      "id": "hob-131",
+      "payload": "/faq?q=que+es+el+metadata+de+aws+169.254.169.254",
+      "note": "la IP de metadata citada en una explicacion",
+      "known_fp": "limite conocido: la IP de metadata se bloquea en cualquier posicion; explicarla en un articulo salta. No se afloja porque el parametro de destino (`?ip=169.254.169.254`) es un SSRF real"
+    },
+    {
+      "id": "hob-132",
+      "payload": "/faq?q=how+to+rotate+api+keys+in+github+actions",
+      "note": "rotacion de claves de API"
+    },
+    {
+      "id": "hob-133",
+      "payload": "/faq?q=como+configurar+autenticacion+por+clave+api",
+      "note": "autenticacion por clave"
+    },
+    {
+      "id": "hob-134",
+      "payload": "/faq?q=how+to+read+the+environment+variables+in+python",
+      "note": "variables de entorno"
+    },
+    {
+      "id": "hob-135",
+      "payload": "/faq?q=configurar+variables+de+entorno+con+dotenv",
+      "note": "variables de entorno con dotenv"
+    },
+    {
+      "id": "hob-136",
+      "payload": "/api/v1/orders?status=shipped&min_total=50&currency=EUR&page=2",
+      "note": "filtros de pedidos"
+    },
+    {
+      "id": "hob-137",
+      "payload": "/api/v1/invoices?year=2026&month=02&format=pdf",
+      "note": "listado de facturas"
+    },
+    {
+      "id": "hob-138",
+      "payload": "/api/v1/geo/cities?lat=43.3623&lng=-8.4115&radius=25",
+      "note": "consulta geografica"
+    },
+    {
+      "id": "hob-139",
+      "payload": "/api/v1/metrics?window=24h&resolution=5m&include=nulls",
+      "note": "consulta de metricas"
+    },
+    {
+      "id": "hob-140",
+      "payload": "/api/v1/users?q=Ana+Garcia&role=admin&active=true",
+      "note": "busqueda de usuarios"
     }
   ]
 }

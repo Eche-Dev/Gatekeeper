@@ -30,9 +30,9 @@ BENIGN = json.loads((CORPUS / "heldout_benign.json").read_text(encoding="utf-8")
 # Cifras medidas. Si cambian, el CHANGELOG y el informe deben cambiar con ellas.
 EXPECTED_DETECTED = 103
 EXPECTED_ATTACKS = 109
-EXPECTED_BENIGN = 90
+EXPECTED_BENIGN = 140
 EXPECTED_DOCUMENTED_MISS = 6
-EXPECTED_DOCUMENTED_FP = 4
+EXPECTED_DOCUMENTED_FP = 5
 
 
 def _run(*args: str) -> subprocess.CompletedProcess[str]:

@@ -9,9 +9,9 @@
 | Detectados por la regla esperada | 158 (99.4%) |
 | Falsos negativos no documentados | 0 |
 | Falsos negativos documentados | 0 |
-| Requests benignos | 81 |
+| Requests benignos | 131 |
 | Falsos positivos no documentados | 0 (0.0%) |
-| Falsos positivos documentados | 5 |
+| Falsos positivos documentados | 8 |
 
 ## Detección por regla
 
@@ -34,10 +34,13 @@
 | id | regla | motivo | payload |
 |---|---|---|---|
 | benign-009 | sqli | bloquea una búsqueda legítima sobre time.sleep; es la firma de blind time-based | `/search?q=what+is+sleep(5)+in+python` |
-| benign-011 | xss | sitios de documentación que permiten buscar por nombre de etiqueta | `/search?q=<script>+tag+in+html` |
 | benign-012 | xss | misma familia que la anterior: texto técnico que cita el vector | `/search?q=javascript:+scheme+in+urls` |
 | benign-049 | path_traversal | coincide con la firma de traversal tras decodificar; es el coste de decodificar varias veces | `/search?q=%252e%252e%252f+pruebas+de+codificacion` |
 | benign-071 | proto_pollution | búsquedas legítimas sobre proto-pollution: `__proto__` literal en el valor | `/search?q=que+es+__proto__+en+javascript` |
+| benign-108 | ssti | limite conocido: `{{config}}` es el vector de Jinja2 mas corto; romperlo para tapar una busqueda de documentacion no sale a cuenta | `/search?q=plantilla+de+jinja+con+{{config}}+y+variables` |
+| benign-109 | log4shell | limite conocido: la familia Log4Shell es critica; `${env:...}` en un valor se trata como exfiltracion aunque alguien lo cite en un tutorial | `/search?q=log4j+como+usar+${env:PATH}+en+un+fichero` |
+| benign-110 | log4shell | limite conocido: mismo motivo que el caso anterior (familia Log4Shell) | `/search?q=que+significa+${jndi}+en+log4j` |
+| benign-131 | crlf | limite conocido: un salto de linea seguido de una cabecera puede ser un response splitting; el patron no puede distinguirlo de un texto que la cita | `{"body": "Hola\nLocation: Madrid"}` |
 
 ## Umbrales de CI
 
@@ -69,7 +72,7 @@
 | crs-941100-t5-s1 | xss | `/get` |
 | crs-941140-t14-s1 | xss | `/get/bar?test=url%28javascript%3Aalert%281%29%29` |
 | crs-941180-t7-s1 | xss | `/get/javascript-manual/document.cookie` |
-| crs-942101-t10-s1 | sensitive_files | `/post/foo/9'union+all/bar` |
+| crs-942101-t10-s1 | sqli | `/post/foo/9'union+all/bar` |
 | crs-942101-t11-s1 | sqli | `/post/foo/24+union+all+select+1,2,3+from+aa/bar` |
 | crs-942160-t12-s1 | sqli | `/BENChmARk(2999/**/999,Md5(/` |
 | crs-942360-t29-s1 | sqli | `\|\|(SELECT(DBMS_LDAP.INIT('169.1.1.1',19))FROM(DUAL))/investigate` |
