@@ -104,11 +104,19 @@ def test_una_errata_citada_en_codigo_no_se_detecta(tmp_path: Path):
 
 
 def test_la_version_se_saca_del_pyproject():
-    import tomllib
+    """La version sale del pyproject, no de una constante.
+
+    OJO: no se importa `tomllib` aqui porque no existe en Python 3.10 (una de
+    las versiones que prueba el CI) y el propio verificador ya tiene su
+    alternativa con `tomli`.
+    """
+    import re
 
     modulo = _carga()
-    datos = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    version = datos["project"]["version"]
+    texto = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    encontrado = re.search(r'(?m)^\s*version\s*=\s*"([^"]+)"', texto)
+    assert encontrado, "el pyproject no tiene version"
+    version = encontrado.group(1)
     partes = version.split(".")
     assert len(partes) == 3 and all(p.isdigit() for p in partes)
     assert modulo.VERSION_DE_GATEKEEPER.search(f"Gatekeeper {version}")
