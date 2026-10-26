@@ -2,14 +2,24 @@
 
 ![CI](https://github.com/Eche-Dev/Gatekeeper/actions/workflows/ci.yml/badge.svg)
 ![Docs](https://github.com/Eche-Dev/Gatekeeper/actions/workflows/docs.yml/badge.svg)
+![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.13-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
-Middleware ASGI de seguridad para FastAPI/Starlette: rate limiting, cabeceras
-seguras, detección de patrones de ataque en query y body, reglas propias por YAML
-y auditoría en JSON. **Una capa adicional** delante de tu app, no un WAF ni una
-sustitución de la validación de entradas.
+**Gatekeeper es un middleware ASGI de seguridad para FastAPI y Starlette.** Se
+coloca delante de tu aplicación y, en cada petición, hace tres cosas:
 
-> **La versión publicada es la 0.7.x**, y su código vive en
+1. **Limita el tráfico** por IP (ventana deslizante, en memoria o compartida en Redis).
+2. **Añade las cabeceras de seguridad** que tu app debería servir y que nadie
+   se acuerda de poner (`nosniff`, `HSTS`, `X-Frame-Options`…).
+3. **Busca patrones de ataque** en la ruta, la query string, las cabeceras y el
+   body: SQLi, XSS, path traversal, NoSQL, comandos del sistema, SSRF, SSTI,
+   CRLF, Log4Shell y proto-pollución.
+
+Es **una capa más** de defensa en profundidad, no un WAF: no sustituye a las
+consultas parametrizadas ni a la validación de entradas. Y no promete "no te
+van a atacar": **publica cuánto detecta y cuánto se equivoca**.
+
+> **La versión publicada es la 0.8.x**, y su código vive en
 > [`gatekeeper-v0.3/gatekeeper/`](gatekeeper-v0.3/gatekeeper/) — el nombre de
 > la carpeta es histórico y no coincide con la versión del paquete. Es la única
 > versión que se publica y que recibe mantenimiento.
@@ -20,6 +30,19 @@ sustitución de la validación de entradas.
 > [Compatibilidad y soporte](gatekeeper-v0.3/gatekeeper/docs/compatibilidad.md).
 >
 > **In English: [README.en.md](gatekeeper-v0.3/gatekeeper/README.en.md)**
+
+## Por qué existe
+
+- **Una IP puede pedirlo todo.** Sin límite de peticiones, un bucle contra tu
+  login es un ataque de fuerza bruta y un crawler es un DDoS.
+- **Las cabeceras de seguridad no se ponen solas.** Basta un microservicio
+  olvidado.
+- **Un campo sin validar es una puerta.** Una búsqueda o un filtro que acaba
+  en una consulta o en una plantilla se convierte en inyección si nadie lo
+  revisa.
+
+Gatekeeper los cubre **en un punto, delante de tu app**, sin tocar endpoint por
+endpoint.
 
 ## Empezar
 
@@ -33,7 +56,8 @@ O desde el repositorio:
 
 ```bash
 git clone https://github.com/Eche-Dev/Gatekeeper.git
-pip install ./Gatekeeper/gatekeeper-v0.3/gatekeeper
+cd Gatekeeper
+pip install ./gatekeeper-v0.3/gatekeeper
 ```
 
 ```python
@@ -43,9 +67,6 @@ from gatekeeper import Config, GatekeeperMiddleware
 app = FastAPI()
 app.add_middleware(GatekeeperMiddleware, config=Config(rate_limit=100, rate_window=60))
 ```
-
-Hay una **demo** con playground de payloads y GIF de una sesión real en
-[`gatekeeper-v0.3/gatekeeper/demo/`](gatekeeper-v0.3/gatekeeper/demo/)
 
 Para comprobar en tu propia máquina que bloquea lo que debe, la
 [guía de inicio rápido](gatekeeper-v0.3/gatekeeper/docs/inicio-rapido.md) te da
@@ -57,7 +78,8 @@ inverso).
 
 ## Qué mide (no qué promete)
 
-Tres corpus, todos con guarda en CI:
+Tres corpus, todos con guarda en CI (si una regla nueva los empeora, el
+workflow falla):
 
 | Métrica | Corpus propio (159 + 131) | **Retenido** (109 + 140) | OWASP CRS externo (1379 tests) |
 |---|---|---|---|
@@ -76,6 +98,16 @@ opt-in query/body se publica por separado en
 [corpus/CROSS_REPORT.md](gatekeeper-v0.3/gatekeeper/corpus/CROSS_REPORT.md);
 no se mezcla con estas cifras ni es una evaluación retenida. Publicar el número
 bajo del corpus ajeno es tan importante como el alto del propio.
+
+## El repositorio por dentro
+
+| Qué | Dónde |
+|---|---|
+| El paquete que se publica en PyPI | [`gatekeeper-v0.3/gatekeeper/`](gatekeeper-v0.3/gatekeeper/) |
+| La documentación (fuente de la web) | [`gatekeeper-v0.3/gatekeeper/docs/`](gatekeeper-v0.3/gatekeeper/docs/) |
+| Los corpus y sus informes | [`gatekeeper-v0.3/gatekeeper/corpus/`](gatekeeper-v0.3/gatekeeper/corpus/) |
+| La demo (playground de payloads) | [`gatekeeper-v0.3/gatekeeper/demo/`](gatekeeper-v0.3/gatekeeper/demo/) |
+| Cómo se trabaja aquí | [`AGENTS.md`](AGENTS.md) · [el plan por fases](PLAN-VERIFICADO-100.md) |
 
 ## Documentación
 

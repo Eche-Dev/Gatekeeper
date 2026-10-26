@@ -5,6 +5,8 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ## [Sin publicar]
 
+## [0.8.0] - 2026-10-26
+
 ### Distribución y repositorio
 
 - **El sdist pasa de 514 KiB a 95 KiB.** Se carryendo el corpus (588 KiB sin
@@ -20,7 +22,7 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   sustituidos por `tools/check_docs.py`), el parche suelto del fix de ReDoS y
   los dos planes antiguos se mueven a `.audit/`, que es donde vive la
   evidencia del proyecto. `Evaluacion-ia/` también.
-- `corpus/events.json` actualizado a la **0.7.0** (el catálogo de eventos
+- `corpus/events.json` actualizado a la **0.8.0** (el catálogo de eventos
   decía 0.3.1).
 
 ### Documentación
@@ -62,6 +64,38 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 - El job `compat` del CI (programado, no bloqueante) **mide** la matriz de
   compatibilidad: `tools/compat_matrix.py` ya estaba escrito y no se ejecutaba
   nunca.
+
+### Corregido
+
+- **La portada de la web anunciaba un mínimo de Starlette que no era el real.**
+  `docs/index.md` decía «Starlette ≥ 0.37» mientras `pyproject.toml` declara
+  `starlette>=0.23`. El 0.37 no era un mínimo arbitrario: era el que **rompía
+  la instalación** de quien usara FastAPI 0.103.x, porque al instalar
+  Gatekeeper, pip subía Starlette por encima de 0.28 y FastAPI dejaba de
+  funcionar (arreglado en la 0.4.0). La portada —la primera página que ve
+  quien llega a la web— seguía anunciando el valor causante del problema.
+  - Es el hallazgo **B-10** de `AUDITORIA-2026-10-25.md`, que la Fase 4
+    corrigió a medias: `docs/instalacion.md` sí se arregló, `docs/index.md` no.
+  - **`tools/check_docs.py` ahora lo caza**: comprueba que el mínimo que
+    afirma la documentación sea el que declara `pyproject.toml`. La versión de
+    Gatekeeper ya se comparaba entre sitios; ahora también la de sus
+    dependencias. La comprobación exige que cada afirmación nombre a la
+    dependencia en su propia frase, para que un `redis >= 5.0` cerca de
+    `starlette` no se confunda.
+
+### Cambiado
+
+- **Los README reescritos** (el del paquete, el de la web y el inglés). Ahora
+  explican **qué hace el proyecto y por qué existe** antes de entrar en
+  detalle: el problema (una IP que pide de más, cabeceras que nadie pone, un
+  campo sin validar), las tres cosas que hace el middleware y una sección
+  corta de «qué revisa». El ejemplo de respuesta 403 y de evento de auditoría
+  es **real**, generado ejecutando el middleware, no escrito a mano.
+  - La tabla de 22 filas de protecciones pasa a ser una tabla de 7 por
+    superficie, con el detalle por familia en `docs/amenazas.md` (que ya
+    existía).
+  - La tabla de percentiles de latencia pasa a un párrafo con los tres
+    números y el comando para reproducirlos: la ficha de PyPI se leía peor.
 
 ## [0.7.0] - 2026-10-26
 

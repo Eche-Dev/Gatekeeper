@@ -4,7 +4,8 @@
 
 | Rama | Estado | Recibe correcciones |
 |---|---|---|
-| 0.7.x | **Activa** | Seguridad, errores y features |
+| 0.8.x | **Activa** | Seguridad, errores y features |
+| 0.7.x | Histórica | Solo seguridad crítica |
 | 0.6.x | Histórica | Solo seguridad crítica |
 | 0.5.x | Histórica | Solo seguridad crítica |
 | 0.4.x | Histórica | Solo seguridad crítica |

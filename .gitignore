@@ -41,3 +41,8 @@ Thumbs.db
 .audit/dist/
 .audit/site/
 .audit/wheel_*/
+
+# Binarios de evidencia: se descargan, se inspeccionan, no se versionan
+.audit/*.tar.gz
+.audit/*.whl
+.audit/*.zip
