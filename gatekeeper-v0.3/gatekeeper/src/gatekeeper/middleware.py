@@ -33,7 +33,7 @@ from .ratelimit import (
     RedisBackend,
     normalize_rate_key,
 )
-from .rules import scan_detailed
+from .rules import scan_detailed, scan_plus_as_space
 from .sanitize import sanear, sanear_y_acotar
 
 logger = logging.getLogger("gatekeeper")
@@ -119,11 +119,11 @@ def _query_field(path: str, query: str, cfg: Config) -> str | None:
     disabled = cfg.disabled_rules
     extra = cfg.compiled_custom
     for key, value in parse_qsl(query, keep_blank_values=True):
-        if scan_detailed(key, disabled, extra, cfg.active_rules):
+        if scan_plus_as_space(key, disabled, extra, cfg.active_rules):
             return key
-        if scan_detailed(value, disabled, extra, cfg.active_rules):
+        if scan_plus_as_space(value, disabled, extra, cfg.active_rules):
             return key
-    if scan_detailed(path, disabled, extra, cfg.active_rules):
+    if scan_plus_as_space(path, disabled, extra, cfg.active_rules):
         return "path"
     return None
 
@@ -289,10 +289,13 @@ class GatekeeperMiddleware:
                 self._auditar_presupuesto(exc, ip, scope)
                 await _close_websocket(send, 1008)
                 return
-            target = path + "?" + _query_without_excluded(query, cfg)
+            # El `+` de la RUTA es literal para la app (el servidor ya la
+            # decodificó); el de la query es un espacio (así lo parsea el
+            # servidor). Se protege el de la ruta para no confundirlos.
+            target = path.replace("+", "%2B") + "?" + _query_without_excluded(query, cfg)
 
-            hit = scan_detailed(target, cfg.disabled_rules, cfg.compiled_custom,
-                                cfg.active_rules)
+            hit = scan_plus_as_space(target, cfg.disabled_rules, cfg.compiled_custom,
+                                     cfg.active_rules)
             if hit:
                 rule, pattern = hit
                 self._audit("attack_detected", ip, scope, rule=rule, source="query",
@@ -381,12 +384,15 @@ class GatekeeperMiddleware:
                 return
             # Los campos exentos se quitan del objetivo ANTES de escanear: la
             # detección sigue cruzando parámetros, pero no sobre lo excluido.
-            target = path + "?" + _query_without_excluded(query, cfg)
+            # El `+` de la RUTA es literal para la app (el servidor ya la
+            # decodificó); el de la query es un espacio (así lo parsea el
+            # servidor). Se protege el de la ruta para no confundirlos.
+            target = path.replace("+", "%2B") + "?" + _query_without_excluded(query, cfg)
 
             # 1) ruta + query string: la detección va sobre el objetivo completo
             #    (un payload puede cruzar parámetros); el campo es atribución.
-            hit = scan_detailed(target, cfg.disabled_rules, cfg.compiled_custom,
-                                cfg.active_rules)
+            hit = scan_plus_as_space(target, cfg.disabled_rules, cfg.compiled_custom,
+                                     cfg.active_rules)
             individually_detected = hit is not None
             if hit:
                 rule, pattern = hit
@@ -528,7 +534,7 @@ class GatekeeperMiddleware:
                         if not cfg.field_excluded(pointer)
                     )
                     hit = (
-                        scan_detailed(
+                        scan_plus_as_space(
                             target,
                             cfg.disabled_rules,
                             cfg.compiled_custom,

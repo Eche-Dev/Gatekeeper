@@ -7,6 +7,28 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ### Corregido
 
+- **El `+` de un body se traducía a espacio: el payload llegaba intacto a la
+  aplicación.** En una **query string** el `+` sí es un espacio (así lo parsea
+  el servidor) y así se trata desde la 0.7.0. En un **body** o en una
+  **cabecera** no: para la aplicación, un `+` es un carácter literal, y el
+  operador de MySQL en `sleep(10+6)` lo es. El middleware lo traducía igual
+  (`sleep(10 6)`) y **no lo detectaba**: un `q=sleep(10%2B6)` en un formulario
+  —o un `{"q": "sleep(10+6)"}` en un JSON— pasaba con **200**, y la aplicación
+  ejecutaba la consulta con `sleep(10+6)`, que en MySQL duerme 16 segundos.
+  - **Cómo se ha corregido**: el `+` se lee de las **dos** formas —como espacio
+    y como carácter literal— en todo lo que no viene de una query string. En
+    la query se mantiene la lectura de siempre (una sola traducción, en la
+    primera ronda de decodificación: el arreglo de la 0.7.0).
+  - **Medido**: corpus propio **160/160** (era 159/159; el payload nuevo es
+    `sleep(10+6)`), retenido **103/109 (94,5 %)** sin cambios, CRS **465/1135
+    (41,0 %)** y **11/232 (4,7 %)** de falsos positivos sin cambios: **no se
+    pierde ninguna detección**.
+  - 5 tests nuevos y 2 entradas de corpus (el ataque y su contraparte benigna,
+    `2+2=4`).
+  - **Coste medido**: el segundo escaneo solo ocurre si el valor tiene un `+`.
+    Medido en la misma máquina, antes y después: **+17 %** (209 µs → 245 µs) en
+    el escenario de un body con `+`, y **+0 % a +2 %** (ruido) en los demás.
+    El benchmark tiene ese escenario, así que el guard del CI lo vigila.
 - **El timeout de Redis estaba escrito a pelo y no se podía ajustar.** Con
   Redis caído, cada petición esperaba **2,0 s** antes de decidir (medido:
   fail-open admitió la petición tras 2.017 ms; fail-closed devolvió 503 tras

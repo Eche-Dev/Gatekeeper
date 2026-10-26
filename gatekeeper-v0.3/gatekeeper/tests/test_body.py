@@ -141,3 +141,58 @@ def test_audit_log_never_contains_payload(caplog):
     assert "attack_detected" in caplog.text
     assert '"source": "body"' in caplog.text
     assert "secret_column" not in caplog.text
+
+
+# --- el `+` de un body es LITERAL para la app ------------------------------
+# El `+` de una QUERY es un espacio (lo parsea el servidor). El de un body, de
+# una cabecera o de un JSON NO: para la app es un caracter literal, y el
+# operador de MySQL en `sleep(10+6)` lo es. Traducirlo a espacio era perder el
+# ataque: el middleware inspeccionaba "sleep(10 6)" mientras la app usaba
+# "sleep(10+6)", y el payload llegaba intacto a la base de datos.
+
+
+def test_el_mas_de_un_form_no_se_traduce_a_espacio():
+    r = make_client().post(
+        "/echo",
+        content=b"q=sleep(10%2B6)",
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+    assert r.status_code == 403
+
+
+def test_el_mas_de_un_json_no_se_traduce_a_espacio():
+    r = make_client().post(
+        "/echo",
+        content=b'{"q":"sleep(10+6)"}',
+        headers={"content-type": "application/json"},
+    )
+    assert r.status_code == 403
+
+
+def test_el_mas_de_una_cabecera_no_se_traduce_a_espacio():
+    r = make_client().post(
+        "/echo",
+        content=b"hola",
+        headers={"content-type": "text/plain", "user-agent": "sleep(10+6)"},
+    )
+    assert r.status_code == 403
+
+
+def test_la_query_sigue_tratando_el_mas_como_espacio():
+    """En la query, el `+` SI es un espacio: es lo que parsea el servidor.
+
+    Es el arreglo de la 0.7.0 (el `+` se traduce una sola vez, en la primera
+    ronda). Este test vigila que el arreglo del body no lo rompa.
+    """
+    r = make_client().get("/echo?q=sleep(10%2B6)")
+    assert r.status_code == 403
+
+
+def test_un_mas_en_un_valor_benigno_no_es_un_falso_positivo():
+    """Que el `+` se conserve no puede traer falsos positivos de regalo."""
+    r = make_client().post(
+        "/echo",
+        content=b"q=C%2B%2B",
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+    assert r.status_code == 200
