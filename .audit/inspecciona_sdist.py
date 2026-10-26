@@ -14,14 +14,19 @@ from collections import Counter
 from pathlib import Path
 
 RUTA = Path(sys.argv[1] if len(sys.argv) > 1 else ".audit/pub_0.7.0.tar.gz")
-PREFIJO = "gatekeeper_asgi-0.7.0/"
 
 with tarfile.open(RUTA, "r:gz") as tar:
     miembros = [m for m in tar.getmembers() if m.isfile()]
     total = sum(m.size for m in miembros)
+    # El prefijo es la carpeta raiz del sdist: gatekeeper_asgi-<version>/
+    prefijo = ""
+    if miembros:
+        primero = miembros[0].name.split("/")[0]
+        if primero.endswith("/") or "/" in miembros[0].name:
+            prefijo = primero + "/"
     topes = Counter()
     for m in miembros:
-        rel = m.name[len(PREFIJO):] if m.name.startswith(PREFIJO) else m.name
+        rel = m.name[len(prefijo):] if m.name.startswith(prefijo) else m.name
         partes = rel.split("/")
         if len(partes) > 1:
             topes[partes[0]] += 1
