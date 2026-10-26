@@ -77,7 +77,29 @@ tiene su entrada en el [CHANGELOG](CHANGELOG.md) y sus notas de versión.
 - [x] **Corpus de falsos positivos en español e inglés**: 100 peticiones
       legítimas nuevas (50 de desarrollo + 50 retenidas), publicadas
 
-## v0.8 — coherencia documental (en curso)
+## v0.9 — validación externa (en curso)
+- [x] Job `sast` en CI: `semgrep` (reglas propias bloqueantes + `p/default`
+      informativo) y `zizmor` para los workflows, con `persist-credentials`
+      desactivado en los siete `actions/checkout` (7 hallazgos de zizmor -> 0)
+- [x] Job `bench` en CI: el PR y `main` medidos **en el mismo runner**, con la
+      mediana de tres repeticiones (el ruido típico es del 0,3 %; los picos
+      sueltos del 41 % hacen inviable un umbral absoluto)
+- [x] `Config.redis_timeout`: con Redis caído, el coste por petición estaba
+      escrito a pelo (2,0 s) y no se podía ajustar
+- [x] El log de auditoría sanea **también** los avisos de `config.py` (el
+      nombre de una regla propia llegaba sin sanear ni acotar)
+- [x] Tests diferenciales del body (`tools/diferencial_body.py`): el middleware
+      y la aplicación tienen que interpretar el body igual, medido en las 10
+      combinaciones de la matriz de compatibilidad
+- [x] El `+` de un body es **literal** para la aplicación (el operador de MySQL
+      en `sleep(10+6)`): el middleware lo traducía a espacio y el payload
+      llegaba intacto (bypass corregido)
+- [x] Paquete para la revisión de seguridad independiente
+      (`.audit/PACK-REVISOR/`): alcance, PoC ejecutables, estado medido y
+      plantilla del informe
+- [ ] Revisión de seguridad **independiente**, publicada
+
+## v0.8 — coherencia documental (cerrada)
 - [x] Verificador propio de coherencia (`tools/check_docs.py`): la versión,
       los enlaces internos, las anclas y la higiene editorial, en CI
 - [x] API pública exportada de forma explícita (`scan`, `scan_all`,
@@ -93,16 +115,10 @@ tiene su entrada en el [CHANGELOG](CHANGELOG.md) y sus notas de versión.
       versiones viejas a tags
 - [ ] Métricas Prometheus (contadores de bloqueos y de rate limit)
 
-## Validación externa (pendiente)
-- [ ] Revisión de seguridad **independiente**, publicada
-- [ ] `semgrep` y `zizmor` en CI, además de `bandit` y `pip-audit`
-- [ ] Benchmarks reproducibles en CI con umbrales (hoy no es viable: el ruido
-      de un runner compartido es mayor que la señal)
-- [ ] Tests diferenciales contra FastAPI y Starlette en varias versiones
-
 ## Publicación
 - [x] Publicado en PyPI como `gatekeeper-asgi` con *Trusted Publishing* y
-      provenance verificado (0.4.0, 0.4.1, 0.5.0, 0.6.0, 0.7.0, 0.8.0)
+      provenance verificado (0.4.0, 0.4.1, 0.5.0, 0.6.0, 0.7.0, 0.8.0,
+      0.9.0)
 - [ ] Nombre y versión definitivos del paquete (hoy `gatekeeper-asgi`, con la
       carpeta del repo en `v0.3` por razones históricas)
 - [ ] Demo en Vercel (`vercel --prod` desde `demo/`) — credenciales del

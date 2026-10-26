@@ -14,7 +14,7 @@ pip install "gatekeeper-asgi[yaml]"     # + configuración por YAML
 pip install "gatekeeper-asgi[redis]"    # + rate limit compartido entre workers
 ```
 
-La versión publicada es la **0.8.x** (la carpeta del repositorio se llama
+La versión publicada es la **0.9.x** (la carpeta del repositorio se llama
 `v0.3` por razones históricas; el número exacto de cada versión está en el
 [CHANGELOG](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/CHANGELOG.md)).
 El paquete se publica con *Trusted Publishing* y lleva **provenance

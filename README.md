@@ -19,7 +19,7 @@ Es **una capa más** de defensa en profundidad, no un WAF: no sustituye a las
 consultas parametrizadas ni a la validación de entradas. Y no promete "no te
 van a atacar": **publica cuánto detecta y cuánto se equivoca**.
 
-> **La versión publicada es la 0.8.x**, y su código vive en
+> **La versión publicada es la 0.9.x**, y su código vive en
 > [`gatekeeper-v0.3/gatekeeper/`](gatekeeper-v0.3/gatekeeper/) — el nombre de
 > la carpeta es histórico y no coincide con la versión del paquete. Es la única
 > versión que se publica y que recibe mantenimiento.

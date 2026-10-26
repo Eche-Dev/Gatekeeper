@@ -401,7 +401,8 @@ existía en GitHub, no en el paquete. Lo publica la **0.8.0** (sdist de
 > **Aceptación:** informe publicado; CI en verde con SAST/DAST y umbrales de rendimiento; el README dice quién revisó y cuándo.
 > **Por qué +2:** con esto, tu nota de 100/100 es **defendible** frente a cualquiera que pregunte.
 
-**Estado (26-10-2026): EN CURSO.** Lo hecho:
+**Estado (26-10-2026): EN CURSO** (mergeados en `main`: PR #38 `sast`, #39
+`bench`, #40 `diferencial` → `ae08665`). Lo hecho:
 
 - Una **revisión de entrega** del resultado ya publicado (no es la revisión de
   seguridad: es comprobar que lo mergeado, lo publicado en PyPI y lo
@@ -461,6 +462,12 @@ Lo que queda:
    revisión hecha por quien ajustó las reglas. Es el punto 5 del objetivo.
 2. **`semgrep` + `zizmor` en CI**: hecho (job `sast`), pero la **revisión
    humana** de lo que reporte sigue pendiente en cada push.
+3. **Publicar la 0.9.0**: lo que hay sin publicar es toda la fase 6 (el job
+   `sast`, el job `bench` con su guard, `Config.redis_timeout`, el log saneado
+   y el arreglo del `+` del body). La 0.8.0 ya está en GitHub y PyPI.
+4. **Aplanar el repo** (el punto F5.1): sigue **sin hacer a propósito**, porque
+   mueve `src/`, `tests/` y `docs/` a la raíz y rompe las URLs públicas. Es
+   una decisión del propietario, no un olvido.
 
 ---
 
@@ -479,17 +486,29 @@ Lo que queda:
 [x]  README en inglés
 [x]  El sdist pesa < 100 KB y no lleva demo ni corpus
 [x]  Existe AGENTS.md y CONTRIBUTING.md
-[ ]  Cobertura > 95 % en todos los módulos (hoy __init__.py al 43 %)
-[ ]  Test de complejidad temporal por familia de entradas hostiles
-[ ]  CI con SAST/DAST + umbrales de rendimiento + corpus con línea base real
+[~]  Cobertura > 95 % en todos los módulos — **hoy 94 % global**; por módulo:
+     paths 100 %, rules 99 %, config 98 %, body 96 %, ratelimit 95 %, sanitize
+     94 %, middleware 92 %, cli 91 %, redos 87 %, __init__ 79 % (era 43 %). El
+     umbral por módulo sigue ABIERTO: `redos.py` (87 %) y `__init__.py` (79 %)
+     son los que quedan.
+[x]  Test de complejidad temporal por familia de entradas hostiles — **hecho en
+     la fase 3**: `tests/test_redos_comentarios.py` (linealidad medida, no un
+     "que no tarde más de X"), `tests/test_fuzz.py` (linealidad del escaneo y
+     amplificación de memoria) y `tests/test_dos_punteros_json.py`.
+[x]  CI con SAST/DAST + umbrales de rendimiento + corpus con línea base real —
+     job `sast` (semgrep propio bloqueante + `p/default` + zizmor desde
+     medium), job `bench` (PR vs `main` en el mismo runner, mediana, margen
+     50 %), corpus con línea base real (propio, retenido y CRS).
 [ ]  Revisión de seguridad independiente, publicada
 ```
 
-> Las marcadas son las cerradas por las **fases 0 a 5**. Las que quedan son
-> las de la **fase 6** (validación externa): el sdist ya pesa 95 KiB (el
-> checkbox de arriba está sin marcar por descuido: se corrigió en la fase 5),
-> la cobertura global es del 93,5 % (el umbral por módulo sigue abierto) y
-> la revisión independiente **no la puede hacer quien escribió el código**.
+> Las marcadas son las cerradas por las **fases 0 a 5**; las de la **fase 6**
+> están marcadas según su estado real. De las cuatro que quedaban: la del
+> **test de complejidad temporal** se hizo en la fase 3 y la de **CI con
+> SAST/DAST y umbrales** en esta fase 6 (jobs `sast` y `bench`). Quedan dos:
+> la **cobertura por módulo > 95 %** (hoy 94 % global; el umbral por módulo
+> sigue abierto) y la **revisión de seguridad independiente**, que **no la
+> puede hacer quien escribió el código**.
 
 ---
 
