@@ -44,6 +44,13 @@ jobs:
         run: python tools/evaluate_cross.py --heldout --check
       - name: Procedencia del corpus externo de CRS
         run: python tools/import_crs.py --check
+      - name: La documentacion no miente (version, enlaces, anclas, higiene)
+        # Linter propio: comprueba que la version que dicen README, docs,
+        # SECURITY.md y CHANGELOG es la misma que la de pyproject.toml, que
+        # los enlaces internos y sus anclas existen, y que no vuelven a
+        # colarse las erratas que ya se colaron una vez. Determinista y sin
+        # dependencias: un linter que da falsos positivos acaba ignorandose.
+        run: python tools/check_docs.py
 
   # Rate limiting contra un Redis REAL, no contra fakeredis.
   #

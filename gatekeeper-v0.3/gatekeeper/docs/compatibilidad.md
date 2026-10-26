@@ -89,7 +89,7 @@ Una versión está **soportada** si:
 |---|---|
 | Correcciones de seguridad | ✅ se aplican |
 | Correcciones de errores | ✅ se aplican |
-| Nuevas functionality | ✅ se aplica |
+| Nuevas funcionalidades | ✅ se aplica |
 | Compatibilidad hacia atrás | ✅ se mantiene dentro de la major |
 | Soporte de bugs sin corregir | ❌ no se promete |
 
@@ -118,7 +118,7 @@ correcciones. Eso se anuncia en el CHANGELOG y en las release notes.
 !!! warning "Una major es un corte"
     Al cambiar de major (0.3 → 0.4), se puede cambiar la configuración por
     defecto, quitar opciones o cambiar el comportamiento. Por eso hay
-    [notas de migración](#notas-de-migración) y por eso la versión menor (0.3.1
+    [notas de migración](#notas-de-migracion) y por eso la versión menor (0.3.1
     → 0.3.2) **no** rompe nada: solo añade y corrige.
 
 ## Compatibilidad de la API
@@ -163,7 +163,7 @@ Lo que **no** es API pública (puede cambiar sin aviso en una minor):
 2. La documentación dice qué usar en su lugar.
 3. Se quitan **una major después**, como mínimo.
 
-## Notas de migración
+## Notas de migración {#notas-de-migracion}
 
 Las cambios que rompen compatibilidad se documentan aquí, en el CHANGELOG y
 en las release notes del tag.
@@ -204,10 +204,10 @@ en las release notes del tag.
    nueva), actualizar el número de versión en `pyproject.toml`.
 2. **Verificar**: el CI tiene que estar verde (tests, cobertura, corpus,
    auditoría de dependencias, paquete).
-3. **Etiquetar**: `git tag -a v0.4.1 -m "Gatekeeper 0.4.1"` y subirlo
-   (`git push origin v0.4.1`).
+3. **Etiquetar**: `git tag -a vX.Y.Z -m "Gatekeeper X.Y.Z"` y subirlo
+   (`git push origin vX.Y.Z`).
 4. **Publicar**: crear la **release** en GitHub con ese tag (o publicarla desde
-   la CLI con `gh release create v0.4.1`). El workflow `publicar.yml` construye
+   la CLI con `gh release create vX.Y.Z`). El workflow `publicar.yml` construye
    el wheel y el sdist y los sube a PyPI con Trusted Publishing (OIDC). No hay
    ningún token en los secretos del repositorio.
 5. **Anunciar**: release notes en GitHub con los puntos de la tabla de
@@ -229,7 +229,7 @@ twine check dist/*
 python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 ```
 
-Prueba primero en TestPyPI: es una instalación de verdad, sin consequences.
+Prueba primero en TestPyPI: es una instalación de verdad, sin consecuencias.
 
 ## Cómo reportar un problema
 

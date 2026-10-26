@@ -14,14 +14,17 @@ pip install "gatekeeper-asgi[yaml]"     # + configuración por YAML
 pip install "gatekeeper-asgi[redis]"    # + rate limit compartido entre workers
 ```
 
-La versión publicada es la **0.4.x** (la carpeta del repositorio se llama
-`v0.3` por razones históricas). El paquete se publica con *Trusted Publishing*
-y lleva **provenance verificado** por GitHub: en la ficha de PyPI verás que
-todos los ficheros se subieron con metadatos de provenance firmados.
+La versión publicada es la **0.7.x** (la carpeta del repositorio se llama
+`v0.3` por razones históricas; el número exacto de cada versión está en el
+[CHANGELOG](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/CHANGELOG.md)).
+El paquete se publica con *Trusted Publishing* y lleva **provenance
+verificado** por GitHub: en la ficha de PyPI verás que todos los ficheros
+se subieron con metadatos de provenance firmados.
 
-!!! warning "0.4.0 tiene un DoS de disponibilidad corregido en 0.4.1"
-    La 0.4.0 bloqueaba el event loop con una petición grande y sin
-    autenticación. **Actualiza a 0.4.1 o superior.** Detalle y PoC en
+!!! warning "La 0.4.0 tenía un DoS de disponibilidad, corregido en la 0.4.1"
+    La 0.4.0 (la primera publicación) bloqueaba el event loop con una
+    petición grande y sin autenticación. **Usa 0.4.1 o superior** (la
+    recomendada es la última). Detalle y PoC en
     [Seguridad](seguridad.md) y en
     [SECURITY.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY.md).
 
@@ -48,7 +51,6 @@ todos los ficheros se subieron con metadatos de provenance firmados.
 |---|---|---|
 | `gatekeeper-asgi[yaml]` | PyYAML | Quieres `Config.from_yaml("gatekeeper.yaml")` |
 | `gatekeeper-asgi[redis]` | redis | Rate limit compartido entre workers |
-| `gatekeeper-asgi[dev]` | herramientas de desarrollo | Contribuyes al proyecto |
 | `gatekeeper-asgi[servers]` | hypercorn, daphne | Pruebas con servidores ASGI reales |
 
 ```bash
@@ -57,6 +59,30 @@ pip install "gatekeeper-asgi[redis]"
 
 El núcleo solo depende de `starlette` (cualquier versión ≥ 0.23; FastAPI ya la
 incluye).
+
+!!! info "El extra `dev` existe, pero no se ofrece a quien instala"
+    `pip install "gatekeeper-asgi[dev]"` arrastra pytest, mypy, bandit, ruff,
+    hypothesis, mkdocs y más: es para **contribuir al proyecto**, no para
+    instalar el WAF. En producción, el núcleo (o `yaml`/`redis`) es todo lo
+    que necesitas.
+
+!!! info "El extra `dev` existe, pero no se ofrece a quien instala"
+    `pip install "gatekeeper-asgi[dev]"` arrastra pytest, mypy, bandit, ruff,
+    hypothesis, mkdocs y más: es para **contribuir al proyecto**, no para
+    instalar el WAF. En producción, el núcleo (o `yaml`/`redis`) es todo lo
+    que necesitas.
+
+!!! info "El extra `dev` existe, pero no se ofrece a quien instala"
+    `pip install "gatekeeper-asgi[dev]"` arrastra pytest, mypy, bandit, ruff,
+    hypothesis, mkdocs y más: es para **contribuir al proyecto**, no para
+    instalar el WAF. En producción, el núcleo (o `yaml`/`redis`) es todo lo
+    que necesitas.
+
+!!! info "El extra `dev` existe, pero no se ofrece a quien instala"
+    `pip install "gatekeeper-asgi[dev]"` arrastra pytest, mypy, bandit, ruff,
+    hypothesis, mkdocs y más: es para **contribuir al proyecto**, no para
+    instalar el WAF. En producción, el núcleo (o `yaml`/`redis`) es todo lo
+    que necesitas.
 
 !!! info "Por qué los servidores están en un extra aparte"
     `daphne` arrastra `Twisted`, cuya versión **estable** (26.4.0) tiene

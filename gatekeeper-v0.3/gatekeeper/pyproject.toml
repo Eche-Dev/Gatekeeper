@@ -11,10 +11,13 @@ requires-python = ">=3.10"
 # PEP 639: SPDX + licencias incluidas en el wheel y en el sdist
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [{ name = "Ángel David Echenique Villanueva", email = "angel98dev26@gmail.com" }]
-maintainers = [{ name = "Ángel David Echenique Villanueva", email = "angel98dev26@gmail.com" }]
-# Sin cota superior en starlette a propósito: se verificó que los 247 tests
-# pasan con 0.37 (el mínimo declarado) y con 1.9 (la actual), así que acotarla
+# Sin email en los metadatos: PyPI lo muestra en la ficha y el aviso
+# de privacidad no lo cubre. El canal de contacto es GitHub
+# Security Advisories (ver SECURITY.md).
+authors = [{ name = "Ángel David Echenique Villanueva" }]
+maintainers = [{ name = "Ángel David Echenique Villanueva" }]
+# Sin cota superior en starlette a propósito: se verificó que la suite
+# completa pasa con 0.23 (el mínimo declarado) y con la última, así que acotarla
 # solo rompería instalaciones legítimas sin motivo de seguridad.
 # El mínimo de Starlette es 0.23.0, verificado ejecutando la suite contra
 # 0.23, 0.25, 0.26, 0.27, 0.30, 0.33, 0.35, 0.37, 0.38, 0.41, 0.46 y la
@@ -40,6 +43,9 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.14",
   "Typing :: Typed",
 ]
 keywords = ["security", "asgi", "fastapi", "starlette", "waf", "rate-limiting", "sqli", "xss"]

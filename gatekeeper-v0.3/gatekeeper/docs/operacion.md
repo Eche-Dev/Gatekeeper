@@ -24,7 +24,7 @@ propios de su tipo (`rule`, `source`, `field`, `pattern` en los ataques).
 
 !!! danger "El log lleva datos personales"
     La **IP** y la **ruta** son datos personales. El log en crudo **no se
-    publica** y no se envía aThird parties sin mirar. Lo publicable son los
+    publica** y no se envía a terceros sin mirar. Lo publicable son los
     agregados (cuántas veces saltó cada regla, en qué campos, qué ajustes se
     hicieron).
 

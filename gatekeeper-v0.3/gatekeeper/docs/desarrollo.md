@@ -167,6 +167,6 @@ python -m venv /tmp/audit && /tmp/audit/bin/pip install dist/*.whl
 /tmp/audit/bin/pip-audit --strict -r /tmp/req.txt
 ```
 
-Se filtra el paquete local porque hasta la primera publicación no está en PyPI
-y `--strict` sale con error por eso, que no es una vulnerabilidad sino que el
-paquete aún no existe.
+Se filtra el paquete local porque `gatekeeper-asgi` ya está publicado en
+PyPI y `--strict` sale con error al encontrarlo instalado en editable desde
+el repo. Eso no es una vulnerabilidad: es el paquete local.
