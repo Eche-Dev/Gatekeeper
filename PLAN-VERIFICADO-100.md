@@ -280,6 +280,27 @@ hechos y los 6 criterios de aceptación, medidos.
 > **Aceptación:** los 4 FN y los 2 FP de la lista pasan a detectarse/no detectarse como corresponde; el corpus retenido **no baja** del 94,5 %; los FP nuevos del corpus no superan el umbral documentado; `tools/evaluate.py --check` en verde.
 > **Por qué +3:** mejora la calidad de la detección sin tocar la arquitectura.
 
+**Estado (26-10-2026): COMPLETADA → 93/100.** Medido, no estimado:
+
+| Criterio de aceptación | Resultado |
+|---|---|
+| Los 4 FN se detectan | ✅ `' or ''=`, `substring(version(),1,1)=5`, `foo\nrm -rf /`, IP de metadata en decimal/hex/octal |
+| Los 2 FP de la lista ya no se detectan | ✅ `<script>` en prosa, `sleep(8 hours)` |
+| El corpus retenido no baja del 94,5 % | ✅ **103/109 (94,5 %)**, igual |
+| Los FP nuevos no superan el umbral | ✅ **0** FP sin documentar (propio y retenido) |
+| `tools/evaluate.py --check` en verde | ✅ |
+| Sin perder detecciones | ✅ CRS comparado payload a payload: **0 perdidos, 0 ganados** |
+
+De paso se encontró y se corrigió un **quinto FN**: `decode()` traducía `+` a
+espacio en cada ronda, así que `sleep(10%2B6)` llegaba a las reglas como
+`sleep(10 6)` y no se detectaba.
+
+Y se añadió el **corpus de falsos positivos en español e inglés** que pedía el
+plan: **100 peticiones legítimas nuevas** (50 de desarrollo + 50 retenidas),
+publicadas con sus informes. De ellas salieron **cuatro firmas endurecidas**
+(`union all`, `waitfor delay`, `like null` y los operadores NoSQL), cada una
+medida antes de tocarla contando cuántos ataques dependían *solo* de ella.
+
 ---
 
 ### 🔵 FASE 4 — Coherencia documental · 2-3 días · **93 → 96**
@@ -338,13 +359,13 @@ hechos y los 6 criterios de aceptación, medidos.
 ## 6. Definition of Done (el checklist de "100/100")
 
 ```
-[ ]  No hay ningún DoS reproducible con una sola petición (DoS + coste por campo)
-[ ]  Cada protocolo y cada content-type tiene una política EXPLÍCITA y TESTEADA
-[ ]  El log NO contiene el payload, o la documentación dice la verdad
-[ ]  La CLI no puede ser manipulada por bytes del atacante
-[ ]  El rate limiter tiene tope de claves y normaliza IPv4/IPv6
-[ ]  Custom rules no pueden colgar el proceso
-[ ]  Las FN y FP conocidas están cerradas y documentadas
+[x]  No hay ningún DoS reproducible con una sola petición (DoS + coste por campo)
+[x]  Cada protocolo y cada content-type tiene una política EXPLÍCITA y TESTEADA
+[x]  El log NO contiene el payload, o la documentación dice la verdad
+[x]  La CLI no puede ser manipulada por bytes del atacante
+[x]  El rate limiter tiene tope de claves y normaliza IPv4/IPv6
+[x]  Custom rules no pueden colgar el proceso
+[x]  Las FN y FP conocidas están cerradas y documentadas
 [ ]  README, PyPI, web y metadatos dicen la MISMA versión
 [ ]  0 enlaces rotos, 0 afirmaciones técnicas falsas en la documentación
 [ ]  README en inglés
@@ -355,6 +376,11 @@ hechos y los 6 criterios de aceptación, medidos.
 [ ]  CI con SAST/DAST + umbrales de rendimiento + corpus con línea base real
 [ ]  Revisión de seguridad independiente, publicada
 ```
+
+> Las marcadas son las cerradas por las **fases 0 a 3** (DoS y coste por campo,
+> WebSocket/multipart/octet-stream, log y CLI, rate limiter, reglas propias
+> contra ReDoS, y FN/FP de detección). Las que quedan son las de las **fases 4
+> a 6** (coherencia documental, limpieza del repo y cierre).
 
 ---
 

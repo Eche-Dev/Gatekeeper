@@ -31,12 +31,33 @@ dos `\s*` adyacentes son O(n²) — en v0.3 eso se midió (118 s de CPU con
 | Cualquier body textual (JSON, form, `text/plain`, XML o sin `content-type`) y cabeceras `User-Agent`/`Referer`/`Cookie` | Bodies binarios y `multipart/form-data`: sin parser propio hasta v0.4 |
 | — | Ataques a la lógica, authn/authz, CSRF, rate abuse por usuario |
 
+### Las fronteras que la Fase 3 añadió (y lo que cuestan)
+
+Endurecer una firma para que no salte con la prosa siempre tiene un precio. La
+Fase 3 lo midió caso por caso (`.audit/f3_ajustes.py`: cuántos ataques
+dependían **solo** de la firma) y estas son las fronteras que quedaron:
+
+| Frontera | Qué NO se detecta ahora | Por qué |
+|---|---|---|
+| `union all` exige contexto de consulta o de ruta detrás | `union all` solo, sin `select`/`from`/`null`/`values`/`table`/`(`/`/` | «union all» en un tutorial de SQL es de las búsquedas más frecuentes |
+| `WAITFOR DELAY` exige el literal de tiempo detrás | `waitfor delay` sin comilla ni dígito | La forma real (`WAITFOR DELAY '0:0:5'`) siempre lo lleva |
+| `like null` exige el cierre del payload detrás | `like null` en medio de una frase | La forma de ataque cierra el payload (`1 LIKE NULL--`) |
+| Operadores NoSQL exigen objeto JSON o parámetro | `$ne` suelto en un texto | El ataque va dentro de un objeto (`{"$ne": ""}`, `user[$ne]=x`) |
+| `sleep` exige argumento numérico | `sleep(8 hours)` y cualquier unidad | Es prosa, no una función SQL |
+
+Las cuatro primeras salen de un corpus de **100 peticiones legítimas nuevas**
+en español e inglés (abajo). Lo que **no** se tocó, y por tanto sigue
+saltando, está en la tabla de límites del [modelo de amenazas](amenazas.md) y
+en el informe del corpus: `{{config}}` (vector de Jinja2), `${env:...}` y
+`${jndi}` (familia Log4Shell), el salto de línea seguido de cabecera (CRLF) y
+la IP de metadata citada en una explicación (SSRF).
+
 El desglose completo, con la frontera de falsos positivos de cada familia, está
 en [Modelo de amenazas](amenazas.md).
 
 ## El corpus propio
 
-159 payloads de ataque y 81 peticiones benignas, **redactados para este proyecto**
+159 payloads de ataque y 131 peticiones benignas, **redactados para este proyecto**
 a partir de técnicas documentadas públicamente (OWASP WSTG, cheat sheets de
 PortSwigger), con procedencia en [corpus/README.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/README.md).
 
@@ -44,17 +65,40 @@ PortSwigger), con procedencia en [corpus/README.md](https://github.com/Eche-Dev/
 |---|---|
 | Ataques detectados | **159 / 159 (100.0%)** |
 | Falsos negativos sin documentar | 0 |
-| Falsos positivos sin documentar | **0** / 81 (5 documentados) |
+| Falsos positivos sin documentar | **0** / 131 (8 documentados) |
 
 Estas cifras miden los escaneos individuales del corpus; no incluyen el modo
 opt-in `inspect_cross_carrier=True`.
 
-Los 5 FP documentados existen y se listan con su motivo en
+Los 8 FP documentados existen y se listan con su motivo en
 [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md):
 texto técnico que cita vectores (`sleep(5)` en búsquedas, `<script>` como término
 de búsqueda, `javascript:` en prosa, `%252e%252e%252f` al hablar de codificación,
-`__proto__` en una búsqueda sobre proto-pollución). Colisionan con la firma por
-construcción — la regla es que **un límite se documenta, no se esconde**.
+`__proto__` en una búsqueda sobre proto-pollución, `{{config}}` en una
+búsqueda sobre plantillas de Jinja, `${env:…}`/`${jndi}` en una búsqueda sobre
+Log4Shell, y un cuerpo de correo con un salto de línea y una cabecera citada).
+Colisionan con la firma por construcción — la regla es que **un límite se
+documenta, no se esconde**.
+
+### El corpus de falsos positivos (100 casos nuevos, en español e inglés)
+
+La Fase 3 añadió **100 peticiones legítimas nuevas**, escritas a mano en los dos
+idiomas del proyecto:
+
+- **50 en el corpus de desarrollo** (`corpus/benign.json`, `benign-082` …
+  `benign-131`): es el que se puede ajustar. Los 10 que saltaban motivaron
+  cuatro endurecimientos de firma, medidos uno por uno para no perder
+  detecciones.
+- **50 en el corpus retenido** (`corpus/heldout_benign.json`, `hob-091` …
+  `hob-140`): escritos **después** de congelar las firmas y medidos **una vez**.
+  Un falso positivo ahí no se corrige con una firma escrita para él: se
+  documenta. De los tres que saltaron, dos los resolvieron los ajustes que
+  motivó el corpus de desarrollo y el tercero (la IP de metadata citada en una
+  explicación) sigue abierto y documentado.
+
+Todo el procedimiento —qué se midió, qué se cambió y qué NO se cambió— está
+en [`corpus/HELDOUT.md`](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/HELDOUT.md)
+y en los informes generados.
 
 ## El corpus retenido (held-out)
 
@@ -71,9 +115,9 @@ construcción — la regla es que **un límite se documenta, no se esconde**.
 | Métrica | Desarrollo | **Retenido** |
 |---|---|---|
 | Ataques detectados | 159/159 (100%) | **103/109 (94,5%)** |
-| Falsos positivos sin documentar | 0 | **0** / 90 |
+| Falsos positivos sin documentar | 0 | **0** / 140 |
 | Falsos negativos documentados | 0 | 6 |
-| Falsos positivos documentados | 5 | 4 |
+| Falsos positivos documentados | 8 | 5 |
 
 !!! success "Por qué el retenido da 94,5% y no 100%"
     Porque es **más difícil a propósito**: incluye técnicas que las reglas no
@@ -91,8 +135,8 @@ Informe generado:
 [corpus/HELDOUT_REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/HELDOUT_REPORT.md).
 
 !!! warning "El corpus retenido no es una promesa de que no haya más"
-    Mide sobre **109 ataques y 90 peticiones legítimas**. Es una muestra, no
-    un censo. La conclusión honesta es "estas 109 técnicas y estos 90 patrones
+    Mide sobre **109 ataques y 140 peticiones legítimas**. Es una muestra, no
+    un censo. La conclusión honesta es "estas 109 técnicas y estos 140 patrones
     se comportan así", no "la detección es completa".
 
 !!! tip "La única forma de saberlo con tu tráfico"

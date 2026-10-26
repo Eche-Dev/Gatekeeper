@@ -7,6 +7,90 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 Nada pendiente.
 
+## [0.7.0] - 2026-10-26
+
+### Corregido
+
+Falsos negativos reales: vectores que **no se detectaban** y que un atacante
+usa sin que el WAF se entere. Cada uno se reprodujo contra el código antes de
+tocar nada (`.audit/f3_probe.py`, 15 casos).
+
+- **Tautología con literales vacíos** (`' or ''=`). La firma exigía un literal
+  con contenido (`['\"]\w+['\"]`), así que el atacante que cierra la comilla
+  del valor y mete la comparación con cadena vacía se colaba.
+- **Booleano ciego con la función de recorte primero**
+  (`substring(version(),1,1)=5`). La firma solo veía la forma invertida
+  (`ascii(substring(...))`).
+- **SSRF con la IP de metadata escrita en decimal, hex y octal**
+  (`http://2852039166/`, `http://0xa9fea9fe/`, `http://0252.0376.0252.0376/`).
+  El parser de URL del navegador las resuelve igual que `169.254.169.254`.
+- **Comandos separados por un salto de línea** (`foo\nrm -rf /`). En shell, un
+  salto de línea es un separador tan real como `;`.
+- **El `+` de un query string se perdía al decodificar.** `decode()` traducía
+  `+` a espacio en **cada** ronda, así que `sleep(10%2B6)` llegaba como
+  `sleep(10 6)` y no se detectaba. Ahora la traducción de `+` se aplica **una
+  sola vez**, en la primera ronda: el `+` que el servidor entrega al usuario
+  se entrega también a Gatekeeper.
+
+Falsos positivos: texto normal que un operador recibe cada día (documentación,
+tutoriales, una consulta que se describe en prosa) y que la firma confundía con
+un ataque.
+
+- **`<script>` en prosa.** «En el manual pone: `<script>` para incrustar
+  código» no es un ataque. Ahora `<script>` solo salta con atributos, con
+  etiqueta de cierre, o seguido de algo que no puede ser prosa.
+- **`sleep(8 hours)`** y cualquier `sleep` con unidades: es texto, no una
+  función SQL. Ahora `sleep` exige un argumento **numérico** (se admiten
+  `20.to_i` y una operación aritmética, que son las formas reales de
+  blindaje).
+- **`union all` en un tutorial de SQL.** Ahora exige contexto de consulta o
+  de ruta detrás (`select`, `from`, `null`, `values`, `table`, `(`, `/`).
+- **`waitfor delay` en prosa.** Ahora exige el literal de tiempo detrás (la
+  forma real es `WAITFOR DELAY '0:0:5'`).
+- **`like null` en prosa.** Ahora exige el cierre del payload detrás.
+- **Operadores NoSQL citados en una búsqueda** (`qué es el operador $ne de
+  mongodb`). Ahora exigen estar dentro de un objeto JSON o de un parámetro
+  (`{"$ne": ""}`, `user[$ne]=x`), que es donde llega el ataque.
+
+Ningún endurecimiento perderá una detección: cada firma se midió antes de
+tocarla, contando cuántos ataques dependían **solo** de ella (`.audit/f3_ajustes.py`),
+y después se comparó el corpus externo de OWASP CRS payload a payload
+(`0 perdidos, 0 ganados` sobre los 1.379 tests importados).
+
+### Añadido
+
+- **100 peticiones legítimas nuevas** en el corpus, escritas en **español e
+  inglés**: 50 en el corpus de desarrollo (`corpus/benign.json`,
+  `benign-082`…`benign-131`) y 50 en el corpus **retenido**
+  (`corpus/heldout_benign.json`, `hob-091`…`hob-140`), estos últimos escritos
+  **después** de congelar las firmas y medidos **una vez**: un falso positivo
+  ahí no se corrige con una firma escrita para él, se documenta.
+- Los cuatro falsos positivos del lote retenido que quedan abiertos están
+  **publicados** con su motivo (`{{config}}`, `${env:…}`/`${jndi}`, el salto de
+  línea seguido de cabecera, y la IP de metadata citada en una explicación).
+- 39 tests de regresión (`tests/test_deteccion_f3.py`) que fijan los 4 FN
+  cerrados, los 2 FP de prosa cerrados y las detecciones que no pueden
+  perderse, y 35 más (`tests/test_deteccion_f3_5.py`) que fijan el contrato
+  del corpus de falsos positivos nuevo.
+- `corpus/README.md`, `corpus/HELDOUT.md`, `docs/deteccion.md`, `README.md` y
+  `docs/index.md` con las cifras nuevas (corpus propio: 159 ataques y **131**
+  peticiones legítimas; retenido: 109 ataques y **140** peticiones legítimas).
+
+### Nota de comportamiento
+
+Endurecer una firma tiene un precio y aquí está medido:
+
+| Firma | Qué ya no se detecta | Por qué |
+|---|---|---|
+| `union all` | `union all` sin contexto de consulta detrás | «union all» en un tutorial es de las búsquedas más frecuentes |
+| `WAITFOR DELAY` | `waitfor delay` sin comilla ni dígito detrás | La forma real siempre lleva el literal |
+| `like null` | `like null` en mitad de una frase | La forma de ataque cierra el payload |
+| NoSQL | `$ne` suelto, sin objeto JSON ni parámetro | El ataque va dentro de un objeto |
+| `sleep` | `sleep(8 hours)` y cualquier unidad | Es prosa, no una función SQL |
+
+El detalle completo, con las cifras, está en
+[docs/deteccion.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/deteccion.md).
+
 ## [0.6.0] - 2026-10-26
 
 ### Corregido

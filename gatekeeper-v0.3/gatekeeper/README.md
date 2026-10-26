@@ -64,8 +64,8 @@ documentada ([corpus/](corpus/)):
 |---|---|
 | Ataques detectados | 159 / 159 (**100.0%**) |
 | Falsos negativos sin documentar | 0 |
-| Peticiones legítimas bloqueadas sin documentar | **0** / 81 |
-| Falsos positivos documentados (límites aceptados) | 5 |
+| Peticiones legítimas bloqueadas sin documentar | **0** / 131 |
+| Falsos positivos documentados (límites aceptados) | 8 |
 | Falsos negativos documentados (límites aceptados) | 0 |
 
 Once familias de detección: SQLi, XSS, path traversal, ficheros sensibles, NoSQL,
@@ -81,8 +81,8 @@ reglas generalizan o solo se acuerdan de los casos con los que se escribieron:
 |---|---|
 | Ataques detectados | 103 / 109 (**94.5%**) |
 | Falsos negativos sin documentar | 0 (6 documentados con su motivo) |
-| Peticiones legítimas bloqueadas sin documentar | **0** / 90 |
-| Falsos positivos documentados (límites aceptados) | 4 |
+| Peticiones legítimas bloqueadas sin documentar | **0** / 140 |
+| Falsos positivos documentados (límites aceptados) | 5 |
 
 Que dé 94,5% y no 100% es lo esperado: el corpus propio se puede usar para
 ajustar las reglas y el retenido no. La metodología, y los fallos que este
