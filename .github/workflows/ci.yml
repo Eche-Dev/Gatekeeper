@@ -321,6 +321,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    defaults:
+      run:
+        # Este job necesita las DOS raices: el paquete (semgrep escanea su
+        # `src` y lee sus reglas) y la raiz del repo (zizmor audita
+        # `.github/workflows`). El workflow pone el directorio de trabajo en
+        # el paquete, asi que aqui se vuelve a la raiz.
+        working-directory: .
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

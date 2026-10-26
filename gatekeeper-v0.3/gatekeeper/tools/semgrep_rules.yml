@@ -50,9 +50,10 @@ rules:
   # texto es un caracter, no el fin de linea del regex de semgrep: por eso
   # va escapado como `\$`).
   #
-  # Es un unico `pattern-regex` a proposito: las combinaciones de `pattern-inside`
-  # con `pattern-not-regex` dependen de la build de semgrep-core y en Linux
-  # (la del CI) dan "invalid configuration file".
+  # Es un unico `pattern-regex` a proposito: con una sola construccion no hay
+  # combinaciones que puedan depender de la version de semgrep-core. La
+  # excepcion del `$` va dentro del propio regex (un `[^$]` detras del
+  # cuantificador) y no con un `pattern-not-regex` aparte.
   - id: gatekeeper-regex-sin-cota
     languages: [python]
     severity: ERROR

@@ -34,6 +34,14 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
     esperando: es la versión estática del test de fuzzing); nada bloqueante
     dentro de `async def` (congelaría el event loop de todo el proceso); y
     `trust_proxy=True` no se activa dentro del paquete.
+  - El job **anula el `working-directory` del workflow**: necesita las dos
+    raíces (el paquete, para semgrep, y la raíz del repo, para zizmor). Sin
+    eso, semgrep buscaba las reglas en
+    `gatekeeper-v0.3/gatekeeper/gatekeeper-v0.3/gatekeeper/tools/…` y moría
+    con «unable to find a config».
+  - Cada paso guarda su salida en el log y en el resumen del job, y emite
+    `::error::` con el código de salida: si un análisis falla, el motivo se lee
+    sin abrir el log a mano.
 - **`persist-credentials: false` en los siete `actions/checkout`** de los tres
   workflows. El token de GitHub no se queda en `.git/config`, donde puede
   acabar en un artefacto. `zizmor` lo auditaba: 7 hallazgos de severidad
