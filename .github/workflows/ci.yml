@@ -422,6 +422,12 @@ jobs:
             --iterations 300 --rounds 3 --repeats 1 --ruido --json > /tmp/ruido.json
           { echo "### Ruido del runner"; echo '```'; cat /tmp/ruido.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - name: Veredicto (bloquea si el PR empeora de mas)
+        # Margen del 50%: con la mediana de tres repeticiones, el ruido medido
+        # entre corridas del mismo codigo fue del 0,3% (con picos sueltos del
+        # 41% por pausas del sistema), pero en los escenarios cortos (p50 de
+        # 77 us) el ruido RELATIVO llega al 23%. Un margen del 25% daba
+        # falsos positivos; el job publica el ruido de su runner, que es el
+        # dato para calibrar esto con datos y no a ojo.
         run: |
           python pr/gatekeeper-v0.3/gatekeeper/benchmarks/latency.py \
-            --baseline /tmp/base.json --margen 0.25
+            --comparar /tmp/base.json /tmp/nuevo.json --margen 0.5

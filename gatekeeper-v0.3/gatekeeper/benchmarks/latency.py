@@ -413,6 +413,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="Guarda esta medición en JSON para usarla como base.")
     parser.add_argument("--baseline", type=Path, metavar="FICHERO",
                         help="Compara contra una medición previa (misma máquina).")
+    parser.add_argument("--comparar", nargs=2, metavar=("BASE", "NUEVO"),
+                        help="Compara dos mediciones YA hechas (misma máquina) sin "
+                             "volver a medir: es lo que usa el job `bench` del CI, "
+                             "donde el codigo del PR y el de main se miden por "
+                             "separado y luego se comparan.")
     parser.add_argument("--margen", type=float, default=0.25,
                         help="Tolerancia relativa del --baseline (0.25 = 25%%).")
     parser.add_argument("--recursos", action="store_true",
@@ -423,6 +428,28 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--redis-caido", action="store_true",
                         help="Mede el coste de una peticion con Redis sin responder.")
     args = parser.parse_args(argv)
+
+    # El modo --comparar NO mide: solo compara dos mediciones ya hechas. Si
+    # midiera aqui, el job `bench` del CI haria tres mediciones en vez de dos
+    # (y la tercera, ya con la maquina caliente, no seria comparable).
+    if args.comparar:
+        base_path, nuevo_path = args.comparar
+        for ruta in (base_path, nuevo_path):
+            if not Path(ruta).exists():
+                print(f"no existe la medición: {ruta}", file=sys.stderr)
+                return 2
+        antes = json.loads(Path(base_path).read_text(encoding="utf-8"))
+        ahora = json.loads(Path(nuevo_path).read_text(encoding="utf-8"))
+        print(f"Comparando {nuevo_path} contra {base_path} "
+              f"(margen {args.margen:+.0%}, misma máquina):")
+        ok, fallos = comparar(antes, ahora, args.margen)
+        if not ok:
+            print("\nREGRESIÓN DE LATENCIA respecto a la medición base:")
+            for fallo in fallos:
+                print(f"  - {fallo}")
+            return 1
+        print("\n✅ sin regresión respecto a la medición base")
+        return 0
 
     data = run_benchmark(args.iterations, args.rounds, args.repeats)
 
