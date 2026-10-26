@@ -66,6 +66,86 @@ RAMA_ACTIVA = re.compile(r"^\|\s*(\d+\.\d+)\.x\s*\|\s*\*\*Activa\*\*", re.M)
 # La primera entrada de version del CHANGELOG.
 ENTRADA_CHANGELOG = re.compile(r"^## \[(\d+\.\d+\.\d+)\]", re.M)
 
+# --- minimos de las dependencias del nucleo ---------------------------------
+# Un numero suelto no dice nada: "0.23" es Starlette y "3.14" es Python. Lo
+# que se comprueba es la AFIRMACION de un minimo, y cada afirmacion tiene que
+# nombrar a la dependencia en su propia frase.
+#
+# Sin esta comprobacion la portada de la web anunciaba "Starlette >= 0.37"
+# mientras pyproject declaraba 0.23: el minimo ANTIGUO, que era
+# precisamente el que rompia a quien usara FastAPI 0.103.x (CHANGELOG de la
+# 0.4.0). El verificador de versiones no lo cazaba porque compara la version
+# de Gatekeeper, no la de sus dependencias.
+VERSION_NUM = r"(\d+(?:\.\d+)*)"
+
+# Dependencias que se citan en la documentacion y que NO son el nucleo. Si uno
+# de estos nombres aparece entre el nombre de la dependencia y su minimo, ese
+# numero es de otra dependencia ("redis >= 5.0" cerca de "starlette").
+OTRAS_DEPENDENCIAS = ("fastapi", "redis", "pydantic", "httpx", "uvicorn", "yaml")
+
+
+def _patrones_minimo(dep: str) -> list[tuple[str, re.Pattern[str]]]:
+    """Patrones que afirman un minimo de `dep` en su propia frase."""
+    d = re.escape(dep)
+    return [
+        (
+            "comparador",
+            re.compile(rf"{d}[^|\n]{{0,25}}?(?:≥|>=)\s*{VERSION_NUM}", re.I),
+        ),
+        (
+            "o superior",
+            re.compile(rf"{d}[^|\n]{{0,25}}?{VERSION_NUM}\s*o\s+superior", re.I),
+        ),
+        (
+            "minimo de",
+            re.compile(
+                rf"m[ií]nimo[^|\n]{{0,25}}?{d}[^|\n]{{0,25}}?{VERSION_NUM}", re.I
+            ),
+        ),
+    ]
+
+
+def _pares(version: str) -> tuple[int, ...]:
+    """("0.23.0") -> (0, 23, 0). Se comparan los dos primeros componentes."""
+    return tuple(int(x) for x in version.split("."))
+
+
+def _comprobar_minimos(ficheros: list[Path], dependencias: list[str]) -> list[str]:
+    """El minimo que dice la documentacion tiene que ser el que se instala."""
+    fallos: list[str] = []
+    for dep in dependencias:
+        nombre = re.split(r"[<>=!~\[]", dep)[0].strip()
+        encontrado = re.search(r">=\s*([\d.]+)", dep)
+        if not nombre or not encontrado:
+            continue
+        real = _pares(encontrado.group(1))
+        for ruta in ficheros:
+            if not ruta.exists():
+                continue
+            if ruta.name in HISTORICOS or ruta.name.startswith("RELEASE_NOTES_"):
+                continue  # un registro historico puede citar el minimo antiguo
+            texto = ruta.read_text(encoding="utf-8")
+            # Los enlaces markdown se vacian: la URL entre el nombre de la
+            # dependencia y su minimo no es parte de la frase.
+            limpio = re.sub(r"\]\([^)]*\)", "]", texto)
+            for _tipo, patron in _patrones_minimo(nombre):
+                for coincidencia in patron.finditer(limpio):
+                    fragmento = limpio[coincidencia.start(): coincidencia.start(1)]
+                    if any(
+                        re.search(rf"\b{re.escape(otra)}\b", fragmento, re.I)
+                        for otra in OTRAS_DEPENDENCIAS
+                    ):
+                        continue  # ese numero es de otra dependencia
+                    if _pares(coincidencia.group(1))[:2] == real[:2]:
+                        continue
+                    linea = limpio.count("\n", 0, coincidencia.start()) + 1
+                    fallos.append(
+                        f"{_nombre(ruta)}:{linea}: dice que el minimo de {nombre} es "
+                        f"{coincidencia.group(1)} y pyproject declara "
+                        f"{encontrado.group(1)}"
+                    )
+    return fallos
+
 
 def _sin_codigo(texto: str) -> str:
     """Quita el codigo (bloques y `inline`) conservando los numeros de linea.
@@ -197,6 +277,11 @@ def comprobar(ficheros: list[Path] | None = None) -> tuple[list[str], str]:
             continue
         fallos.extend(comprobar_fichero(ruta, anclas, version, mayor, menor))
 
+    # --- el minimo de cada dependencia es el que dice pyproject
+    fallos.extend(
+        _comprobar_minimos(ficheros, pyproject["project"]["dependencies"])
+    )
+
     # --- la version publicada se comprueba fichero a fichero (arriba)
     # --- la rama activa de SECURITY.md tiene que ser la actual
     security = PAQUETE / "SECURITY.md"
@@ -241,7 +326,8 @@ def main() -> int:
 
     print(
         f"Documentacion coherente: version {version}, enlaces y anclas correctos, "
-        f"higiene sin erratas ({len(FICHEROS)} ficheros vigilados)."
+        f"minimos de dependencias correctos, higiene sin erratas "
+        f"({len(FICHEROS)} ficheros vigilados)."
     )
     return 0
 

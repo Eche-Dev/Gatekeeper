@@ -120,3 +120,60 @@ def test_la_version_se_saca_del_pyproject():
     partes = version.split(".")
     assert len(partes) == 3 and all(p.isdigit() for p in partes)
     assert modulo.VERSION_DE_GATEKEEPER.search(f"Gatekeeper {version}")
+
+
+# --- minimos de las dependencias del nucleo ---------------------------------
+# La portada de la web anunciaba "Starlette >= 0.37" mientras pyproject
+# declaraba 0.23: el minimo antiguo, que rompia a quien usara FastAPI
+# 0.103.x. Estos tests fijan que el verificador lo caza y que no se confunde
+# con el minimo de otra dependencia.
+
+
+def test_un_minimo_distinto_al_declarado_se_detecta(tmp_path: Path):
+    modulo = _carga()
+    (tmp_path / "doc.md").write_text(
+        "- [Starlette](https://www.starlette.io/) >= 0.37 - FastAPI ya la trae\n",
+        encoding="utf-8",
+    )
+    fallos, _ = modulo.comprobar([tmp_path / "doc.md"])
+    assert any("minimo de starlette" in fallo for fallo in fallos), fallos
+
+
+def test_el_minimo_que_declara_pyproject_no_se_detecta(tmp_path: Path):
+    modulo = _carga()
+    (tmp_path / "doc.md").write_text(
+        "- [Starlette](https://www.starlette.io/) >= 0.23 - FastAPI ya la trae\n",
+        encoding="utf-8",
+    )
+    fallos, _ = modulo.comprobar([tmp_path / "doc.md"])
+    assert not fallos, fallos
+
+
+def test_el_minimo_de_otra_dependencia_no_se_confunde(tmp_path: Path):
+    """`redis >= 5.0` cerca de `starlette` no es un minimo de Starlette."""
+    modulo = _carga()
+    (tmp_path / "doc.md").write_text(
+        "El nucleo depende de starlette. Para el rate limit hace falta redis>=5.0.\n",
+        encoding="utf-8",
+    )
+    fallos, _ = modulo.comprobar([tmp_path / "doc.md"])
+    assert not fallos, fallos
+
+
+def test_un_registro_historico_puede_citar_el_minimo_antiguo(tmp_path: Path):
+    """El CHANGELOG cuenta la historia: 0.37 era el minimo y hay que decirlo."""
+    modulo = _carga()
+    (tmp_path / "CHANGELOG.md").write_text(
+        "El minimo era starlette>=0.37 y ahora es 0.23\n", encoding="utf-8"
+    )
+    fallos, _ = modulo.comprobar([tmp_path / "CHANGELOG.md"])
+    assert not fallos, fallos
+
+
+def test_la_portada_de_la_web_no_puede_mentir_sobre_el_minimo():
+    """El caso real: la portada de la web es la que se lee primero."""
+    portada = ROOT / "docs" / "index.md"
+    texto = portada.read_text(encoding="utf-8")
+    assert ">= 0.37" not in texto and "≥ 0.37" not in texto, (
+        "la portada vuelve a anunciar el minimo antiguo de Starlette"
+    )
