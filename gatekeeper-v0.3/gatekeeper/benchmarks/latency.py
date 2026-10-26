@@ -56,6 +56,10 @@ BODY_OK = b'{"comment":"A normal request body"}'
 BODY_CROSS_ATTACK = b'{"statement":"select password from users"}'
 # Carga grande: 100 KB de body, por debajo del presupuesto de 256 KiB.
 BODY_GRANDE = b'{"comment":"' + (b"x" * 100_000) + b'"}'
+# Un body con un `+`: el middleware lo lee de las DOS formas (como espacio y
+# como literal), asi que ese valor se escanea dos veces. Es el precio del
+# arreglo del `+` (ver CHANGELOG), y por eso se mide en vez de suponerlo.
+BODY_CON_MAS = b'{"comment":"C++ y C#"}'
 
 # NO hay un presupuesto absoluto, y es una decisión con datos.
 #
@@ -177,6 +181,8 @@ def scenarios() -> list[tuple[str, Config | None, dict]]:
          Config(rate_limit=0), {}),
         ("inspección de body JSON, sin rate limit",
          Config(rate_limit=0), {"method": "POST", "body": BODY_OK}),
+        ("body con un + (se escanea dos veces)",
+         Config(rate_limit=0), {"method": "POST", "body": BODY_CON_MAS}),
         ("cruce query/body opt-in (benigno)",
          Config(rate_limit=0, inspect_cross_carrier=True),
          {"query": b"q=hello", "method": "POST", "body": BODY_OK}),
@@ -317,10 +323,24 @@ def _stats(samples: list[float], baseline: dict[str, float] | None) -> dict:
 
 
 def run_benchmark(iterations: int, rounds: int, repeats: int = 3) -> dict:
-    # Silencia la salida del logger de auditoría (los eventos se generan igual:
-    # json.dumps se ejecuta antes del nivel, así que su coste sigue medido).
-    logging.getLogger("gatekeeper").setLevel(logging.CRITICAL)
+    """Mide el benchmark y devuelve los datos.
 
+    El logger de auditoría se silencia durante la medición (los eventos se
+    generan igual: `json.dumps` se ejecuta antes del nivel, así que su coste
+    sigue medido) y su nivel se RESTAURA al terminar: si no, el benchmark
+    dejaba el logger callado para el resto de la sesión, y los tests que
+    vienen después no veían ningún evento.
+    """
+    logger = logging.getLogger("gatekeeper")
+    nivel_previo = logger.level
+    logger.setLevel(logging.CRITICAL)
+    try:
+        return _medir(iterations, rounds, repeats)
+    finally:
+        logger.setLevel(nivel_previo)
+
+
+def _medir(iterations: int, rounds: int, repeats: int) -> dict:
     specs = scenarios()
     base_nombre, base_config, base_kwargs = specs[0]
     # La línea base se mide UNA vez por repetición, junto al escenario que se

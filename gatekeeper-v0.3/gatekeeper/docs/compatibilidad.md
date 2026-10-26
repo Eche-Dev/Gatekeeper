@@ -14,16 +14,22 @@ combinación, instala el paquete y comprueba que el middleware:
 - deja pasar una petición legítima (200),
 - y pone las cabeceras de seguridad **también en el rechazo**.
 
+Además, en cada combinación se ejecuta el **test diferencial del body**
+(`tools/diferencial_body.py`): la misma petición con y sin middleware, contra
+Starlette y FastAPI, para comprobar que **el middleware y la aplicación
+interpretan el body igual**. Es el mismo código que corre en la suite, así que
+lo que se mide en cada versión es exactamente lo que se mide en la última.
+
 ### Starlette
 
-| Versión | Resultado |
-|---|---|
-| 0.23.0 (mínimo) | ✅ |
-| 0.27.0 | ✅ |
-| 0.37.0 | ✅ |
-| 0.41.3 | ✅ |
-| 0.46.2 | ✅ |
-| última (1.10.0) | ✅ |
+| Versión | Ataque y 200 | Diferencial del body |
+|---|---|---|
+| 0.23.0 (mínimo) | ✅ | ✅ |
+| 0.27.0 | ✅ | ✅ |
+| 0.37.0 | ✅ | ✅ |
+| 0.41.3 | ✅ | ✅ |
+| 0.46.2 | ✅ | ✅ |
+| última (1.10.0) | ✅ | ✅ |
 
 El mínimo es **0.23.0**. Antes era 0.37.0, y eso rompía a quien usara
 FastAPI 0.103.x: al instalar Gatekeeper, pip subía Starlette por encima de
@@ -33,12 +39,12 @@ años.
 
 ### FastAPI
 
-| Versión | Starlette que trae | Resultado |
-|---|---|---|
-| 0.103.2 | 0.27.0 | ✅ |
-| 0.110.3 | 0.37.2 | ✅ |
-| 0.115.6 | 0.41.3 | ✅ |
-| última (0.162.0) | 1.10.0 | ✅ |
+| Versión | Starlette que trae | Ataque y 200 | Diferencial del body |
+|---|---|---|---|
+| 0.103.2 | 0.27.0 | ✅ | ✅ |
+| 0.110.3 | 0.37.2 | ✅ | ✅ |
+| 0.115.6 | 0.41.3 | ✅ | ✅ |
+| última (0.162.0) | 1.10.0 | ✅ | ✅ |
 
 ### Python
 

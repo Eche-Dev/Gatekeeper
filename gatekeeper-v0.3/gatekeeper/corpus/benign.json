@@ -131,6 +131,7 @@
     {"id": "benign-128", "payload": "/search?q=system+y+exec+en+php+ejemplos", "note": "«system»/«exec» sin parentesis ni separador"},
     {"id": "benign-129", "payload": "/blog/2026/01/15/como-empezar-en-fastapi", "note": "fecha en el slug de un articulo"},
     {"id": "benign-130", "payload": "/blog/2026/01/15/getting-started-with-fastapi", "note": "fecha en el slug de un articulo (ingles)"},
-    {"id": "benign-131", "payload": "{\"body\": \"Hola\\nLocation: Madrid\"}", "note": "cuerpo de correo con salto de linea y una cabecera citada", "known_fp": "limite conocido: un salto de linea seguido de una cabecera puede ser un response splitting; el patron no puede distinguirlo de un texto que la cita"}
+    {"id": "benign-131", "payload": "{\"body\": \"Hola\\nLocation: Madrid\"}", "note": "cuerpo de correo con salto de linea y una cabecera citada", "known_fp": "limite conocido: un salto de linea seguido de una cabecera puede ser un response splitting; el patron no puede distinguirlo de un texto que la cita"},
+    {"id": "benign-132", "payload": "2+2=4", "note": "operacion aritmetica normal: el + no es un ataque"}
   ]
 }

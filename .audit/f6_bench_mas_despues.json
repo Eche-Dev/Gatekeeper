@@ -1,0 +1,128 @@
+{
+  "iterations": 400,
+  "rounds": 3,
+  "repeats": 1,
+  "python": "3.14.8",
+  "platform": "Windows",
+  "results": [
+    {
+      "scenario": "sin middleware (base)",
+      "p50_us": 12.6,
+      "p95_us": 17.1,
+      "p99_us": 22.0,
+      "max_us": 60.0,
+      "mean_us": 13.26,
+      "samples": 1200
+    },
+    {
+      "scenario": "solo cabeceras",
+      "p50_us": 31.3,
+      "p95_us": 34.6,
+      "p99_us": 45.1,
+      "max_us": 131.2,
+      "mean_us": 31.92,
+      "samples": 1200,
+      "overhead_p50_us": 18.7,
+      "overhead_p95_us": 17.5
+    },
+    {
+      "scenario": "inspección de query (sin body), sin rate limit",
+      "p50_us": 135.3,
+      "p95_us": 167.4,
+      "p99_us": 227.2,
+      "max_us": 457.1,
+      "mean_us": 140.51,
+      "samples": 1200,
+      "overhead_p50_us": 122.7,
+      "overhead_p95_us": 150.3
+    },
+    {
+      "scenario": "inspección de body JSON, sin rate limit",
+      "p50_us": 244.8,
+      "p95_us": 283.3,
+      "p99_us": 474.2,
+      "max_us": 594.8,
+      "mean_us": 253.34,
+      "samples": 1200,
+      "overhead_p50_us": 232.2,
+      "overhead_p95_us": 266.2
+    },
+    {
+      "scenario": "body con un + (se escanea dos veces)",
+      "p50_us": 257.2,
+      "p95_us": 320.7,
+      "p99_us": 424.2,
+      "max_us": 823.0,
+      "mean_us": 267.27,
+      "samples": 1200,
+      "overhead_p50_us": 244.6,
+      "overhead_p95_us": 303.6
+    },
+    {
+      "scenario": "cruce query/body opt-in (benigno)",
+      "p50_us": 296.8,
+      "p95_us": 352.4,
+      "p99_us": 448.7,
+      "max_us": 666.0,
+      "mean_us": 304.89,
+      "samples": 1200,
+      "overhead_p50_us": 284.2,
+      "overhead_p95_us": 335.3
+    },
+    {
+      "scenario": "cruce query/body atacante (403)",
+      "p50_us": 239.1,
+      "p95_us": 267.4,
+      "p99_us": 371.4,
+      "max_us": 642.0,
+      "mean_us": 245.12,
+      "samples": 1200,
+      "overhead_p50_us": 226.5,
+      "overhead_p95_us": 250.3
+    },
+    {
+      "scenario": "rate limit solo (sin inspección)",
+      "p50_us": 37.6,
+      "p95_us": 42.4,
+      "p99_us": 61.2,
+      "max_us": 232.1,
+      "mean_us": 38.6,
+      "samples": 1200,
+      "overhead_p50_us": 25.0,
+      "overhead_p95_us": 25.3
+    },
+    {
+      "scenario": "completo (inspección + rate limit)",
+      "p50_us": 142.1,
+      "p95_us": 206.9,
+      "p99_us": 259.5,
+      "max_us": 546.3,
+      "mean_us": 155.72,
+      "samples": 1200,
+      "overhead_p50_us": 129.5,
+      "overhead_p95_us": 189.8
+    },
+    {
+      "scenario": "request atacante (bloqueado con 403)",
+      "p50_us": 90.9,
+      "p95_us": 128.4,
+      "p99_us": 144.4,
+      "max_us": 330.8,
+      "mean_us": 95.74,
+      "samples": 1200,
+      "overhead_p50_us": 78.3,
+      "overhead_p95_us": 111.3
+    },
+    {
+      "scenario": "carga grande (body 100 KB), sin rate limit",
+      "p50_us": 8138.5,
+      "p95_us": 8989.5,
+      "p99_us": 9945.9,
+      "max_us": 16412.6,
+      "mean_us": 8220.66,
+      "samples": 1200,
+      "overhead_p50_us": 8125.9,
+      "overhead_p95_us": 8972.4
+    }
+  ]
+}

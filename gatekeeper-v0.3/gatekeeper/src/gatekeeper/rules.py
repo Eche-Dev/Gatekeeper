@@ -658,7 +658,7 @@ def decode(value: str, max_rounds: int = 3, plus: bool = True) -> str:
     return value
 
 
-def normalize(value: str, max_rounds: int = 3) -> str:
+def normalize(value: str, max_rounds: int = 3, plus: bool = True) -> str:
     """Decodifica, normaliza Unicode, quita comentarios SQL y pasa a minúsculas.
 
     - `/**/` se trata como espacio en blanco (así lo interpreta MySQL), lo que
@@ -671,8 +671,13 @@ def normalize(value: str, max_rounds: int = 3) -> str:
     - Tras NFKC se decodifica otra vez (pase acotado): la normalización puede
       desvelar escapes escritos en ancho completo (`％Ｕ００２７` → `%U0027` → `'`).
     - Se aplica también a las reglas personalizadas: documentado en el README.
+    - `plus=False` NO traduce el `+` a espacio. Es lo que necesitan los valores
+      que ya vienen decodificados (el body y las cabeceras): para la
+      aplicación, un `+` ahí es un carácter LITERAL (el operador de MySQL en
+      `sleep(10+6)`), no un espacio. Traducirlo a espacio es perder un ataque.
+      Ver `scan_plus_literal`.
     """
-    text = unicodedata.normalize("NFKC", decode(value, max_rounds, plus=True))
+    text = unicodedata.normalize("NFKC", decode(value, max_rounds, plus=plus))
     text = unicodedata.normalize("NFKC", decode(text, max_rounds, plus=False))
     text = unicodedata.normalize("NFKC", decode(text, max_rounds, plus=False))
     text = _strip_sql_comments(text)
@@ -958,12 +963,86 @@ def scan_detailed(
 
     Si `allow_cross_carrier` es verdadero, `value` y `carriers` se consideran
     partes de una misma entrada y se normalizan juntas antes de escanearlas.
+
+    El `+` se lee de las DOS formas: como espacio (que es lo que significa en
+    una query string) y como carácter literal (que es lo que es en un body, y
+    el operador de MySQL en `sleep(10+6)`). Un `scan()` no sabe de dónde sale
+    el valor, y quedarse con una sola de las dos lecturas es dejar pasar un
+    ataque: el middleware inspeccionaba `sleep(10 6)` mientras la aplicación
+    usaba `sleep(10+6)`.
     """
+    hit = _scan_detailed(
+        value, disabled, extra, only, use_prefilter, carriers, allow_cross_carrier,
+        plus=True,
+    )
+    if hit is None and "+" in value:
+        hit = _scan_detailed(
+            value, disabled, extra, only, use_prefilter, carriers,
+            allow_cross_carrier, plus=False,
+        )
+    return hit
+
+
+def scan_plus_as_space(
+    value: str,
+    disabled: set[str] | None = None,
+    extra: dict[str, list[re.Pattern[str]]] | None = None,
+    only: frozenset[str] | set[str] | None = None,
+    use_prefilter: bool = True,
+    carriers: list[str] | None = None,
+    allow_cross_carrier: bool = False,
+) -> tuple[str, str] | None:
+    """Escanea un texto donde el `+` es un ESPACIO: la query string.
+
+    En una query, `+` significa espacio (así lo parsea el servidor); el `+` que
+    venga de `%2B` es un carácter literal, y `decode()` lo respeta (la
+    traducción del `+` solo ocurre en la primera ronda).
+
+    Es la lectura que usa el middleware con la ruta y la query. No es API
+    pública: la usan el middleware y las pruebas.
+    """
+    return _scan_detailed(
+        value, disabled, extra, only, use_prefilter, carriers, allow_cross_carrier,
+        plus=True,
+    )
+
+
+def scan_plus_literal(
+    value: str,
+    disabled: set[str] | None = None,
+    extra: dict[str, list[re.Pattern[str]]] | None = None,
+    only: frozenset[str] | set[str] | None = None,
+    use_prefilter: bool = True,
+) -> tuple[str, str] | None:
+    """Escanea un texto donde el `+` es LITERAL: el body y las cabeceras.
+
+    Para la aplicación, un `+` en un body es un carácter literal -el operador
+    de MySQL en `sleep(10+6)`-, no un espacio. Traducirlo a espacio es perder
+    un ataque.
+
+    No es API publica: la usan el middleware y las pruebas.
+    """
+    return _scan_detailed(
+        value, disabled, extra, only, use_prefilter, None, False, plus=False
+    )
+
+
+def _scan_detailed(
+    value: str,
+    disabled: set[str] | None,
+    extra: dict[str, list[re.Pattern[str]]] | None,
+    only: frozenset[str] | set[str] | None,
+    use_prefilter: bool,
+    carriers: list[str] | None,
+    allow_cross_carrier: bool,
+    plus: bool,
+) -> tuple[str, str] | None:
+    """El escaneo de verdad, con el tratamiento del `+` parametrizable."""
     # Cross-carrier detection is opt-in because joining input contexts can add
     # false positives; middleware only calls this after independent scans miss.
     if allow_cross_carrier and carriers:
         value = " ".join((value, *carriers))
-    text = normalize(value)
+    text = normalize(value, plus=plus)
     desactivadas = disabled or set()
     activas = _familias_a_evaluar(text, desactivadas, only, use_prefilter)
 

