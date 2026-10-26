@@ -411,13 +411,21 @@ existía en GitHub, no en el paquete. Lo publica la **0.8.0** (sdist de
   publicado sin el recorte de la F5 (corregido en la 0.8.0), SonarCloud
   `cancelled` (es la app externa) y la falta de release de las fases 4 y 5
   (corregida en la 0.8.0).
+- **SAST/DAST en CI** (el punto 2), con el hallazgo de que la validación
+  externa sirve para algo: montando las reglas de semgrep se encontró que
+  **el nombre de una regla personalizada llegaba al log sin sanear** (el log
+  de auditoría sanea todo; los avisos de `config.py` no). Corregido, con
+  tests, y con cuatro reglas propias medidas en las dos direcciones.
+- `zizmor` sobre los workflows: **0 hallazgos** (antes 7 de severidad media,
+  por el `persist-credentials` de los `actions/checkout`).
 
 Lo que queda:
 
 1. **Revisión de seguridad independiente**: la tiene que hacer alguien que no
    haya escrito el código. `SECURITY_REVIEW.md` ya avisa de que no valida una
    revisión hecha por quien ajustó las reglas. Es el punto 5 del objetivo.
-2. **`semgrep` + `zizmor` en CI** (el punto 2): automatizable y medible.
+2. **`semgrep` + `zizmor` en CI**: hecho (job `sast`), pero la **revisión
+   humana** de lo que reporte sigue pendiente en cada push.
 3. **Benchmarks reproducibles en CI** con umbrales (el punto 3).
 4. **Tests diferenciales contra FastAPI y Starlette** en varias versiones
    (el punto 4).
