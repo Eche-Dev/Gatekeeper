@@ -1,23 +1,57 @@
 # Gatekeeper
 
-> **This is the English README.** The Spanish one is
-> [README.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/README.md),
-> and so is the documentation (the web version is in Spanish).
+> **This is the English README.** The Spanish one is the primary one:
+> [README.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/README.md).
+> The documentation (including the web version) is in Spanish.
 
 ![CI](https://github.com/Eche-Dev/Gatekeeper/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.13-blue)
 ![mypy](https://img.shields.io/badge/mypy-strict-2a6db2)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
-Security middleware for FastAPI/Starlette. One extra layer in front of your app:
-rate limiting, security headers, attack-pattern detection in query and body,
-your own rules via YAML, and JSON audit events.
+**Gatekeeper is a security middleware for FastAPI and Starlette.** It sits in
+front of your application and, on every request, it does three things:
+
+1. **Limits the traffic** per IP (sliding window, in memory or shared in Redis).
+2. **Adds the security headers** your app should serve and nobody remembers to
+   add (`nosniff`, `HSTS`, `X-Frame-Options`…).
+3. **Looks for attack patterns** in the path, the query string, the headers and
+   the body: SQLi, XSS, path traversal, NoSQL, system commands, SSRF, SSTI,
+   CRLF, Log4Shell and proto pollution.
+
+It is **one more layer** of defence in depth, not a WAF: it does not replace
+parameterized queries or input validation. And it does not promise "nobody will
+attack you": it **publishes how much it detects and how much it gets wrong**,
+with three measured corpora and the numbers in plain sight.
+
+## Why it exists
+
+Three problems that show up in almost any API and that do not need anybody to
+be malicious:
+
+- **One IP can ask for everything.** Without a request limit, a loop against
+  your login is a brute-force attack and a crawler is a DDoS.
+- **Security headers do not install themselves.** `X-Content-Type-Options`,
+  `Strict-Transport-Security` or `X-Frame-Options` have to be added by hand in
+  every service, and one forgotten microservice is enough.
+- **An unvalidated field is a door.** A search, a filter or a parameter that
+  ends up in a query or in a template becomes an injection if nobody reviews
+  it.
+
+Gatekeeper covers all three **in one place, in front of your app**, without
+touching endpoint by endpoint.
+
+## Installation
 
 ```bash
 pip install gatekeeper-asgi             # core
 pip install "gatekeeper-asgi[yaml]"     # + YAML configuration
 pip install "gatekeeper-asgi[redis]"    # + rate limit shared between workers
 ```
+
+It needs Python 3.10+ and Starlette 0.23+ (FastAPI already brings it).
+
+## Usage
 
 ```python
 from fastapi import FastAPI
@@ -30,39 +64,57 @@ app.add_middleware(GatekeeperMiddleware, config=Config(rate_limit=100, rate_wind
 # or: Config.from_yaml("gatekeeper.yaml")   (see examples/gatekeeper.yaml)
 ```
 
-## What it covers
+One line and your app already has rate limiting, security headers and
+inspection of the query and the body. The whole configuration is in the
+[API reference](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/api.md).
 
-| Protection | Detail |
+## What happens when it fires
+
+A request with an SQLi payload in the query:
+
+```console
+$ curl -i "http://localhost:8000/?q=1%27%20OR%20%271%27%3D%271"
+HTTP/1.1 403 Forbidden
+content-type: application/json
+x-content-type-options: nosniff
+x-frame-options: DENY
+strict-transport-security: max-age=31536000; includeSubDomains
+
+{"detail":"Forbidden"}
+```
+
+And in the log, a JSON event (never the payload **values**: only the rule, the
+**name** of the field that fired — the attacker picks that name, so it is
+sanitized and truncated — and the pattern):
+
+```json
+{"ts": 1793039080.65, "event": "attack_detected", "ip": "203.0.113.7",
+ "method": "GET", "path": "/", "rule": "sqli", "source": "query",
+ "field": "q", "pattern": "\\b(or|and)\\b\\s{0,16}...", "blocked": true}
+```
+
+The full event catalogue is in
+[`corpus/events.json`](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/events.json).
+
+## What it inspects
+
+| | Detail |
 |---|---|
 | Rate limiting | Sliding window per IP. In memory (one process) or in Redis with an atomic Lua script (shared between workers), via `redis.asyncio`, without blocking the event loop |
-| Headers | nosniff, X-Frame-Options, HSTS, Referrer-Policy, Permissions-Policy (never overwrites your app's) |
-| SQLi | UNION SELECT, tautologies (`' OR '1'='1`, `?a=1=1`), stacked queries (`; DROP`), time-based (`sleep()`, `WAITFOR DELAY`), error-based (`EXTRACTVALUE`, `CONVERT`), column probing (`ORDER BY 10`) |
-| XSS | `<script>`, event handlers with and without a tag (`onerror=`, ` onload=`), `javascript:`, `data:text/html`, with double encoding |
-| Path traversal | `../`, `..\`, `..;/`, with repeated decoding and segment boundaries (`foo../x` is not a jump) |
-| Sensitive files | `/etc/passwd`, `shadow`, `subuid`; `/proc/self/environ`; `win.ini`; `.ssh/id_*`; `.aws/credentials`; `.docker/secrets`; `.git/config`; `.env` (they need a separator: `?q=.env` passes) |
-| NoSQL | Mongo injection operators: `$ne`, `$nin`, `$where`, `$regex` inside JSON or brackets (`user[$ne]=x`). `$gt`/`$lt`/`$in` are left out: legitimate filters use them |
-| System commands | Shell separator + binary (`; ls`, `\| cat`, `&& whoami`, `$(id)`, `` `uname` ``), Windows LOLBins (`powershell.exe`), PHP webshells (`;system('`, `shell_exec(`), reverse shell `/dev/tcp/` |
-| SSRF | Cloud metadata (AWS/GCP/Azure/Alibaba) and local-read schemes (`file://`, `gopher://`, `dict://`, `jar://`); `localhost` is not blocked (development OAuth) |
-| SSTI | Template arithmetic (`{{7*7}}`, `${7*7}`, `<%= 7*7 %>`, `#{7*7}`) and dangerous objects (`config`, `self`, `__class__`, `__subclasses__`) |
-| CRLF | Newline followed by a header: response splitting and header injection (real CRLF or a literal `\r\n`) |
-| Log4Shell | `${jndi:ldap://…}` with its obfuscations (`${${::-j}ndi:`) and exfiltration lookups (`${env:AWS_SECRET…}`) |
-| Proto pollution | `__proto__` anywhere, and `constructor.prototype` |
-| Evasion | Repeated URL encoding (3 rounds), IIS `%uXXXX` escapes in either case, full-width characters (`＜script` via NFKC), SQL comments `/**/` and versioned ones (`/*!50000union*/`), HTML entities, numeric **and named** (`&lt;script`), tab/NL inside the scheme (`java\tscript:`) |
-| Body limit | `max_body_size` (256 KiB by default) → 413 if the declared or read size exceeds it |
-| Budgets | `max_fields` (1000 texts) and `max_inspection_ms` (1000 ms) → 413 when exhausted: inspection cost scales with the fields, not with the bytes |
-| Generic content type | `application/octet-stream` is **sniffed**: if the body is JSON, it is inspected as JSON (the attacker controls the header) |
-| Multipart | The **field and file names** are inspected (`filename=../../etc/passwd`), not the file contents. `inspect_multipart=False` turns it off |
-| WebSocket | The **handshake** (path, query and headers) is inspected and is **rate limited**; the frames are not. `inspect_websockets=False` turns it off |
-| Query + body crossing | Opt-in with `inspect_cross_carrier=True`; combines path/query with non-excluded textual body values, it can add false positives, try it first with `monitor_only=True` |
-| Your own rules | Regexes in YAML or `Config(custom_rules=...)`, validated at startup |
-| Path exclusion | `allow_paths` (globs). Paths with `..`, `\` or residual encoding are never exempt |
-| Audit | JSON events on the `gatekeeper` logger; never the **values** of the fields (yes the **name** of the one that fired, sanitized and truncated) |
-| Monitor mode | `monitor_only=True` logs without blocking, to measure false positives on your real traffic |
+| Headers | `nosniff`, `X-Frame-Options`, `HSTS`, `Referrer-Policy`, `Permissions-Policy`. It never overwrites your app's, and they also go on the rejections |
+| Detection | Eleven families: SQLi, XSS, path traversal, sensitive files, NoSQL, system commands, SSRF, SSTI, CRLF, Log4Shell and proto pollution. The detail of each one, with its false-positive boundary, is in [docs/amenazas.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/amenazas.md) (in Spanish) |
+| Surfaces | Path, query string, headers, JSON and form body, multipart names and the WebSocket handshake |
+| Evasion | Repeated URL encoding (3 rounds), IIS `%uXXXX` escapes, full-width characters (NFKC), SQL comments `/**/` and versioned ones (`/*!50000…*/`), HTML entities, numeric **and named** |
+| Budgets | `max_body_size` (256 KiB), `max_fields` (1000 texts) and `max_inspection_ms` (1000 ms). When they run out the request is rejected with **413**: it is never admitted uninspected |
+| Your own rules | Regexes in YAML or in `Config(custom_rules=...)`, validated at startup (a regex with catastrophic backtracking is a `ValueError`) |
+| Audit | JSON events on the `gatekeeper` logger. Never the values of the fields |
 
 ## What it measures (not what it promises)
 
-Three corpora are measured. The first is ours, written by hand and with
-documented provenance
+Three corpora are measured, and all three are guarded in CI: if a new rule
+makes them worse, the workflow fails.
+
+The first is **ours**, written by hand and with documented provenance
 ([corpus/](https://github.com/Eche-Dev/Gatekeeper/tree/main/gatekeeper-v0.3/gatekeeper/corpus/)):
 
 | Metric (own corpus) | Value |
@@ -71,13 +123,6 @@ documented provenance
 | Undocumented false negatives | 0 |
 | Legitimate requests blocked without documentation | **0** / 131 |
 | Documented false positives (accepted limits) | 8 |
-| Documented false negatives (accepted limits) | 0 |
-
-Eleven detection families: SQLi, XSS, path traversal, sensitive files, NoSQL,
-system commands, SSRF, SSTI, CRLF, Log4Shell and proto pollution. The
-breakdown with each family's false-positive boundary is in
-[docs/amenazas.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/amenazas.md)
-(in Spanish).
 
 The second one is the **held-out** corpus: written once, without looking at the
 rule signatures, and measured ever since. It is the one that says whether the
@@ -91,8 +136,9 @@ rules generalize or only remember the cases they were written with:
 | Documented false positives (accepted limits) | 5 |
 
 94.5% instead of 100% is expected: the own corpus can be used to tune the
-rules, the held-out one cannot. The methodology, and the failures this corpus
-found in the rules, are in
+rules, the held-out one cannot. That difference is information, not a defect:
+it is what separates "the rules detect this" from "the rules detect what they
+were written for". The methodology is in
 [corpus/HELDOUT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/HELDOUT.md)
 (in Spanish).
 
@@ -111,13 +157,101 @@ That 41.0% is not a goal: it is the **baseline** of a corpus designed for a
 500+ rule WAF with far more obfuscated payloads, and the workflow watches it so
 that it does not drop. Publishing the whole thing is the point: a 100% of our
 own and a 41.0% of someone else's, both measured and both guarded in CI.
-These numbers measure individual scans; they do not include
-`inspect_cross_carrier=True`.
 
 The details, including the payloads that slip through and why, are in
 [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md).
-The workflow fails if a new rule makes those numbers worse
-(`python tools/evaluate.py --check`).
+These numbers measure the individual scans; they do not include
+`inspect_cross_carrier=True`.
+
+## Configuration
+
+The essentials, the rest in the
+[API reference](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/api.md):
+
+| Option | Default | What it does |
+|---|---|---|
+| `rate_limit` / `rate_window` | `100` / `60` | allowed requests per IP and window (0 disables) |
+| `rate_backend` | `memory` | `memory` or `redis` (shared between workers) |
+| `inspect_requests` / `inspect_body` | `True` | inspection of query and body |
+| `monitor_only` | `False` | log without blocking (to measure before you block) |
+| `disabled_rules` | `∅` | turn specific families off (`sqli`, `xss`, `path_traversal`…) |
+| `rule_packs` | `∅` (all) | enable a subset: `minimal`, `api`, `web`, `infrastructure`, `strict` |
+| `exclude_fields` | `[]` | fields exempt from inspection (parameter, header or JSON pointer); globs allowed |
+| `custom_rules` | `∅` | your own regexes: `{name: regex}` or `[{name, pattern}]` |
+| `max_body_size` | `256 KiB` | limit of the inspected body |
+| `max_fields` / `max_inspection_ms` | `1000` / `1000` | inspection budgets (when exhausted → 413) |
+| `allow_paths` | `[]` | globs exempt from inspection (not from rate limiting) |
+| `blocked_ips` / `trust_proxy` | `∅` / `False` | blocking by IP or CIDR, and use of `X-Forwarded-For` |
+
+`Config` **fails at startup**, not in production: unknown keys (a typo like
+`rate_limt`), invalid or empty regexes, duplicate names, non-existent
+`disabled_rules` and unknown packs raise `ValueError`.
+
+### Two decisions that usually come up
+
+**If your app exposes less surface than you assume**, instead of turning rules
+off one by one, enable a pack:
+
+```python
+from gatekeeper import Config
+
+Config(rule_packs=["api"])   # SQLi, NoSQL, traversal, files, SSRF, Log4Shell, CRLF, cmdi
+```
+
+An unknown pack is a `ValueError` at startup: an app cannot end up without
+protection because somebody wrote `rule_packs=["we"]`.
+
+**If your app deliberately accepts a value that a signature blocks** (a search
+engine that indexes security documentation, a `template` parameter with Jinja, a
+webhook), exempt **that field**, not the whole family:
+
+```python
+Config(exclude_fields=["template", "bio", "doc_*"])
+```
+
+It works on all three transports (query parameter, header and JSON pointer),
+and the detection that crosses several fields is preserved: if you exclude `a`
+but the payload is split between `a` and `b`, Gatekeeper removes `a` from the
+target and keeps watching `b`.
+
+### Measure before you block
+
+Put the middleware in front with `monitor_only=True`, let the real traffic run
+and look at what fires:
+
+```bash
+gatekeeper report gatekeeper.log          # ranking of rules, paths and fields
+gatekeeper report gatekeeper.log --json   # machine-readable output
+```
+
+The report groups by (rule, field) — what repeats is noise — and proposes a
+ready-to-paste `exclude_fields` or `disabled_rules`. It accepts the JSON
+emitted by Gatekeeper's logger or a generic access log
+(`GET /path?q=… 200`).
+
+## What it does NOT cover
+
+- Regex detection has false positives and false negatives: it **does not
+  replace** parameterized queries, input validation or a real WAF.
+- The **contents** of uploaded files are not inspected (field and file names
+  are).
+- WebSocket **frames** are not inspected: the handshake is (path, query and
+  headers), and it is rate limited too.
+- Binaries that are not JSON (image, PDF, zip…) are not read.
+- By default every body value is analysed on its own. With
+  `inspect_cross_carrier=True` the path/query is combined with the non-excluded
+  textual values; it is opt-in and its result is **not** in the numbers above.
+- Mongo's `$gt`/`$lt`/`$in` operators are left out of the NoSQL signature on
+  purpose (legitimate filters use them); `localhost` and `127.0.0.1` do not
+  count as SSRF (development OAuth).
+- With `rate_backend="memory"` and several workers, the effective limit is
+  multiplied: use Redis.
+- If Redis does not answer, `rate_fail_open=True` (the default) keeps admitting
+  requests; set it to `False` if you prefer 503.
+- `trust_proxy=False` by default; enable it only behind a trusted proxy, and
+  add `trusted_proxy_cidrs` if the app is reachable another way.
+- `allow_paths` exempts from inspection, not from rate limiting or IP
+  blocking.
 
 ## Demo
 
@@ -129,74 +263,17 @@ the content.
 
 ![Gatekeeper demo](https://github.com/Eche-Dev/Gatekeeper/raw/main/gatekeeper-v0.3/gatekeeper/docs/assets/demo.gif)
 
-The demo app includes a playground with buttons and deployment configs for
-Vercel (`vercel --prod`) and Docker:
-[`demo/`](https://github.com/Eche-Dev/Gatekeeper/tree/main/gatekeeper-v0.3/gatekeeper/demo/).
+## Cost per request
 
-## Latency
-
-`python benchmarks/latency.py` measures the per-request cost on your machine,
-calling ASGI directly and without network:
-
-| Scenario | p50 | p95 | p99 | +p50 vs base |
-|---|---|---|---|---|
-| no middleware (base) | 17.40 | 56.70 | 308.70 | — |
-| headers only | 41.60 | 194.10 | 989.50 | +23.50 |
-| query inspection, no body and no rate limit | 206.10 | 937.80 | 2057.20 | +171.20 |
-| JSON body inspection, no rate limit | 346.60 | 612.90 | 1029.60 | +329.20 |
-| opt-in query/body crossing (benign) | 434.80 | 715.00 | 1179.90 | +429.20 |
-| opt-in query/body crossing (attack, 403) | 322.90 | 474.50 | 709.50 | +305.50 |
-| rate limit only | 46.50 | 55.30 | 99.00 | +27.30 |
-| full (inspection + rate limit) | 193.40 | 394.10 | 677.90 | +173.70 |
-| attacker request (early 403) | 114.40 | 331.30 | 743.20 | +97.40 |
-
-A local run on **Python 3.14.8 on Windows**, with 1000 iterations × 5 rounds,
-produced those percentiles; the overhead column uses 3 repetitions. The results
-depend on the environment and are not a production latency promise. The body
-and crossing scenarios hand the real body to the middleware; the tests verify
-that the benign case answers 200 and the attack crossing answers 403.
-
-**The family prefilter.** Before running the regexes, it checks whether the
-text contains a mandatory literal of each family and skips the ones that
-cannot match. It does not apply to texts shorter than 128 characters. This
-optimization must not change detections. `tests/test_prefilter.py` compares the
-scan with and without the prefilter over the 2086 values of both corpora (own
-payloads, CRS requests and header values) and requires the same result.
-
-The benchmark publishes p50, p95 and p99 per request so the tail does not hide
-behind an average. In this run the full scenario had a p50 of 193.40 µs, a p95
-of 394.10 µs and a p99 of 677.90 µs; these are noisy local measurements, not
-end-to-end latency and not an SLA.
-
-`python benchmarks/latency.py --save base.json` and, after changing the code,
-`python benchmarks/latency.py --baseline base.json` compare two versions **on
-your machine** and tell you whether a scenario got worse by more than a margin
-(25% by default). They are for comparing changes under similar local
-conditions before opening a PR that touches the hot path.
-
-### Comparing performance
-
-There is no fixed latency threshold in CI: shared runners are not a stable
-baseline. The benchmark is a local report; to compare changes, save a baseline
-and run both versions on the same machine:
-
-```bash
-# 1. With the current code, save the baseline
-python benchmarks/latency.py --save base.json
-
-# 2. Change the code (or switch branch) and measure again
-python benchmarks/latency.py --baseline base.json
-```
-
-The comparison is **on the same machine**: shared runners are worthless for
-comparing anything. The script exits with a non-zero code if a scenario got
-worse by more than the 25% margin (`--margen` to tune it), and tells you
-which one. To filter out system noise, `--repeats` measures each scenario
-several times and keeps the median.
-
-If the change touches the hot path (the rules, the normalization or the
-prefilter), compare before opening the PR: no test detects a latency
-regression.
+`python benchmarks/latency.py` measures the cost on your machine, calling ASGI
+directly and without network. In the last local run (Python 3.14.8 on Windows,
+1000 iterations × 5 rounds), the full scenario —query and body inspection plus
+rate limiting— had a **p50 of 193 µs, a p95 of 394 µs and a p99 of 678 µs** over
+a 17 µs baseline without the middleware. These are noisy local measurements:
+they are not end-to-end latency and not an SLA. The benchmark publishes p50,
+p95 and p99 so the tail does not hide behind an average, and
+`python benchmarks/latency.py --save base.json` saves a baseline to compare a
+change on the same machine.
 
 ## Documentation
 
@@ -208,7 +285,7 @@ development. Locally: `mkdocs serve`. It is published at
 <https://eche-dev.github.io/Gatekeeper/> on every push to `main` (`--strict`
 build in CI: a broken link fails the workflow).
 
-The guide is in Spanish. New to the project? Start with the
+New to the project? Start with the
 [quick start guide](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/inicio-rapido.md):
 two `curl` commands verify that a normal request gets 200 and an attack gets
 403. And if you decide **where** to deploy it, the
@@ -220,124 +297,6 @@ Contributing: [CONTRIBUTING.md](https://github.com/Eche-Dev/Gatekeeper/blob/main
 · [Code of conduct](https://github.com/Eche-Dev/Gatekeeper/blob/main/CODE_OF_CONDUCT.md)
 · Issue and PR templates in the repo root.
 
-## What it does NOT cover
-
-- Regex detection has false positives and false negatives: it **does not
-  replace** parameterized queries, input validation or a real WAF.
-- The **contents** of uploaded files are not inspected (uploads pass intact;
-  field and file names are inspected).
-- WebSocket **frames** are not inspected: the handshake is (path, query and
-  headers), and it is rate limited too.
-- Binaries that are not JSON (image, PDF, zip…) are not read.
-- By default every body value is analysed on its own. With
-  `inspect_cross_carrier=True`, non-excluded textual values are combined with
-  path/query; JSON keys and headers do not take part.
-- `inspect_cross_carrier=True` combines path/query with the non-excluded
-  textual body values when the individual scans find nothing. Keys are
-  inspected individually but are not combined. It is opt-in, and its result is
-  not included in the published corpus metrics.
-- Mongo's `$gt`/`$lt`/`$in` operators are left out of the NoSQL signature on
-  purpose (legitimate filters use them); `localhost` and `127.0.0.1` do not
-  count as SSRF (development OAuth).
-- With `rate_backend="memory"` and several workers, the effective limit is
-  multiplied: use Redis.
-- If Redis does not answer, `rate_fail_open=True` (the default) keeps
-  admitting requests; set it to `False` if you prefer 503.
-- `trust_proxy=False` by default; enable it only behind a trusted proxy. With
-  `trust_proxy=True` the XFF is read right to left (`ips[-trusted_proxies]`);
-  add `trusted_proxy_cidrs` if the app is reachable another way.
-- A JSON/form body larger than `max_body_size` is rejected: raise it or use
-  `inspect_body=False`.
-- `allow_paths` exempts from inspection, not from rate limiting or IP
-  blocking.
-
-## Configuration
-
-| Option | Default | Description |
-|---|---|---|
-| `rate_limit` / `rate_window` | `100` / `60` | allowed requests per IP and window (0 disables) |
-| `rate_backend` | `memory` | `memory` or `redis` |
-| `redis_url` / `redis_prefix` | `redis://localhost:6379/0` / `gatekeeper:rl:` | connection and key prefix |
-| `rate_fail_open` | `True` | policy if Redis does not answer: admit or 503 |
-| `inspect_requests` / `inspect_body` | `True` | inspection of query and body |
-| `inspect_cross_carrier` | `False` | combine path/query + textual body values after clean individual scans |
-| `monitor_only` | `False` | log without blocking |
-| `disabled_rules` | `∅` | `sqli`, `xss`, `path_traversal`, `sensitive_files`, `nosql`, `cmdi`, `ssrf`, `ssti`, `crlf`, `log4shell`, `proto_pollution` or your own rules |
-| `rule_packs` | `∅` (all) | opt-in packs: `minimal`, `api`, `web`, `infrastructure`, `strict` (see below) |
-| `exclude_fields` | `[]` | fields (parameter, header or JSON pointer) exempt from inspection; globs allowed |
-| `custom_rules` | `∅` | `{name: regex}` or a list of `{name, pattern}` |
-| `max_body_size` | `256 KiB` | limit of the inspected body |
-| `max_fields` | `1000` | texts inspected per request (key + value = 2); `0` = no limit |
-| `max_inspection_ms` | `1000` | milliseconds of inspection per request; `0` = no limit |
-| `allow_paths` | `[]` | globs exempt from inspection |
-| `inspect_headers` | `user-agent, referer, cookie, x-forwarded-for` | headers inspected (`∅` disables) |
-| `blocked_ips` / `trust_proxy` | `∅` / `False` | blocking by IP or CIDR, and use of `X-Forwarded-For` |
-| `trusted_proxies` / `trusted_proxy_cidrs` | `1` / `∅` | proxy hops to skip in the XFF, and the networks it is trusted from |
-| `security_headers` | see source | `None` = default headers |
-
-`Config` fails at startup, not in production: unknown keys (a typo like
-`rate_limt`), invalid or empty regexes, duplicate names, non-existent
-`disabled_rules` and unknown packs raise `ValueError`.
-Your own rules are evaluated on text that is **decoded, without `/**/` comments
-and lowercased**; avoid patterns with catastrophic backtracking, your own
-patterns are not bounded by Gatekeeper.
-
-## Rule packs
-
-The eleven families are evaluated by default. If your app exposes less surface
-than you assume, you can enable a subset (the packs are **opt-in**: without
-`rule_packs` nothing changes from what Gatekeeper already did).
-
-| Pack | Families | For what |
-|---|---|---|
-| `strict` | all eleven | explicit default; apps that serve third-party HTML |
-| `web` | `web` + `xss` | public web with HTML (the pack almost everybody wants) |
-| `api` | `sqli`, `nosql`, `path_traversal`, `sensitive_files`, `ssrf`, `log4shell`, `crlf`, `cmdi` | JSON/GraphQL APIs: no `xss`, `ssti` nor `proto_pollution` because there is no template to render |
-| `minimal` | `sqli`, `path_traversal` | only what does not depend on the exposed surface |
-| `infrastructure` | `ssrf`, `log4shell`, `crlf`, `cmdi` | second layer behind a WAF, or backend without SQL |
-
-```python
-from gatekeeper import Config
-
-Config(rule_packs=["api"], disabled_rules=["cmdi"])   # API without XSS nor SSTI, without cmdi
-```
-
-An unknown pack is a `ValueError` at startup: an app cannot end up without
-protection because somebody wrote `rule_packs=["we"]`.
-
-## Excluding fields (and not rules)
-
-When your app deliberately accepts a value that a signature blocks (a search
-engine that indexes security documentation, a `template` parameter with Jinja,
-a webhook), exempt **that field**, not the whole family:
-
-```python
-Config(exclude_fields=["template", "bio", "doc_*"])
-```
-
-It works on all three transports: query parameter, header (`user-agent`) and
-JSON pointer (`/user/bio` or just `bio`). Detection that crosses several
-fields is preserved: if you exclude `a` but the payload is split between `a`
-and `b`, Gatekeeper removes `a` from the target and keeps watching `b`. The
-alternative is `disabled_rules`, which turns the family off for the whole app.
-
-## `gatekeeper report`: measure before you block
-
-Put the middleware in front in `monitor_only=True`, let the real traffic run
-and look at what fires:
-
-```bash
-monitor_only: true      # in your configuration, meanwhile
-gatekeeper report gatekeeper.log          # ranking of rules, paths and fields
-gatekeeper report gatekeeper.log --json   # machine-readable output
-```
-
-The report groups by (rule, field) — what repeats is noise — and proposes a
-ready-to-paste `exclude_fields` or `disabled_rules`. It accepts the JSON
-emitted by Gatekeeper's logger or a generic access log
-(`GET /path?q=... 200`). Audit events do not include the payload content, so
-this report cannot leak what the log does not carry.
-
 ## Development
 
 ```bash
@@ -348,7 +307,7 @@ bandit -r src -q        # static security analysis
 pytest --cov=gatekeeper   # includes fuzzing with hypothesis (tests/test_fuzz.py)
 python tools/evaluate.py --check     # detection and FP rates (own + CRS)
 python tools/import_crs.py --check   # provenance of the external corpus
-python tools/check_docs.py           # docs coherence: version, links, anchors, typos
+python tools/check_docs.py           # docs coherence: version, links, minimums
 python benchmarks/latency.py         # per-request cost
 python -m build && twine check dist/*   # the package can be published
 ```
@@ -359,8 +318,4 @@ python -m build && twine check dist/*   # the package can be published
 - [SECURITY.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY.md) — threat model, limits and how to report a vulnerability.
 - [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md) — generated detection report.
 
----
-
-> The documentation, the changelog and the issue templates are in Spanish.
-> The [Spanish README](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/README.md)
-> is the primary one.
+MIT licensed.

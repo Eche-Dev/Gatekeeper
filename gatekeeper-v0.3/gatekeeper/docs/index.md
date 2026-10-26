@@ -81,7 +81,7 @@ El desglose completo por familia, con su frontera de falsos positivos, está en
 ## Requisitos
 
 - Python 3.10–3.13 (probado también localmente en 3.14)
-- [Starlette](https://www.starlette.io/) ≥ 0.37 — FastAPI lo trae ya
+- [Starlette](https://www.starlette.io/) ≥ 0.23 — FastAPI ya la trae
 
 !!! success "Tipado real"
     El paquete es `mypy --strict` y distribuye `py.typed` (PEP 561): tu editor

@@ -1,6 +1,6 @@
 {
   "description": "Catalogo de eventos de auditoria de Gatekeeper. Es la lista EXHAUSTIVA de lo que el middleware puede emitir: si un evento no esta aqui, no existe. Cada evento lleva metadatos, no payload.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "logger": "gatekeeper",
   "level": "WARNING",
   "format": "JSON, una linea por evento",

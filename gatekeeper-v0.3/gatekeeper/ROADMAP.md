@@ -102,7 +102,7 @@ tiene su entrada en el [CHANGELOG](CHANGELOG.md) y sus notas de versión.
 
 ## Publicación
 - [x] Publicado en PyPI como `gatekeeper-asgi` con *Trusted Publishing* y
-      provenance verificado (0.4.0, 0.4.1, 0.5.0, 0.6.0, 0.7.0)
+      provenance verificado (0.4.0, 0.4.1, 0.5.0, 0.6.0, 0.7.0, 0.8.0)
 - [ ] Nombre y versión definitivos del paquete (hoy `gatekeeper-asgi`, con la
       carpeta del repo en `v0.3` por razones históricas)
 - [ ] Demo en Vercel (`vercel --prod` desde `demo/`) — credenciales del

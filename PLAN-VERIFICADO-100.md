@@ -335,6 +335,19 @@ CRS subido a la línea base real (0,19 → 0,40), sin email personal en los
 metadatos, `Config.validate()` (que no existía) fuera de la documentación y
 el ejemplo de `custom_rules` corregido para que **se ejecute de verdad**.
 
+**Revisión de entrega (26-10-2026): la F4 se había quedado a medias.** Al
+revisar el resultado ya publicado se encontró que la **portada de la web**
+(`docs/index.md`) seguía anunciando «Starlette ≥ 0.37» mientras
+`pyproject.toml` declara `starlette>=0.23` — el mínimo antiguo, que era
+precisamente el que rompía la instalación de quien usara FastAPI 0.103.x. Es
+el hallazgo B-10 de `AUDITORIA-2026-10-25.md`, detectado en la auditoría
+inicial: `docs/instalacion.md` se corrigió, `docs/index.md` no.
+
+Corregido en la **0.8.0**, y con guarda para que no vuelva a colarse:
+`tools/check_docs.py` comprueba ahora que el mínimo que afirma la
+documentación sea el que declara `pyproject.toml` (antes solo comparaba la
+versión de Gatekeeper entre sitios, no la de sus dependencias).
+
 ---
 
 ### 🔵 FASE 5 — Repo, distribución y proceso · 3-5 días · **96 → 98**
@@ -366,6 +379,12 @@ Además: `tools/metrics.py` con tests (y **sin filtrar** IPs, rutas ni
 patrones), `tools/compat_matrix.py` como job de CI programado (la matriz se
 mide, no se supone), y la raíz del repo limpia (los restos van a `.audit/`).
 
+**Revisión de entrega (26-10-2026): el recorte no llegaba a PyPI.** La F5
+estaba mergeada y verde, pero el sdist **publicado** seguía siendo el de la
+0.7.0 (482 KiB con el corpus, los tests, la web y las demos dentro): el trabajo
+existía en GitHub, no en el paquete. Lo publica la **0.8.0** (sdist de
+**91,9 KiB**), donde además sale el clasificador de Python 3.14.
+
 ---
 
 ### 🏆 FASE 6 — Validación externa · 2-4 semanas · **98 → 100**
@@ -382,6 +401,27 @@ mide, no se supone), y la raíz del repo limpia (los restos van a `.audit/`).
 > **Aceptación:** informe publicado; CI en verde con SAST/DAST y umbrales de rendimiento; el README dice quién revisó y cuándo.
 > **Por qué +2:** con esto, tu nota de 100/100 es **defendible** frente a cualquiera que pregunte.
 
+**Estado (26-10-2026): EN CURSO.** Lo hecho:
+
+- Una **revisión de entrega** del resultado ya publicado (no es la revisión de
+  seguridad: es comprobar que lo mergeado, lo publicado en PyPI y lo
+  desplegado dicen lo mismo). Está en
+  `.audit/REVISION-ENTREGA-2026-10-26.md` y encontró 4 cosas: la portada con
+  el mínimo de Starlette equivocado (corregido en la 0.8.0), el sdist
+  publicado sin el recorte de la F5 (corregido en la 0.8.0), SonarCloud
+  `cancelled` (es la app externa) y la falta de release de las fases 4 y 5
+  (corregida en la 0.8.0).
+
+Lo que queda:
+
+1. **Revisión de seguridad independiente**: la tiene que hacer alguien que no
+   haya escrito el código. `SECURITY_REVIEW.md` ya avisa de que no valida una
+   revisión hecha por quien ajustó las reglas. Es el punto 5 del objetivo.
+2. **`semgrep` + `zizmor` en CI** (el punto 2): automatizable y medible.
+3. **Benchmarks reproducibles en CI** con umbrales (el punto 3).
+4. **Tests diferenciales contra FastAPI y Starlette** en varias versiones
+   (el punto 4).
+
 ---
 
 ## 6. Definition of Done (el checklist de "100/100")
@@ -397,7 +437,7 @@ mide, no se supone), y la raíz del repo limpia (los restos van a `.audit/`).
 [x]  README, PyPI, web y metadatos dicen la MISMA versión
 [x]  0 enlaces rotos, 0 afirmaciones técnicas falsas en la documentación
 [x]  README en inglés
-[ ]  El sdist pesa < 100 KB y no lleva demo ni corpus
+[x]  El sdist pesa < 100 KB y no lleva demo ni corpus
 [x]  Existe AGENTS.md y CONTRIBUTING.md
 [ ]  Cobertura > 95 % en todos los módulos (hoy __init__.py al 43 %)
 [ ]  Test de complejidad temporal por familia de entradas hostiles
