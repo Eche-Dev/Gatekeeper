@@ -18,9 +18,40 @@ firmas de las reglas, y a partir de ahí **solo se mide**.
 | Fichero | Contenido | Tamaño |
 |---|---|---|
 | `heldout_attacks.json` | Ataques que las reglas deberían detectar | 109 |
-| `heldout_benign.json` | Tráfico legítimo que no debería bloquearse | 90 |
+| `heldout_benign.json` | Tráfico legítimo que no debería bloquearse | 90 + 50 = 140 |
 
 Informe generado: [`HELDOUT_REPORT.md`](HELDOUT_REPORT.md).
+
+## Los dos lotes
+
+`heldout_benign.json` tiene **dos lotes**, y la diferencia importa:
+
+| Lote | Casos | Cuándo se escribió | Para qué |
+|---|---|---|---|
+| 1 | 90 | antes de v0.4.0 | medir si las reglas de v0.3.1 generalizaban |
+| 2 | 50 | en la **Fase 3**, con las firmas ya congeladas | medir si las firmas nuevas generalizan |
+
+El lote 2 (`hob-091` … `hob-140`) se escribió **después** de cerrar las firmas de
+la Fase 3 (tautología con literales vacíos, booleano ciego invertido, `sleep`
+numérico, XSS por atributos, `cmdi` con salto de línea, SSRF con la IP de
+metadata en decimal/hex/octal). Es el mismo mecanismo del lote 1: se escribe
+sin mirar las firmas y **se mide una vez**.
+
+Lo que se mide en el lote 2 es doble:
+
+- **50 peticiones legítimas nuevas**: si las firmas endurecidas de la Fase 3
+  rompían algo del tráfico real, salía aquí.
+- **El efecto secundario de los ajustes del lote de desarrollo**: dos de los
+  tres falsos positivos que tenía el lote 2 (`union all` y `waitfor delay` en
+  prosa) los resolvieron los ajustes que motivó el corpus de desarrollo, no
+  una firma escrita para el lote 2. El tercero (la IP de metadata citada en
+  una explicación) sigue abierto y documentado como límite conocido.
+
+Regla que se aplicó: **un falso positivo del lote 2 no se corrige con una firma
+nueva escrita para él**. Se documenta. Si además hay un caso equivalente en el
+corpus de desarrollo, ese es el que puede motivate un ajuste general, y el
+efecto en el lote 2 se reporta como efecto secundario, no como logro del
+lote.
 
 ## Cómo se escribieron
 
@@ -47,7 +78,7 @@ Informe generado: [`HELDOUT_REPORT.md`](HELDOUT_REPORT.md).
 |---|---|---|
 | Ataques detectados | 159/159 (100%) | **103/109 (94,5%)** |
 | Falsos positivos no documentados | 0 | **0** |
-| Falsos positivos documentados | 5 | 4 |
+| Falsos positivos documentados | 8 | 5 |
 | Falsos negativos documentados | 0 | 6 |
 
 !!! info "Por qué el retenido da 94,5% y no 100%"
@@ -96,10 +127,10 @@ fallaban** y **1 falso positivo sobre tráfico legítimo**:
   parezca un volcado (`backup/2024/01/15/`, `.../2024/01/15/x.sql`).
 
 !!! warning "Esto no es una promesa de que no haya más"
-    El corpus retenido mide sobre **109 ataques y 90 peticiones legítimas**.
+    El corpus retenido mide sobre **109 ataques y 140 peticiones legítimas**.
     Es una muestra, no un censo. Un corpus retenido pequeño no cubre todas las
     técnicas ni todos los patrones de tráfico real: la conclusion honesta es
-    "estas 109 técnicas y estos 90 patrones se comportan así", no "el
+    "estas 109 técnicas y estos 140 patrones se comportan así", no "el
     detection es completo".
 
 ## Diferencia con el corpus de desarrollo

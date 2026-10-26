@@ -5,8 +5,8 @@ importa: **medir** y **ajustar** no son lo mismo.
 
 | Corpus | Fichero | Para qué | Tamaño |
 |---|---|---|---|
-| Desarrollo | `attacks.json` + `benign.json` | ajustar las reglas | 159 + 81 |
-| Retenido | `heldout_attacks.json` + `heldout_benign.json` | **medir** si las reglas generalizan | 109 + 90 |
+| Desarrollo | `attacks.json` + `benign.json` | ajustar las reglas | 159 + 131 |
+| Retenido | `heldout_attacks.json` + `heldout_benign.json` | **medir** si las reglas generalizan | 109 + 140 |
 | Retenido cruzado | `heldout_cross.json` | **medir** el modo opt-in fuera del corpus de desarrollo | 20 + 20 |
 | Cruzado | `cross.json` | medir el modo opt-in `inspect_cross_carrier=True` | 7 + 15 |
 | Externo | `crs_payloads.json` | medir contra un corpus escrito por terceros | 1379 |
@@ -31,6 +31,11 @@ Informe: [`REPORT.md`](REPORT.md).
 sin mirar las firmas de las reglas, y a partir de ahí solo se miden. Es lo que
 distingue "las reglas detectan esto" de "las reglas detectan lo que se
 escribieron para ellas".
+
+`heldout_benign.json` tiene **dos lotes**: 90 casos escritos antes de v0.4.0 y
+50 más escritos en la Fase 3, ya con las firmas congeladas. Los dos se miden
+igual: un falso positivo ahí no se arregla con una firma escrita para él, se
+documenta. Los detalles, en [`HELDOUT.md`](HELDOUT.md).
 
 Metodología completa: [`HELDOUT.md`](HELDOUT.md). Informe:
 [`HELDOUT_REPORT.md`](HELDOUT_REPORT.md).

@@ -56,9 +56,9 @@ TEXTOS = _textos()
 
 
 def test_corpus_no_esta_vacio():
-    # 159 ataques + 81 benignos + 109 retenidos + 90 retenidos benignos
+    # 159 ataques + 131 benignos + 109 retenidos + 140 retenidos benignos
     # + 1379 solicitudes CRS y sus cabeceras.
-    assert len(TEXTOS) == 1986, f"el corpus se ha cargado mal: {len(TEXTOS)}"
+    assert len(TEXTOS) == 2086, f"el corpus se ha cargado mal: {len(TEXTOS)}"
 
 
 @pytest.mark.parametrize("texto", TEXTOS)
@@ -84,7 +84,14 @@ def test_los_prefiltros_no_contienen_lit_vacios():
         assert literales, f"{familia} tiene una lista de literales vacía"
         for literal in literales:
             assert literal == literal.lower(), f"{familia}: {literal!r} no está en minúsculas"
-            assert literal.strip(), f"{familia}: el literal {literal!r} es solo espacio"
+            # Un literal que sea solo un espacio en blanco no filtra nada. La
+            # excepcion son los SEPARADORES: en shell, el salto de linea es un
+            # separador de comandos igual que el `;`, asi que "\n" es un
+            # literal util (descarta la familia en texto de una sola linea).
+            separador = literal in ("\n", "\r")
+            assert separador or literal.strip(), (
+                f"{familia}: el literal {literal!r} es solo espacio"
+            )
             # Un literal de 1 carácter solo tiene sentido si es un separador
             # (el backtick de cmdi), no una letra suelta que colaría en cualquier
             # texto.

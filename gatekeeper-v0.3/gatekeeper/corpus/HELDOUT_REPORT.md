@@ -14,9 +14,9 @@ corpus de desarrollo, y esa diferencia es informacion, no un defecto.
 | Detectados | 103 (94.5%) |
 | Falsos negativos no documentados | 0 |
 | Falsos negativos documentados (limites conocidos) | 6 |
-| Requests benignos | 90 |
+| Requests benignos | 140 |
 | Falsos positivos no documentados | 0 (0.0%) |
-| Falsos positivos documentados | 4 |
+| Falsos positivos documentados | 5 |
 
 ## Deteccion por regla
 
@@ -53,6 +53,7 @@ corpus de desarrollo, y esa diferencia es informacion, no un defecto.
 | hob-050 | sqli | endpoint de pruebas que devuelve payloads como valor: bloquearlo es correcto | `/api/test?input=%27%20or%20%271%27%3D%271%27` |
 | hob-051 | xss | endpoint de pruebas que devuelve payloads como valor: bloquearlo es correcto | `/api/test?input=%3Cscript%3Ealert(1)%3C/script%3E` |
 | hob-052 | path_traversal | endpoint de pruebas que devuelve payloads como valor: bloquearlo es correcto | `/api/test?input=..%2F..%2Fetc%2Fpasswd` |
+| hob-131 | ssrf | limite conocido: la IP de metadata se bloquea en cualquier posicion; explicarla en un articulo salta. No se afloja porque el parametro de destino (`?ip=169.254.169.254`) es un SSRF real | `/faq?q=que+es+el+metadata+de+aws+169.254.169.254` |
 
 ## Umbrales de CI
 

@@ -4,7 +4,9 @@
 
 | Rama | Estado | Recibe correcciones |
 |---|---|---|
-| 0.5.x | **Activa** | Seguridad, errores y features |
+| 0.7.x | **Activa** | Seguridad, errores y features |
+| 0.6.x | Histórica | Solo seguridad crítica |
+| 0.5.x | Histórica | Solo seguridad crítica |
 | 0.4.x | Histórica | Solo seguridad crítica |
 | 0.3.x, 0.2.x, 0.1.x | Históricas | Nada (0.3.x nunca se publicó en PyPI) |
 

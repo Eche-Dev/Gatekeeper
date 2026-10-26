@@ -1,6 +1,6 @@
 # Procedimiento: medir con tráfico real
 
-El corpus retenido mide sobre **109 ataques y 90 peticiones legítimas**
+El corpus retenido mide sobre **109 ataques y 140 peticiones legítimas**
 sintéticas. Son una muestra, y su origen son técnicas conocidas, no el tráfico
 que tu aplicación recibe de verdad. La única forma de saber si Gatekeeper
 bloquea tráfico legítimo real es **dejarlo observar tráfico real** durante un

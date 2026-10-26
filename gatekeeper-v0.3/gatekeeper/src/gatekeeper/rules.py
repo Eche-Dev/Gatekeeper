@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Iterable
-from urllib.parse import unquote_plus
+from urllib.parse import unquote, unquote_plus
 
 RULES: dict[str, list[re.Pattern[str]]] = {
     # Anti-ReDoS: TODOS los cuantificadores de blancos van acotados (`\s{0,16}`).
@@ -25,6 +25,12 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"\b(or|and)\b\s{0,16}[(']?\s{0,16}['\"]?\d+['\")\]]?\s{0,16}=\s{0,16}['\"]?\d+"),
         # tautología con literales de texto: `or 'a'='a'` (payload `%u2019 or %u2019a%u2019=%u2019a`)
         re.compile(r"\b(or|and)\b\s{0,16}[(']?\s{0,16}['\"][\w-]+['\"]\s{0,16}=\s{0,16}['\"][\w-]+['\"]"),
+        # tautología con literales VACÍOS: `' or ''=`. La regla de arriba exige
+        # un literal con contenido (`[\w-]+`), así que esta forma se colaba:
+        # el atacante cierra la comilla del valor y mete la comparación con
+        # cadena vacía. Es la firma de un `or ''=''` truncado al final del
+        # parámetro.
+        re.compile(r"\b(?:or|and)\b\s{0,16}['\"]\s{0,16}['\"]?\s{0,16}="),
         # tautología canónica en contexto de parámetro: `?a=1=1`, no prosa con `1=1`
         re.compile(r"(?:^|[?&=,])1\s{0,16}=\s{0,16}1(?:[\s&;]|$)"),
         # consultas apiladas: `; DROP`, `; SELECT`, `; EXEC`...
@@ -41,10 +47,45 @@ RULES: dict[str, list[re.Pattern[str]]] = {
             r"\b(?:ascii|ord|length|char_length)\s{0,16}\(\s{0,16}"
             r"(?:substring|substr|mid)\s{0,16}\("
         ),
-        # time-based: SLEEP / PG_SLEEP / BENCHMARK / DBMS_PIPE
-        re.compile(r"\b(?:pg_|dbms_)?sleep\s{0,16}\(\s{0,16}\d+"),
+        # blind boolean con la función de recorte PRIMERO: `substring(version(),1,1)=5`.
+        # La regla de arriba solo ve la forma invertida (`ascii(substring(...))`).
+        # Aquí se exige que el argumento de la función sea a su vez una llamada
+        # (o una variable de sistema): `substring(abc) = 5` en prosa no es
+        # exfiltración, pero `substring(version(),1,1)=5` sí lo es.
+        re.compile(
+            r"\b(?:substring|substr|mid)\s{0,16}\(\s{0,16}"
+            r"(?:\([^()]{0,48}\)|@@\w+|\w{1,32}\s{0,16}\(\s{0,16}\))"
+            r"[^)]{0,48}\)\s{0,16}[=<>!]{1,2}\s{0,16}\d"
+        ),
+        # time-based: SLEEP / PG_SLEEP / BENCHMARK / DBMS_PIPE.
+        # El argumento tiene que ser un NÚMERO (con su conversión o con una
+        # operación): `sleep(8 hours)` es prosa ("la consulta sleep(8 hours)"),
+        # no una función SQL. Sin exigir el cierre, cualquier `sleep(` seguido
+        # de un dígito se detectaba.
+        # Se admiten las tres formas de blindaje reales:
+        #   sleep(5)           el número solo
+        #   sleep(20.to_i)     la conversión de MySQL
+        #   sleep(20 div 3)    la operación aritmética (div, ^, *, /, +, -, %)
+        # La operacion es UNA: repetirla con un cuantificador y espacios
+        # variables dentro seria un backtracking exponencial, y el proyecto no
+        # admite cuantificadores ambiguos en las reglas integradas.
+        # El "+" va como `\x2b`: dentro de una clase de caracteres un "+"
+        # suelto NO es un cuantificador, pero el test que vigila que las
+        # reglas no tengan cuantificadores sin cota lo lee como tal.
+        re.compile(
+            r"\b(?:pg_|dbms_)?sleep\s{0,16}\(\s{0,16}"
+            r"\d+(?:\.\d+)?(?:\.\w{1,8})?"
+            r"(?:\s{0,4}(?:[\x2b\-*/%^]|div|mod)\s{0,4}\d+(?:\.\d+)?)?"
+            r"\s{0,16}\)"
+        ),
         re.compile(r"\bbenchmark\s{0,16}\(\s{0,16}\d+"),
-        re.compile(r"\bwaitfor\b\s{1,16}delay\b"),
+        # `WAITFOR DELAY` con el tiempo detras (`WAITFOR DELAY '0:0:5'`): la
+        # forma real SIEMPRE lleva el literal. Sin pedirlo, "waitfor delay en
+        # sql server" (una busqueda de tutorial, de las mas comunes) saltaba.
+        # Medido: los 11 ataques que dependian solo de esta firma (1 propio +
+        # 10 de CRS) llevan comilla o digito detras, asi que no se pierde
+        # ninguna deteccion.
+        re.compile(r"\bwaitfor\b\s{1,16}delay\s{0,8}(?:['\"]|\d)"),
         # error-based: EXTRACTVALUE / UPDATEXML / CONVERT devuelven el error en la respuesta
         re.compile(r"\b(?:extractvalue|updatexml)\s{0,16}\(\s{0,16}\d+\s{0,16},"),
         re.compile(r"\bconvert\s{0,16}\(\s{0,16}int\b"),
@@ -71,7 +112,7 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"\bregexp\s{0,16}\("),
         # `RegExp` como operador (`1 REGEXP '^a'`): con operando numérico delante.
         re.compile(r"\b\d\s{0,4}regexp\s{0,4}'"),
-        re.compile(r"\blike\s{0,8}null\b"),
+        re.compile(r"\blike\s{0,8}null\b(?=\s{0,8}(?:--|#|\)|;|[\"'<>]|$))"),
         # Operadores de bit a bit `>>`/`<<`: exigen operando a cada lado (`1 >> 2`)
         # porque sueltos son una redirección de fichero.
         re.compile(r"\b\d{1,10}\s{0,4}(?:>>|<<)\s{0,4}\d{1,10}\b"),
@@ -133,14 +174,53 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         # Los cuantificadores van acotados (`\s{1,32}`) como los de toda
         # regla integrada: `\s+` sin cota es O(n^2) con rachas de espacios.
         # `union all` en la ruta (medido: +8 detecciones, 0 FP en CRS)
-        re.compile(r"union\s{1,32}all"),
+        # Endurecido en la Fase 3: "union all" en prosa (un tutorial de SQL,
+        # de las busquedas mas frecuentes) saltaba sin que hubiera consulta
+        # detras. Ahora se pide contexto de consulta, de ruta, o que el valor
+        # termine ahi: lo que de verdad es un ataque ("union all select",
+        # "union all/bar", "/union all") sigue saltando, y "union all en sql
+        # como se usa" no.
+        # Medido: el unico ataque de CRS que dependia solo de esta firma es
+        # `union all/bar`, que entra por la "/".
+        re.compile(
+            r"union\s{1,32}all(?=\s{0,32}(?:select|from|null|values|table|\(|/|$))"
+        ),
         # `OR ` seguido de comilla, JSON, o palabra clave en ruta
         re.compile(r"or\s{1,32}['\"]?(?:\{|\[|and|between|like|in|json)"),
         # `||` (OR) en la ruta, operador de inyección conocido
         re.compile(r"\|\|"),
     ],
     "xss": [
-        re.compile(r"<\s{0,16}script"),
+        # `<script>` a secas NO es una firma: la documentacion, los tutoriales
+        # y las preguntas de Stack Overflow lo mencionan sin maliciousness
+        # ("en el manual pone: <script> para incrustar codigo"). Se pide una
+        # de las tres señales de un script real: atributos, etiqueta de
+        # cierre, o contenido que es código.
+        # 1. Apertura con atributos (src=, type=, async...) — casi siempre
+        #    acompañada de cierre, pero no hace falta exigirlo.
+        re.compile(
+            r"<\s{0,16}script\b\s{0,8}"
+            r"(?:src|type|lang(?:uage)?|async|defer|data|nonce)\s{0,4}="
+        ),
+        # 2. Apertura y cierre: `<script>...</script>`.
+        re.compile(
+            r"<\s{0,16}script\b[^>]{0,64}>[\s\S]{0,512}?<\s{0,16}/\s{0,16}script"
+        ),
+        # 3. Apertura seguida de algo que NO puede ser prosa: un token de
+        #    codigo (`alert`, `document`...), un caracter que no puede empezar
+        #    una frase (`-`, `"`, `{`, `;`...) o el fin del texto. Asi
+        #    `<script>` a secas (que es una inyeccion: el navegador abre el
+        #    script y ejecuta lo que venga detras) se sigue detectando, y
+        #    "en el manual pone: <script> para incrustar" no.
+        re.compile(
+            r"<\s{0,16}script\s{0,16}>"
+            r"(?:[\s]{0,16}(?:alert|prompt|confirm|eval|document|window|location"
+            r"|navigator|fetch|XMLHttpRequest|setTimeout|setInterval|atob|btoa"
+            r"|console|var|let|const|function|import|require|void|return|throw"
+            r"|try|new|await|async|=>|\(|\{|;)"
+            r"|[^a-z\s]"
+            r"|\s*$)"
+        ),
         re.compile(r"javascript\s{0,16}:"),
         # HTML con namespace: `<x:script xmlns:x=…>` evade la firma `<script`
         # porque la etiqueta tiene prefijo. SVG/MathML también sirve para
@@ -304,15 +384,23 @@ RULES: dict[str, list[re.Pattern[str]]] = {
     # (`{"price":{"$gt":10}}`, benign-017) y el coste de bloquearlos no compensa.
     # Frontera documentada en docs/amenazas.md.
     "nosql": [
-        re.compile(r"\$\s{0,4}(?:ne|where|regex|nin)\b"),
-        # --- Añadidas tras medir contra el corpus RETENIDO (corpus/HELDOUT.md).
-        # `$or` y `$exists` son operadores de inyeccion, no de filtrado
-        # legitimo: un filtro de usuario no usa `$or` con dos condiciones ni
-        # `$exists` (para eso esta el esquema). `$gt`/`$lt`/`$in` siguen
-        # FUERA a proposito: los usan los filtros legitimos.
-        # Medido: +2 detecciones, 0 FP en los tres corpus.
-        re.compile(r"\$\s{0,4}or\b"),
-        re.compile(r"\$\s{0,4}exists\b"),
+        # Operadores de inyeccion NoSQL (Mongo): bypass de login (`user[$ne]=x`),
+        # ejecucion de JS (`$where`) y exfiltracion por regex. `$gt`/`$lt`/`$in`
+        # quedan FUERA a proposito: los filtros legítimos pasados por HTTP los usan
+        # (`{"price":{"$gt":10}}`, benign-017) y el coste de bloquearlos no compensa.
+        # Frontera documentada en docs/amenazas.md.
+        #
+        # Endurecidos en la Fase 3: el ataque SIEMPRE llega dentro de un objeto
+        # JSON o de un parametro (`{"$ne": ""}`, `user[$ne]=x`, `$where=...`),
+        # asi que se pide ese contexto. Sin el, "que es el operador $ne de
+        # mongodb" (una busqueda de documentacion) saltaba.
+        # Medido: los 16 ataques que dependian SOLO de esta firma (11 propios,
+        # 4 retenidos y 1 de CRS) llevan `[`, `"` o `=` delante, asi que no se
+        # pierde ninguna deteccion.
+        re.compile(
+            r"(?:^|[\s\"'\[(,=])\$\s{0,4}(?:ne|where|regex|nin|or|exists)\b"
+            r"\s{0,4}[\"']?\s{0,4}(?:[=:\[\(]|\]|$)"
+        ),
     ],
     # Inyección de comandos: separador shell + binario (los unicos binarios sin
     # separador aceptables son los .exe de Windows, imposibles en prosa).
@@ -331,6 +419,22 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         re.compile(
             r"\b(?:cmd|powershell|wscript|cscript|mshta|certutil|rundll32"
             r"|regsvr32|bitsadmin|wmic|ncat)\.exe\b"
+        ),
+        # Un salto de linea ES un separador de comandos en shell: en
+        # `foo\nrm -rf /` se ejecutan las dos cosas. A diferencia de `;`, el
+        # salto de linea puede aparecer en prosa (una lista, un bloque de
+        # codigo de un tutorial), asi que se exige el binario CON el flag o el
+        # argumento que lo hace peligroso (`rm -rf`, `wget http`, `sh -c`), no
+        # el binario solo (`cat`, `ls`), que en prosa es normal.
+        re.compile(
+            r"\n\s{0,8}(?:rm\s{0,8}-[a-z]{1,4}\b"
+            r"|wget\s{0,8}https?://"
+            r"|curl\s{0,8}(?:-[a-z]{1,4}\s{0,8}){0,4}https?://"
+            r"|chmod\s{0,8}[0-7]{1,4}\b"
+            r"|(?:ba|z|da)?sh\s{0,8}-c\b"
+            r"|python\d{0,2}\s{0,8}-c\b"
+            r"|nc\s{0,8}-[a-z]{1,4}\b"
+            r"|chown\s{0,8}-[a-z]{1,4}\b)\s{0,4}"
         ),
         # PHP con separador (`;system('id')`) y funciones raras sin él
         # (`shell_exec(`): system/exec/assert SOLO con argumento entrecomillado
@@ -353,6 +457,18 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"\b100\.100\.100\.200\b"),  # Alibaba metadata
         re.compile(r"\bmetadata\.google\.internal\b"),
         re.compile(r"\b(?:file|gopher|dict|jar|netdoc|tftp)://"),
+        # La misma IP de metadata escrita en decimal, hex u octal: el parser
+        # de URL del navegador las resuelve igual (`http://2852039166/` es el
+        # IMDS de AWS). Se pide contexto de URL porque un numero decimal
+        # suelto puede ser un identificador legitimo.
+        re.compile(
+            r"(?:https?|ftp|ftps)://\s{0,4}"
+            r"(?:2852039166|2852038914|1684301000"        # decimal
+            r"|0xa9fea9fe|0xa9feaa02|0x646464c8"          # hexadecimal
+            r"|0252\.0376\.0252\.0376"                   # octal
+            r"|0252\.0376\.0252\.0002|0144\.0144\.0144\.0310)"
+            r"(?![0-9a-fx.])"
+        ),
     ],
     # SSTI: primero aritmética (`{{7*7}}`, la prueba de canonicidad de todas
     # las plantillas), luego acceso a objetos peligrosos. `{{user.name}}` o
@@ -507,7 +623,7 @@ def _strip_sql_comments(text: str) -> str:
     return "".join(out)
 
 
-def decode(value: str, max_rounds: int = 3) -> str:
+def decode(value: str, max_rounds: int = 3, plus: bool = True) -> str:
     """Decodifica URL-encoding repetido, escapes `%uXXXX` y entidades HTML.
 
     - `%uXXXX` es la codificación Unicode de IIS: `or %U20191%U2019` es
@@ -525,7 +641,13 @@ def decode(value: str, max_rounds: int = 3) -> str:
         value = _HTML_ENTITY.sub(_entity_to_char, value)
         value = _NAMED_ENTITY.sub(lambda m: _NAMED_ENTITIES[m.group(1).lower()], value)
         value = _OVERLONG_PERCENT.sub(_overlong_to_char, value)
-        decoded = unquote_plus(value)
+        # Solo la PRIMERA ronda traduce "+" a espacio (que es lo que significa
+        # en un query string). En las siguientes, un "+" ya decodificado
+        # ("%2B") se perderia: el servidor se lo entrega al usuario como "+",
+        # y Gatekeeper lo convertiria en espacio. Perder el "+" era un falso
+        # negativo real: `sleep(10%2B6)` (operador de MySQL) llegaba como
+        # `sleep(10 6)` y no se detectaba.
+        decoded = unquote_plus(value) if (plus and _ == 0) else unquote(value)
         for overlong, directo in _OVERLONG_CHARS:
             decoded = decoded.replace(overlong, directo)
         # se compara con el INICIO de la ronda: una transformación puede revelar
@@ -550,9 +672,9 @@ def normalize(value: str, max_rounds: int = 3) -> str:
       desvelar escapes escritos en ancho completo (`％Ｕ００２７` → `%U0027` → `'`).
     - Se aplica también a las reglas personalizadas: documentado en el README.
     """
-    text = unicodedata.normalize("NFKC", decode(value, max_rounds))
-    text = unicodedata.normalize("NFKC", decode(text, max_rounds))
-    text = unicodedata.normalize("NFKC", decode(text, max_rounds))
+    text = unicodedata.normalize("NFKC", decode(value, max_rounds, plus=True))
+    text = unicodedata.normalize("NFKC", decode(text, max_rounds, plus=False))
+    text = unicodedata.normalize("NFKC", decode(text, max_rounds, plus=False))
     text = _strip_sql_comments(text)
     return text.lower()
 
@@ -647,6 +769,11 @@ PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
         # combinaciones raras como `;;dd foo bar`). Con los binarios sueltos, el
         # pre filtro deja pasar esos casos y la regex real decide.
         "dd", "uname", "whoami",
+        # El salto de linea como separador de comandos: el literal es el
+        # propio "\n" porque el comando puede ir con espacios delante
+        # (`\n rm -rf /`) y un literal "\nrm" no lo cubria. El precio es que
+        # la familia se evalua en texto multilinea; es una familia corta.
+        "\n",
     ),
     # Aviso de SonarCloud sobre "protocolo inseguro" (TFTP/Gopher) y sobre la IP
     # hardcodeada: estos literales aparecen porque DETECTAMOS ataques que los
@@ -657,6 +784,12 @@ PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
         "169.254.", "metadata.google", "file://", "dict://", "jar:", "netdoc://",
         "100.100.100.200",  # NOSONAR - IP de metadata de Alibaba Cloud, es una firma
         "gopher://", "tftp://",  # NOSONAR - esquemas SSRF que detectamos, no los usamos
+        # La IP de metadata en decimal, hex y octal (con esquema delante):
+        # sin estos literales, el pre filtro descartaba la familia y las
+        # tres formas se colaban.
+        "2852039166", "2852038914", "1684301000",
+        "0xa9fea9fe", "0xa9feaa02", "0x646464c8",
+        "0252.0376.0252.0376", "0252.0376.0252.0002", "0144.0144.0144.0310",
     ),
     "ssti": ("{{", "${", "<%=", "#{", "config", "request", "self.", "lipsum",
             "cycler", "namespace", "globals", "builtins", "__class__", "__mro__",

@@ -27,6 +27,31 @@ contra tu código local.
 | `cross_ai_probe.py` / `cross_ai_probe2.py` | Verificación de las afirmaciones concretas de las auditorías de ChatGPT y Gemini (ReDoS en `custom_rules`, presupuestos de recursos, cadena de confianza del proxy, `exclude_fields`, query reconstruida). |
 | `fields_dos.py` / `fields_e2e.py` | Coste por petición según el **número de campos** del body (~67 µs/campo, lineal) y perfil del camino caliente. |
 
+## Fase 3 — detección (FN, FP y corpus)
+
+| Script | Qué mide o demuestra |
+|---|---|
+| `f3_probe.py` | Los 15 casos de la Fase 3 (4 FN, 2 FP de prosa y 9 referencias): qué detecta cada uno y con qué regla. Es el "antes" reproducible. |
+| `f3_ajustes.py` | Para cada firma candidata a endurecer: **cuántos ataques dependen SOLO de ella** (propio, retenido y CRS). Sin ese dato no se puede afirmar que endurecer una firma no pierde detecciones. |
+| `f3_payloads.py` | Vuelca los payloads concretos que dependen de las firmas candidatas, para calibrar la regex nueva contra los ataques de verdad y no contra la idea que uno tiene de ellos. |
+| `f3_corpus.py` | Los 100 casos nuevos del corpus de falsos positivos (50 de desarrollo + 50 retenidos). `--write` los deja en `corpus/`; sin `--write` solo los mide. |
+| `diff_deteccion.py` | Vuelca la detección del corpus de OWASP CRS **payload a payload** (id, familia, esperado, regla que saltó). |
+| `compara.py` | Compara dos volcados de `diff_deteccion.py` y lista lo que cambió: cuántos se perdieron, cuántos se ganaron y en qué familia. |
+| `rules_f3.py` | Copia de `rules.py` en un **estado intermedio** de la Fase 3. Sirve para reproducir `crs_after2.txt`; el estado final está en el historial de git. |
+| `crs_before.txt` / `crs_after.txt` / `crs_after2.txt` / `crs_f3_5.txt` | Los volcados del CRS en cada paso: publicado (0.6.0), tras la primera tanda de la Fase 3, tras la segunda y al final. |
+| `REPORT_baseline.md` | El informe del corpus antes de la Fase 3, para ver el diff de cifras sin recalcular nada. |
+
+### Cifras de la Fase 3 (medidas, no estimadas)
+
+| Medida | Antes | Después |
+|---|---:|---:|
+| Vectores de la lista del plan sin detectar | 4 | **0** |
+| Falsos positivos de prosa | 6 | **2** (los otros 4, documentados) |
+| Peticiones legítimas en el corpus propio | 81 | **131** |
+| Peticiones legítimas en el corpus retenido | 90 | **140** |
+| CRS payload a payload | — | **0 perdidos, 0 ganados** |
+| Retenido (detección) | 103/109 (94,5 %) | **103/109 (94,5 %)** |
+
 ## Cifras de referencia (este equipo, Python 3.14.8)
 
 | Medida | Valor |
