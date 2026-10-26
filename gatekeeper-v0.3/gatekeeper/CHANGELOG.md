@@ -5,6 +5,24 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ## [Sin publicar]
 
+### Distribución y repositorio
+
+- **El sdist pasa de 514 KiB a 95 KiB.** Se carryendo el corpus (588 KiB sin
+  comprimir), la web, las demos, los benchmarks y los tests. Eso vive en
+  GitHub y el README lo enlaza; lo que se baja de PyPI es el WAF.
+  - El CI lo **vigila**: el job `package` falla si el sdist pasa de 100 KiB, y
+    además instala el sdist en un entorno limpio (es lo que se baja quien
+    instala "desde el código").
+- **`AGENTS.md`** en la raíz del repo: el método con el que se trabaja el
+  proyecto (verificar, no creer; medir antes de endurecer una firma; test
+  antes del arreglo; los falsos positivos se documentan, no se esconden).
+- **Limpieza de la raíz**: `anchor_check.py` y `link_check.py` (sueltos,
+  sustituidos por `tools/check_docs.py`), el parche suelto del fix de ReDoS y
+  los dos planes antiguos se mueven a `.audit/`, que es donde vive la
+  evidencia del proyecto. `Evaluacion-ia/` también.
+- `corpus/events.json` actualizado a la **0.7.0** (el catálogo de eventos
+  decía 0.3.1).
+
 ### Documentación
 
 - **La documentación no miente, y ahora se comprueba.** `tools/check_docs.py`
@@ -38,6 +56,12 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   truncada de «Comparar rendimiento» (ahora con la receta completa) y la
   contradicción de `allow_paths` con el rate limit en la guía de despliegue.
 - `attr_list` activado en MkDocs para que las anclas explícitas funcionen.
+- `tools/metrics.py` tiene **tests** (`tests/test_metrics.py`): los
+  contadores cuentan lo que dicen y las métricas **no filtran** IPs, rutas,
+  nombres de campo ni patrones.
+- El job `compat` del CI (programado, no bloqueante) **mide** la matriz de
+  compatibilidad: `tools/compat_matrix.py` ya estaba escrito y no se ejecutaba
+  nunca.
 
 ## [0.7.0] - 2026-10-26
 

@@ -57,8 +57,10 @@ ENLACE_IMG = re.compile(r"!\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 VERSION_DE_GATEKEEPER = re.compile(
     r"(?i)gatekeeper[ -]?(?:asgi)?[ ,:]*(?:v)?(\d+\.\d+\.\d+)\b"
 )
-# La frase que dice que version esta publicada en PyPI.
-VERSION_PUBLICA = re.compile(r"La versi[oó]n publicada es la \*\*(\d+\.\d+)\.x\*\*")
+# La frase que dice que version esta publicada en PyPI (con o sin negritas).
+VERSION_PUBLICA = re.compile(
+    r"La versi[oó]n publicada es la \*{0,2}(\d+\.\d+)\.x"
+)
 # La rama que SECURITY.md declara activa.
 RAMA_ACTIVA = re.compile(r"^\|\s*(\d+\.\d+)\.x\s*\|\s*\*\*Activa\*\*", re.M)
 # La primera entrada de version del CHANGELOG.
@@ -143,6 +145,12 @@ def comprobar_fichero(
                 fallos.append(
                     f"{rel}: dice que Gatekeeper es la {encontrado} y la real es {version}"
                 )
+        for encontrada in VERSION_PUBLICA.findall(limpio):
+            if encontrada != f"{mayor}.{menor}":
+                fallos.append(
+                    f"{rel}: dice que la version publicada es la {encontrada}.x "
+                    f"y la real es {version}"
+                )
 
     # 2. enlaces
     for patron in (ENLACE, ENLACE_IMG):
@@ -189,17 +197,7 @@ def comprobar(ficheros: list[Path] | None = None) -> tuple[list[str], str]:
             continue
         fallos.extend(comprobar_fichero(ruta, anclas, version, mayor, menor))
 
-    # --- la version publicada tiene que ser la real
-    instalacion = PAQUETE / "docs" / "instalacion.md"
-    if instalacion.exists():
-        texto = instalacion.read_text(encoding="utf-8")
-        for encontrada in VERSION_PUBLICA.findall(texto):
-            if encontrada != f"{mayor}.{menor}":
-                fallos.append(
-                    f"docs/instalacion.md: dice que la version publicada es la "
-                    f"{encontrada}.x y la real es {version}"
-                )
-
+    # --- la version publicada se comprueba fichero a fichero (arriba)
     # --- la rama activa de SECURITY.md tiene que ser la actual
     security = PAQUETE / "SECURITY.md"
     if security.exists():

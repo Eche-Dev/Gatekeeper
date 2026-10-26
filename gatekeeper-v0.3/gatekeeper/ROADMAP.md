@@ -85,10 +85,12 @@ tiene su entrada en el [CHANGELOG](CHANGELOG.md) y sus notas de versión.
 - [x] Umbral de CI del corpus de CRS subido a la línea base real (0,40)
 - [x] Sin email personal en los metadatos: el canal es GitHub Advisories
 - [x] README en inglés (`README.en.md`) con enlace desde el español
+- [x] Empaquetado: el sdist baja de **514 KiB a 95 KiB** (sin corpus, web,
+      demos ni tests) y el CI lo vigila
+- [x] `AGENTS.md` con las reglas de trabajo del proyecto
+- [x] `tools/metrics.py` con tests y `tools/compat_matrix.py` como job de CI
 - [ ] Aplanar el repo (`src/`, `tests/`, `docs/` a la raíz) y mover las
       versiones viejas a tags
-- [ ] Empaquetado: excluir `demo/`, `corpus/` y `benchmarks/` del sdist
-- [ ] `AGENTS.md` con las reglas de trabajo del proyecto
 - [ ] Métricas Prometheus (contadores de bloqueos y de rate limit)
 
 ## Validación externa (pendiente)

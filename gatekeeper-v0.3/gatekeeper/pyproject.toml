@@ -110,6 +110,36 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/gatekeeper"]
 
+# El sdist es lo que se descarga de PyPI para instalar "desde el codigo". No
+# tiene que llevar el corpus (588 KiB), la web (248 KiB), las demos ni los
+# benchmarks: eso vive en GitHub, y el README lo enlaza.
+#
+# Medido: el sdist paso de 514 KiB (comprimido) a menos de 100. El CI lo
+# vigila (job `package`): un sdist que se hincha es un sdist que nadie se
+# baja.
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/gatekeeper",
+  "examples",
+  "README.md",
+  "README.en.md",
+  "CHANGELOG.md",
+  "SECURITY.md",
+  "LICENSE",
+  "pyproject.toml",
+]
+# Hatchling se trae por su cuenta los README de los subdirectorios aunque no
+# esten en la lista: se excluyen explicitamente.
+exclude = [
+  "corpus",
+  "demo",
+  "docs",
+  "benchmarks",
+  "tools",
+  "tests",
+  ".audit",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
