@@ -5,6 +5,10 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ## [Sin publicar]
 
+Nada pendiente.
+
+## [0.6.0] - 2026-10-26
+
 ### Corregido
 - **El rate limiter no tenía tope de claves.** El backend en memoria guardaba un
   `deque` por cada IP distinta, sin límite: medido, 200.000 IPs distintas
