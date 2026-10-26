@@ -196,12 +196,17 @@ def test_el_middleware_real_no_sufre_la_amplificacion():
 
 
 def test_el_presupuesto_de_campos_corta_el_json_profundo():
-    """Un JSON de 10.000 niveles agota el presupuesto de campos: 413.
+    """Un JSON de 300 niveles agota el presupuesto de campos: 413.
 
     Es una proteccion ADICIONAL a la del puntero: ahora el ataque se corta
     antes de construir ningun puntero, y con un cuerpo mucho mas pequeno.
+
+    La profundidad es 300 y no 10.000 a proposito: el limite de recursion de
+    `json.loads` depende de la version de Python (en 3.10 no parsea ni 1.000
+    niveles y el body se trata como texto opaco), y el test tiene que dar el
+    mismo resultado en 3.10-3.14.
     """
-    cuerpo = _json_profundo(10000)
+    cuerpo = _json_profundo(300)
 
     async def receive():
         return {"type": "http.request", "body": cuerpo, "more_body": False}
@@ -218,7 +223,7 @@ def test_el_presupuesto_de_campos_corta_el_json_profundo():
     async def send(message):
         sent.append(message)
 
-    app = _middleware()
+    app = _middleware(max_fields=100)
     asyncio.run(app(scope, receive, send))
     assert sent[0]["status"] == 413, sent
 
