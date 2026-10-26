@@ -57,6 +57,27 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ### Añadido
 
+- **Tests diferenciales del body** (`tools/diferencial_body.py`): la misma
+  petición con y sin middleware, contra Starlette y FastAPI.
+  - **IGUALDAD**: la aplicación tiene que ver **exactamente** lo mismo con y
+    sin middleware. 26 cuerpos borde: JSON con BOM, JSON malformado, forms con
+    campos duplicados, multipart con fichero, `text/plain`, sin `content-type`,
+    `octet-stream`…
+  - **MARCADOR**: el middleware tiene que **inspeccionar el valor que la
+    aplicación usa**. Se mide con una regla propia que solo casa con el valor
+    que la app ha declarado, y con **todas las reglas integradas desactivadas**:
+    si el middleware inspeccionara otra cosa, la petición pasaría. Esta
+    comprobación es la que encontró el bypass del `+` de arriba.
+  - **ATAQUES**: 12 payloads tienen que estar bloqueados, con la regla
+    esperada y con su evento de auditoría.
+  - La **fuente única** es el script: el test de pytest llama a las mismas
+    funciones y la **matriz de compatibilidad** lo ejecuta dentro de un venv
+    con cada versión de Starlette y FastAPI, así que el diferencial se mide
+    **en cada versión**, no solo con la última.
+  - **Medido**: verde en las **10 combinaciones** de la matriz (Starlette
+    0.23.0 → última, FastAPI 0.103.2 → última), y **verificado que no es un
+    test vacío**: contra el código sin el arreglo del `+` falla (10 fallos, 5
+    por framework).
 - **Job `sast` en el CI**: `semgrep` con las reglas de la comunidad y con
   **cuatro reglas propias del proyecto**, y `zizmor` para los workflows de
   GitHub Actions.

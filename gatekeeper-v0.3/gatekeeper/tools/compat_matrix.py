@@ -90,8 +90,15 @@ CASOS_FASTAPI = [
 ]
 
 
-def _probar(instalar: str, prueba: str, starlette: str | None, httpx: str) -> dict:
-    """Crea un venv limpio, instala y ejecuta la prueba."""
+def _probar(instalar: str, prueba: str, starlette: str | None, httpx: str,
+            diferencial: str) -> dict:
+    """Crea un venv limpio, instala y ejecuta la prueba.
+
+    Ademas del ataque y de la peticion legitima, ejecuta el test DIFERENCIAL
+    del body: el middleware y la aplicacion tienen que interpretar el body
+    IGUAL en esa version de Starlette o FastAPI. Un 403 que llega donde no
+    tocaba, o un body que la app ve distinto, son fallos de Gatekeeper.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         v = Path(tmp) / "venv"
         subprocess.run(
@@ -103,7 +110,11 @@ def _probar(instalar: str, prueba: str, starlette: str | None, httpx: str) -> di
         # solo hace falta en el caso de FastAPI (que exige un rango de
         # Starlette concreto). Si se pasan las dos, pip las ve como
         # requirements en conflicto.
-        paquetes = [str(ROOT), instalar, httpx]
+        # `python-multipart` no es de Gatekeeper: lo necesita la APLICACION
+        # para parsear un formulario (en Starlette viejo, `request.form()` lo
+        # exige incluso para un urlencoded). Sin el, el test diferencial no
+        # puede comparar la vista de la app con la del middleware.
+        paquetes = [str(ROOT), instalar, httpx, "python-multipart"]
         if starlette and not instalar.startswith("starlette"):
             paquetes.append(starlette)
         r = subprocess.run(
@@ -117,32 +128,58 @@ def _probar(instalar: str, prueba: str, starlette: str | None, httpx: str) -> di
         r = subprocess.run([str(py), "-c", prueba], capture_output=True, text=True)
         if r.returncode != 0:
             lineas = [x for x in r.stderr.strip().splitlines() if x.strip()]
-            return {"ok": False, "error": lineas[-1][:140] if lineas else "prueba fallida"}
-        return {"ok": True, "error": "", "versiones": r.stdout.strip()}
+            return {"ok": False, "diferencial": False,
+                    "error": lineas[-1][:140] if lineas else "prueba fallida"}
+
+        d = subprocess.run(
+            [str(py), str(ROOT / "tools" / "diferencial_body.py"),
+             "--marco", diferencial],
+            capture_output=True, text=True,
+        )
+        if d.returncode != 0:
+            # El motivo esta en stdout (la lista de fallos); stderr es el ruido.
+            lineas = [
+                x for x in d.stdout.strip().splitlines() if x.strip()
+            ]
+            if not lineas:
+                lineas = [
+                    x for x in d.stderr.strip().splitlines() if x.strip()
+                ]
+            return {"ok": False, "diferencial": False,
+                    "error": "diferencial: "
+                    + (lineas[-1][:160] if lineas else "fallo sin detalle")}
+        return {"ok": True, "diferencial": True, "error": "",
+                "versiones": r.stdout.strip()}
 
 
 def medir() -> dict:
     resultados = {"starlette": [], "fastapi": []}
     for instalar, etiqueta, starlette, httpx in CASOS_STARLETTE:
-        res = _probar(instalar, PRUEBA_STARLETTE, starlette, httpx)
+        # En los venv de Starlette no hay FastAPI: solo se prueba Starlette.
+        res = _probar(instalar, PRUEBA_STARLETTE, starlette, httpx, "starlette")
         resultados["starlette"].append({"etiqueta": etiqueta, **res})
     for instalar, etiqueta, starlette, httpx in CASOS_FASTAPI:
-        res = _probar(instalar, PRUEBA_FASTAPI, starlette, httpx)
+        # Con FastAPI instalado se prueban los dos marcos: la app de FastAPI
+        # tiene su propio camino de parseo del body.
+        res = _probar(instalar, PRUEBA_FASTAPI, starlette, httpx, "todos")
         resultados["fastapi"].append({"etiqueta": etiqueta, **res})
     return resultados
 
 
 def a_markdown(datos: dict) -> str:
     lineas = [
-        "| Framework | Versión | Resultado |",
-        "|---|---|---|",
+        "| Framework | Versión | Ataque y 200 | Diferencial del body |",
+        "|---|---|---|---|",
     ]
     for clave, titulo in (("starlette", "Starlette"), ("fastapi", "FastAPI")):
         for caso in datos[clave]:
             if caso["ok"]:
-                lineas.append(f"| {titulo} | {caso['etiqueta']} | OK |")
+                lineas.append(
+                    f"| {titulo} | {caso['etiqueta']} | OK | "
+                    f"{'OK' if caso.get('diferencial') else 'NO PROBADO'} |"
+                )
             else:
-                lineas.append(f"| {titulo} | {caso['etiqueta']} | FALLO: {caso['error']} |")
+                lineas.append(f"| {titulo} | {caso['etiqueta']} | FALLO: {caso['error']} | |")
     return "\n".join(lineas)
 
 

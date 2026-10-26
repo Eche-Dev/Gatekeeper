@@ -74,6 +74,15 @@ Esto no son carencias por arreglar: son las fronteras del diseño.
   inspección. Query y cabeceras siguen analizándose por separado. La opción de
   cruce combina query con valores textuales no excluidos del body; no incluye
   claves JSON ni cabeceras.
+- **Un body que la aplicación interpreta de una forma que el `Content-Type`
+  no anuncia.** Gatekeeper decide **cómo** inspeccionar el body según el
+  `Content-Type` (y, si no cuadra, inspecciona el texto crudo). Si tu
+  aplicación parsea el body por su cuenta de otra manera, Gatekeeper no puede
+  saberlo: no es un fallo suyo, es el límite de ser una capa por delante. **Di
+  el `Content-Type` correcto** y los dos miran lo mismo.
+  - Los **tests diferenciales** (`tools/diferencial_body.py`) comprueban
+    exactamente esto en 26 cuerpos borde, contra Starlette y FastAPI, y en cada
+    versión de la [matriz de compatibilidad](compatibilidad.md).
 - **El contenido de los ficheros adjuntos.** De un `multipart/form-data` se
   inspeccionan los **nombres** de campo y de fichero (ahí van los
   `../../etc/passwd` y los payloads en el nombre), pero el **contenido** del

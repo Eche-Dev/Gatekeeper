@@ -1,0 +1,76 @@
+{
+  "starlette": [
+    {
+      "etiqueta": "0.23.0",
+      "ok": true,
+      "diferencial": true,
+      "error": "",
+      "versiones": "starlette=0.23.0"
+    },
+    {
+      "etiqueta": "0.27.0",
+      "ok": true,
+      "diferencial": true,
+      "error": "",
+      "versiones": "starlette=0.27.0"
+    },
+    {
+      "etiqueta": "0.37.0",
+      "ok": true,
+      "diferencial": true,
+      "error": "",
+      "versiones": "starlette=0.37.0"
+    },
+    {
+      "etiqueta": "0.41.3",
+      "ok": true,
+      "diferencial": true,
+      "error": "",
+      "versiones": "starlette=0.41.3"
+    },
+    {
+      "etiqueta": "0.46.2",
+      "ok": true,
+      "diferencial": true,
+      "error": "",
+      "versiones": "starlette=0.46.2"
+    },
+    {
+      "etiqueta": "última",
+      "ok": true,
+      "diferencial": true,
+      "error": "",
+      "versiones": "starlette=1.10.0"
+    }
+  ],
+  "fastapi": [
+    {
+      "etiqueta": "0.103.2",
+      "ok": true,
+      "diferencial": true,
+      "error": "",
+      "versiones": "fastapi=0.103.2 starlette=0.27.0"
+    },
+    {
+      "etiqueta": "0.110.3",
+      "ok": true,
+      "diferencial": true,
+      "error": "",
+      "versiones": "fastapi=0.110.3 starlette=0.37.2"
+    },
+    {
+      "etiqueta": "0.115.6",
+      "ok": true,
+      "diferencial": true,
+      "error": "",
+      "versiones": "fastapi=0.115.6 starlette=0.41.3"
+    },
+    {
+      "etiqueta": "última",
+      "ok": true,
+      "diferencial": true,
+      "error": "",
+      "versiones": "fastapi=0.162.0 starlette=1.10.0"
+    }
+  ]
+}

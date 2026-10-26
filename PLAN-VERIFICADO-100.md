@@ -433,6 +433,26 @@ existía en GitHub, no en el paquete. Lo publica la **0.8.0** (sdist de
     número, así que un umbral absoluto no puede funcionar. Medido: el ruido
     típico es del 0,3 % y los picos sueltos del 41 % (pausas del sistema), por
     eso la mediana de tres repeticiones.
+- **Tests diferenciales del body** (el punto 4), y con ellos un **bypass real**:
+  - El diferencial mide tres cosas: que la app vea **exactamente** lo mismo
+    con y sin middleware (26 cuerpos borde), que el middleware **inspeccione
+    el valor que la app usa** (con una regla propia que solo casa con ese
+    valor y con todas las integradas desactivadas) y que 12 payloads
+    conocidos estén bloqueados con su regla y su evento de auditoría.
+  - **El hallazgo**: el `+` de un body es LITERAL para la aplicación (el
+    operador de MySQL en `sleep(10+6)`), pero el middleware lo traducía a
+    espacio, como si fuera una query string. Un `q=sleep(10%2B6)` en un
+    formulario —o un `{"q": "sleep(10+6)"}` en un JSON— pasaba con **200** y
+    la app ejecutaba la consulta (16 segundos de sueño en MySQL). Corregido:
+    el `+` se lee de las **dos** formas en todo lo que no viene de una query,
+    con tests, con el payload en el corpus y **sin perder ninguna detección**
+    (propio 160/160, retenido 94,5 %, CRS 41,0 % y 4,7 % de FP: igual que
+    antes).
+  - **Medido en cada versión**: la matriz de compatibilidad ejecuta el
+    diferencial dentro de su venv. Verde en las **10 combinaciones** (Starlette
+    0.23.0 → última, FastAPI 0.103.2 → última).
+  - **Verificado que el test no es vacío**: contra el código sin el arreglo
+    falla (10 fallos, 5 por framework).
 
 Lo que queda:
 
@@ -441,9 +461,6 @@ Lo que queda:
    revisión hecha por quien ajustó las reglas. Es el punto 5 del objetivo.
 2. **`semgrep` + `zizmor` en CI**: hecho (job `sast`), pero la **revisión
    humana** de lo que reporte sigue pendiente en cada push.
-3. **Tests diferenciales contra FastAPI y Starlette** en varias versiones
-   (el punto 4), comprobando que el middleware y la aplicación interpretan el
-   body igual.
 
 ---
 
