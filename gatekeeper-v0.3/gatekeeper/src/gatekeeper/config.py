@@ -100,6 +100,17 @@ class Config:
     rate_backend: str = "memory"
     redis_url: str = "redis://localhost:6379/0"
     redis_prefix: str = "gatekeeper:rl:"
+    # Timeout de conexion y de lectura contra Redis, en segundos.
+    #
+    # Con Redis caido, cada peticion espera este tiempo antes de decidir
+    # (con `rate_fail_open=True` la admite, con `False` devuelve 503). Medido
+    # con el valor por defecto: 2,0 s por peticion. Bajalo si tu Redis esta en
+    # la misma red (0,2 s basta) y subelo si esta en otra.
+    #
+    # Ojo: un timeout MUY corto hace que un Redis lento parezca caido, y con
+    # `rate_fail_open=True` eso desactiva el rate limit en silencio. Si lo
+    # bajas, baja tambien el riesgo de que el limite se esquive.
+    redis_timeout: float = 2.0
     # Política si Redis no responde: True -> se admiten peticiones (disponibilidad)
     # False -> 503 (seguridad estricta). En ambos casos se audita el fallo.
     rate_fail_open: bool = True
@@ -230,6 +241,8 @@ class Config:
             raise ValueError("rate_backend debe ser 'memory' o 'redis'")
         if self.rate_backend == "redis" and not self.redis_url:
             raise ValueError("redis_url no puede estar vacío con rate_backend='redis'")
+        if self.redis_timeout <= 0:
+            raise ValueError("redis_timeout debe ser mayor que 0")
         if self.rate_max_keys < 1:
             raise ValueError("rate_max_keys debe ser >= 1")
         if not 16 <= self.rate_ipv6_prefix <= 128:

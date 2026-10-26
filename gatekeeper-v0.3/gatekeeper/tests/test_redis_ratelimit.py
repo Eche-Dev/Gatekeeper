@@ -37,6 +37,70 @@ def test_build_limiter_selects_backend_by_config():
     )
 
 
+# --- El timeout de Redis es configurable (F6) --------------------------------
+# Con Redis caido, cada peticion esperaba 2,0 s (el timeout de conexion
+# estaba escrito a pelo en el cliente) antes de decidir si se admitia o se
+# devolvia 503. Ahora el operador puede ajustarlo, y el valor por defecto
+# sigue siendo 2,0 s: el comportamiento no cambia, se abre la palanca.
+
+
+def test_el_timeout_de_redis_se_usa_en_el_cliente():
+    from unittest.mock import patch
+
+    with patch("redis.asyncio.Redis.from_url") as from_url:
+        build_limiter(Config(rate_backend="redis", redis_timeout=0.25))
+    kwargs = from_url.call_args.kwargs
+    assert kwargs["socket_connect_timeout"] == 0.25
+    assert kwargs["socket_timeout"] == 0.25
+
+
+def test_el_timeout_por_defecto_sigue_siendo_el_de_siempre():
+    from unittest.mock import patch
+
+    with patch("redis.asyncio.Redis.from_url") as from_url:
+        build_limiter(Config(rate_backend="redis"))
+    kwargs = from_url.call_args.kwargs
+    assert kwargs["socket_connect_timeout"] == 2.0
+    assert kwargs["socket_timeout"] == 2.0
+
+
+def test_un_timeout_invalido_se_rechaza_al_arrancar():
+    with pytest.raises(ValueError, match="redis_timeout"):
+        Config(redis_timeout=0)
+    with pytest.raises(ValueError, match="redis_timeout"):
+        Config(redis_timeout=-1.0)
+
+
+def test_con_redis_caido_el_timeout_corto_no_cuelga_la_peticion():
+    """Si el timeout esta bien puesto, la caida de Redis no cuelga la API.
+
+    Con el timeout de 2 s (el valor por defecto) cada peticion esperaba dos
+    segundos con Redis caido: la API se frena entera. Con un timeout corto,
+    el fallo se nota enseguida.
+    """
+    import time
+
+    async def ok(request):
+        return PlainTextResponse("ok")
+
+    app = Starlette(routes=[Route("/", ok)])
+    app.add_middleware(
+        GatekeeperMiddleware,
+        config=Config(
+            rate_backend="redis",
+            redis_url="redis://127.0.0.1:6399/0",  # puerto cerrado
+            redis_timeout=0.1,
+            rate_fail_open=True,
+        ),
+    )
+    cliente = TestClient(app)
+    t0 = time.perf_counter()
+    respuesta = cliente.get("/")
+    dt = time.perf_counter() - t0
+    assert respuesta.status_code == 200  # fail-open: se admite
+    assert dt < 1.0, f"la peticion tardo {dt:.2f} s con Redis caido"
+
+
 def test_limits_are_shared_between_processes():
     """Dos «procesos» (dos backends) sobre el mismo Redis comparten el contador."""
 
