@@ -102,7 +102,7 @@ peticiones concurrentes.
 
 ---
 
-## A-1 — Las reglas personalizadas del usuario pueden colgar el proceso *(aceptado)*
+## A-1 — Las reglas personalizadas del usuario pueden colgar el proceso *(corregido en 0.6.0)*
 
 **Gravedad:** media (si el usuario escribe una regex mala) · **Vector:** regla
 propia con backtracking exponencial.
@@ -111,17 +111,23 @@ propia con backtracking exponencial.
 tiempo ni de pasos. Una regex patológica del usuario (por ejemplo `(a+)+$`)
 cuelga el proceso con una entrada crafted.
 
-**Por qué se acepta:** las reglas del usuario son suyas y son explícitas. Las
-reglas **integradas** sí están acotadas (`\s{0,16}` en todos los cuantificadores
-de blancos), y hay un test (`tests/test_fuzz.py`) que vigila que no se
-introduzca un `\s*` sin cota. Imponer un límite a las reglas del usuario
-exigiría un motor de regex con timeout, que es una dependencia grande.
+**Estado actual:** corregido. Desde la 0.6.0, el patrón se analiza **de forma
+estática al arrancar** (`src/gatekeeper/redos.py`): el riesgo *exponencial*
+(cuantificadores anidados sin nada obligatorio detrás, alternativas que se
+solapan en un grupo repetido, referencias atrás repetidas) se rechaza con
+`ValueError`, y el riesgo *cuadrático* se avisa en el log. La comprobación no
+ejecuta el regex: medirlo exigiría un timeout, y en Python no hay forma de
+interrumpir un regex en marcha (la propia medición sería el DoS). Existe
+`allow_unsafe_custom_rules=True` para quien sepa lo que hace.
 
-**Mitigación documentada:** `SECURITY.md` y `docs/uso.md` dicen que las reglas
-propias **no** están acotadas y que es responsabilidad del usuario revisarlas.
+**Por qué no se imponía antes:** las reglas del usuario son suyas y son
+explícitas. Las reglas **integradas** sí están acotadas (`\s{0,16}` en todos
+los cuantificadores de blancos), y hay un test (`tests/test_fuzz.py`) que
+vigila que no se introduzca un `\s*` sin cota.
 
-**Riesgo residual:** una app que acepte reglas propias de usuarios no
-confiables queda expuesta. Gatekeeper no es el sitio para eso.
+**Riesgo residual:** una regex *cuadrática* (por ejemplo `(?:\w+\.)+\w+`) se
+avisa pero no se rechaza: son patrones legítimos y el coste depende del
+tamaño de la entrada, que acota `max_body_size`.
 
 ## A-2 — La normalización NFKC expande hasta 4× *(aceptado)*
 
@@ -173,7 +179,7 @@ de una instancia.
 | Los cuerpos **binarios** no se inspeccionan | Su contenido no son cadenas; documentado con tests |
 | Las **claves JSON** no se unen al objetivo en el modo combinado | Decisión de diseño: un JSON pointer es una clave, no un valor |
 | El puntero JSON se **recorta** a 256 caracteres | Consecuencia de H-1; se marca con `…` |
-| Las **reglas propias** no tienen protección de ReDoS | Ver A-1 |
+| Las **reglas propias** se validan al arrancar | Riesgo exponencial: se rechaza; riesgo cuadrático: se avisa (ver A-1) |
 
 ---
 

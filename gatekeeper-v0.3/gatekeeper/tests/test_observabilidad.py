@@ -83,12 +83,12 @@ def test_el_modo_monitor_esta_documentado():
     assert "blocked" in CATALOG["events"]["attack_detected"]["extra_fields"]
 
 
-def test_la_ayuda_de_prometheus_cubre_los_cinco_contadores():
-    """El exportador tiene que exponer los cinco contadores del catalogo."""
+def test_la_ayuda_de_prometheus_cubre_los_contadores_del_catalogo():
+    """El exportador tiene que exponer un contador por cada evento del catalogo."""
     sys.path.insert(0, str(ROOT / "tools"))
     import metrics  # noqa: PLC0415
 
-    assert len(metrics.CONTADORES) == 5
+    assert len(metrics.CONTADORES) == len(CATALOG["events"])
     for nombre, ayuda in metrics.CONTADORES:
         assert nombre.startswith("gatekeeper_"), nombre
         assert ayuda and ayuda.strip(), nombre

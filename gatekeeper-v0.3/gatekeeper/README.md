@@ -44,14 +44,15 @@ app.add_middleware(GatekeeperMiddleware, config=Config(rate_limit=100, rate_wind
 | Log4Shell | `${jndi:ldap://…}` con sus ofuscaciones (`${${::-j}ndi:`) y lookups de exfiltración (`${env:AWS_SECRET…}`) |
 | Proto-pollución | `__proto__` en cualquier posición y `constructor.prototype` |
 | Evasiones | URL-encoding repetido (3 rondas), escapes IIS `%uXXXX` mayúsculas o no, ancho completo (`＜script` vía NFKC), comentarios SQL `/**/` y versionados (`/*!50000union*/`), entidades HTML numéricas **y nombradas** (`&lt;script`), tab/NL dentro del esquema (`java\tscript:`) |
-| Límite de body | `max_body_size` (1 MiB por defecto) → 413 si el tamaño declarado o leído lo supera |
+| Límite de body | `max_body_size` (256 KiB por defecto) → 413 si el tamaño declarado o leído lo supera |
+| Presupuestos | `max_fields` (1000 textos) y `max_inspection_ms` (1000 ms) → 413 si se agotan: el coste de inspeccionar escala con los campos, no con los bytes |
 | Content-type genérico | `application/octet-stream` se **sniffea**: si el cuerpo es JSON, se inspecciona como JSON (la cabecera la controla el atacante) |
 | Multipart | Se inspeccionan los **nombres de campo y de fichero** (`filename=../../etc/passwd`), no el contenido de los ficheros. `inspect_multipart=False` lo desactiva |
 | WebSocket | El **handshake** (ruta, query y cabeceras) se inspecciona y tiene **rate limit**; los frames no. `inspect_websockets=False` lo desactiva |
 | Cruce query + body | Opt-in con `inspect_cross_carrier=True`; combina ruta/query con valores textuales no excluidos del body, puede añadir falsos positivos, probar primero con `monitor_only=True` |
 | Reglas propias | Regex en YAML o `Config(custom_rules=...)`, validadas al arrancar |
 | Exclusión de rutas | `allow_paths` (globs). Rutas con `..`, `\` o codificación residual nunca se eximen |
-| Auditoría | Eventos JSON en el logger `gatekeeper`; **nunca** incluye el contenido del payload |
+| Auditoría | Eventos JSON en el logger `gatekeeper`; nunca los **valores** de los campos (sí el **nombre** del que saltó, saneado y acotado) |
 | Modo monitor | `monitor_only=True` registra sin bloquear, para medir falsos positivos en tu tráfico real |
 
 ## Qué mide (no qué promete)
@@ -219,7 +220,9 @@ Contribuir: [CONTRIBUTING.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/C
 | `rule_packs` | `∅` (todas) | packs opt-in: `minimal`, `api`, `web`, `infrastructure`, `strict` (ver abajo) |
 | `exclude_fields` | `[]` | campos (parámetro, cabecera o puntero JSON) exentos de inspección; admite globs |
 | `custom_rules` | `∅` | `{nombre: regex}` o lista `{name, pattern}` |
-| `max_body_size` | `1 MiB` | límite del body inspeccionado |
+| `max_body_size` | `256 KiB` | límite del body inspeccionado |
+| `max_fields` | `1000` | textos inspeccionados por petición (clave + valor = 2); `0` = sin límite |
+| `max_inspection_ms` | `1000` | milisegundos de inspección por petición; `0` = sin límite |
 | `allow_paths` | `[]` | globs exentos de inspección |
 | `inspect_headers` | `user-agent, referer, cookie, x-forwarded-for` | cabeceras inspeccionadas (`∅` desactiva) |
 | `blocked_ips` / `trust_proxy` | `∅` / `False` | bloqueo por IP o CIDR y uso de `X-Forwarded-For` |

@@ -124,6 +124,20 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         # `PROCEDURE ANALYSE()`: usa las statistics de MySQL para extraer
         # datos. Metadato de MySQL, no aparece en prosa.
         re.compile(r"\bprocedure\s{0,16}analyse\s{0,8}\("),
+        # --- Inyección SQL en la RUTA (path-based).
+        # Estos tres patrones vivían en la familia `sensitive_files`, donde no
+        # tenían sentido: son SQLi, así que `disabled_rules=["sqli"]` tenía que
+        # apagarlos. Medido antes del arreglo: con `disabled_rules=["sqli"]`,
+        # `union all select 1` se seguía detectando y se reportaba como
+        # `sensitive_files`.
+        # Los cuantificadores van acotados (`\s{1,32}`) como los de toda
+        # regla integrada: `\s+` sin cota es O(n^2) con rachas de espacios.
+        # `union all` en la ruta (medido: +8 detecciones, 0 FP en CRS)
+        re.compile(r"union\s{1,32}all"),
+        # `OR ` seguido de comilla, JSON, o palabra clave en ruta
+        re.compile(r"or\s{1,32}['\"]?(?:\{|\[|and|between|like|in|json)"),
+        # `||` (OR) en la ruta, operador de inyección conocido
+        re.compile(r"\|\|"),
     ],
     "xss": [
         re.compile(r"<\s{0,16}script"),
@@ -244,9 +258,6 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         # `2024/01/15/…` (una fecha en la ruta es un volcado).
         re.compile(r"(?:^|[\s/?=&])(?:/)?(?:wp-content/|/logs?/)"),
         re.compile(r"\.(?:sql|bak|old|orig|save|swp)\s*$"),
-        # Logs y volcados: `/wp-content/debug.log`, `backup.sql.zip`.
-        re.compile(r"(?:^|[\s/?&=])(?:/)?(?:wp-content/|/logs?/)"),
-        re.compile(r"\.(?:sql|bak|old|orig|save|swp)\s*$"),
         # Logs de servidor web: leerlos desde la app es reconocimiento del
         # host. Va en `sensitive_files` y no en `path_traversal` porque el
         # ORDEN de evaluacion de las familias importa: en `path_traversal`
@@ -283,13 +294,9 @@ RULES: dict[str, list[re.Pattern[str]]] = {
             r"(?:^|[\s/?=&])/(?:composer\.(?:json|lock)|package-lock\.json|"
             r"yarn\.lock|Gemfile|poetry\.lock|requirements\.txt|pom\.xml)\b"
         ),
-        # Patrones de inyección SQL en la ruta (path-based):
-        # `union all` en la ruta (medido: +8 detecciones, 0 FP en CRS)
-        re.compile(r"union\s+all"),
-        # `||` (OR) en la ruta, operador de inyección conocido
-        re.compile(r"\|\|"),
-        # `OR ` seguido de comilla, JSON, o palabra clave en ruta
-        re.compile(r"or\s+['\"]?(?:\{|\[|and|between|like|in|json)"),
+        # (Los patrones de inyeccion SQL en la ruta vivian aqui. Se han movido
+        # a la familia `sqli`: son SQLi, y con `disabled_rules=["sqli"]` no
+        # tenian por que apagarse. Ver la familia `sqli`.)
     ],
     # Operadores de inyección NoSQL (Mongo): bypass de login (`user[$ne]=x`),
     # ejecución de JS (`$where`) y exfiltración por regex. `$gt`/`$lt`/`$in`

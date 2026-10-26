@@ -30,6 +30,18 @@ CRS publicada mide el modo normal; no representa el rendimiento de esta opción.
 | `rate_backend` | `"memory"` | `"memory"` (un proceso) o `"redis"` (todos los workers) |
 | `redis_url` | `redis://localhost:6379/0` | Con `rate_backend="redis"` |
 | `rate_fail_open` | `True` | Qué hacer si Redis no responde (ver abajo) |
+| `rate_max_keys` | `10000` | IPs distintas que el backend en memoria recuerda (LRU al llegar al tope) |
+| `rate_ipv6_prefix` | `64` | Bits de prefijo IPv6 que se agrupan al contar |
+
+!!! note "Qué cuenta como el mismo cliente"
+    La clave de conteo se normaliza: `::ffff:1.2.3.4` cuenta como
+    `1.2.3.4`, y las IPv6 del mismo /64 cuentan juntas. Sin eso, quien tiene
+    un /64 (el prefijo delegable más pequeño) evade el límite rotando
+    direcciones. En la auditoría siempre se registra la IP cruda.
+
+    `rate_max_keys` acota la memoria del backend en memoria: sin tope,
+    inundar de IPs distintas hacía crecer el proceso sin límite (medido:
+    300.000 IPs → ~245 MB).
 
 !!! warning "Un worker, un contador"
     Con el backend en memoria cada proceso cuenta lo suyo: 4 workers con
@@ -48,8 +60,8 @@ CRS publicada mide el modo normal; no representa el rendimiento de esta opción.
 
 | `rate_fail_open` | Comportamiento | Para quién |
 |---|---|---|
-| `True` (defecto) | Se admite la petición, se audita `rl_backend_unavailable` | Disponibilidad primero |
-| `False` | 503 con `{"detail": "rate_limit_backend_unavailable"}` | Seguridad estricta |
+| `True` (defecto) | Se admite la petición, se audita `rate_backend_error` | Disponibilidad primero |
+| `False` | 503 con `{"detail": "Service Unavailable"}` | Seguridad estricta |
 
 En ambos casos el fallo queda en la auditoría: no hay forma de que Redis caiga
 en silencio.
@@ -65,7 +77,9 @@ En este orden, y el primero que salta manda:
    `X-Forwarded-For`) → 403.
 5. **Body** con cualquier content-type textual (JSON, form, `text/plain`, XML
    o sin `content-type`) → 403. Si el body supera
-   `max_body_size`, por tamaño declarado o al leer el stream → 413.
+   `max_body_size`, por tamaño declarado o al leer el stream → 413. Si la
+   petición agota el presupuesto de campos (`max_fields`) o de tiempo de
+   inspección (`max_inspection_ms`) → 413 también.
 6. **Body `multipart/form-data`**: se inspeccionan los **nombres** de campo y
    de fichero (los `../../etc/passwd` van ahí) → 403. El contenido del
    fichero no: es binario.
@@ -175,7 +189,7 @@ logging.basicConfig(level=logging.INFO)
 ```
 
 Eventos: `attack_detected`, `rate_limited`, `blocked_ip`, `body_too_large`,
-`rl_backend_unavailable`.
+`too_many_fields`, `inspection_timeout` y `rate_backend_error`.
 
 ## Cabeceras de seguridad
 
@@ -183,9 +197,16 @@ Se añaden sin pisar las tuyas. Por defecto: `X-Content-Type-Options`,
 `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` y HSTS.
 Para cambiarlas por completo, `Config(security_headers={...})`.
 
-!!! warning "HSTS"
-    `Strict-Transport-Security` solo se sirve sobre HTTPS (se omite en
-    `http://`), porque forzarla en desarrollo local rompería tu entorno.
+!!! note "HSTS"
+    `Strict-Transport-Security` se envía **siempre**, también en `http://`. No
+    rompe el desarrollo local: según el RFC 6797 (§7.2), el navegador
+    **tiene que ignorar** un STS recibido por una conexión no segura, así que
+    en `http://` no hace nada.
+
+    Y omitirlo según el esquema de la petición sería peor: en un despliegue
+    con un proxy que termina TLS, la app ve `http` y el navegador ve `https`,
+    así que HSTS desaparecería **sin avisar** justo donde hace falta. Si
+    prefieres controlarlo, quítalo de `security_headers`.
 
 ## Reglas propias
 
@@ -212,30 +233,39 @@ app.add_middleware(GatekeeperMiddleware, config=Config.from_yaml("gatekeeper.yam
 ```
 
 Las reglas personalizadas se evalúan sobre texto decodificado y en minúsculas,
-iguales que las integradas. **No están acotadas contra ReDoS**: revisa tus
-patrones (las integradas sí lo están; ver [Seguridad](seguridad.md)).
+iguales que las integradas. A diferencia de las integradas, **las tuyas se
+validan al arrancar**: una regex con backtracking exponencial se rechaza con
+un `ValueError` que dice exactamente qué parte del patrón es la problema.
 
-!!! danger "Tus reglas pueden colgar el proceso"
+!!! danger "Tus reglas pueden colgar el proceso (por eso ahora se comprueban)"
     Las reglas integradas tienen **todos** los cuantificadores acotados
     (`\s{0,16}`), y un test vigila que nadie introduzca un `\s*` sin cota: un
     `\s*` adyacente sobre una racha de espacios es O(n²).
 
-    Las tuyas se compilan **tal cual**. Una regex con backtracking exponencial
-    (por ejemplo `(a+)+$`) puede tardar minutos con una entrada crafted, y
-    eso para el proceso entero, no solo para esa petición.
+    Las tuyas las escribes tú, y una regex con backtracking exponencial (por
+    ejemplo `(a+)+$`) puede tardar minutos con una entrada crafted, y eso para
+    el proceso entero, no solo para esa petición. Gatekeeper lo comprueba
+    **al arrancar**, de forma estática (sin ejecutar el regex: medirlo sería el
+    propio DoS).
 
-    Cómo evitarlo:
+    - **Se rechaza** (`ValueError` al arrancar) el riesgo **exponencial**:
+      cuantificadores anidados sin nada obligatorio detrás (`(a+)+`, `(.*)*`),
+      alternativas que se solapan dentro de un grupo repetido (`(a|a)+`,
+      `(a|ab)+`) y referencias atrás repetidas (`(\w+)\1+`). Con esos, 60
+      caracteres ya bastan para colgar el proceso.
+    - **Se avisa** (warning en el log; la app arranca) el riesgo
+      **cuadrático**: cuantificadores anidados con un separador detrás
+      (`(?:\w+\.)+\w+`). No cuelga con una entrada corta, pero se degrada con
+      el tamaño: medido, 7,4 s con 50.000 caracteres.
 
-    - acota los cuantificadores: `\s{0,16}`, `[a-z]{1,32}`, no `\s*` ni `+`;
-    - evita anidar cuantificadores sobre el mismo grupo (`(a+)+`, `(a*)*`);
-    - usa alternancias en vez de repeticiones ambigua (`foo|foobar` en vez de
-      `foo(bar)?`);
-    - evita las referencias hacia atrás (`(a+)\1`) cuando el texto pueda ser
-      largo.
+    Si tu patrón es legítimo y prefieres aceptar el riesgo:
 
-    Si necesitas un patrón que no se puede acotar, no lo apliques sobre el
-    body entero: usa `exclude_fields` para sacarlo del escaneo, o ponlo en una
-    regla integrada con la forma acotada equivalente.
+    ```python
+    Config(custom_rules={"mia": r"(a+)+$"}, allow_unsafe_custom_rules=True)
+    ```
+
+    Y si puedes acotarlo, mejor: `\s{0,16}`, `[a-z]{1,32}`, no `\s*` ni `+`.
+    También puedes sacarlo del escaneo con `exclude_fields`.
 
 !!! danger "Fallar al arrancar, no en producción"
     Una clave con typo (`rate_limt`) o un patrón inválido **rompe el arranque**
@@ -259,7 +289,9 @@ app.add_middleware(
         rule_packs=["web"],                 # families (opt-in; por defecto, todas)
         exclude_fields=["template"],        # ese campo sí puede llevar HTML
         allow_paths=["/docs*", "/openapi.json", "/health"],
-        max_body_size=1_048_576,
+        max_body_size=262_144,               # 256 KiB; sube si tu app lo necesita
+        max_fields=1000,                     # textos inspeccionados por peticion
+        max_inspection_ms=1000,              # presupuesto de CPU por peticion
         inspect_multipart=True,              # nombres de campo y de fichero
         inspect_websockets=True,             # handshake (ruta, query, cabeceras)
     ),

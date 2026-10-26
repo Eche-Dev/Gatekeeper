@@ -20,6 +20,10 @@ Qué se agrega:
 - `gatekeeper_rate_limited_total`: peticiones que superaron el limite.
 - `gatekeeper_blocked_ips_total`: IPs bloqueadas.
 - `gatekeeper_body_too_large_total`: bodies mayores que `max_body_size`.
+- `gatekeeper_too_many_fields_total`: peticiones que agotaron el presupuesto
+  de campos (`max_fields`).
+- `gatekeeper_inspection_timeout_total`: peticiones que agotaron el
+  presupuesto de tiempo de inspeccion (`max_inspection_ms`).
 - `gatekeeper_rate_backend_errors_total{fail_open}`: fallos del backend.
 
 Qué NO se expone: IPs, rutas, payloads ni patrones. Las metricas son
@@ -42,6 +46,8 @@ CONTADORES = [
     ("gatekeeper_rate_limited_total", "Peticiones que superaron el limite de rate limit."),
     ("gatekeeper_blocked_ips_total", "Peticiones rechazadas por IP bloqueada."),
     ("gatekeeper_body_too_large_total", "Peticiones rechazadas por body demasiado grande."),
+    ("gatekeeper_too_many_fields_total", "Peticiones que agotaron el presupuesto de campos."),
+    ("gatekeeper_inspection_timeout_total", "Peticiones que agotaron el presupuesto de inspeccion."),
     ("gatekeeper_rate_backend_errors_total", "Fallos del backend de rate limit."),
 ]
 
@@ -66,6 +72,8 @@ def agregar(lineas: list[str]) -> dict:
     rate_limited = 0
     blocked_ips = 0
     body_too_large = 0
+    too_many_fields = 0
+    inspection_timeout = 0
     backend_errors: Counter[str] = Counter()
     eventos_total = 0
 
@@ -80,6 +88,10 @@ def agregar(lineas: list[str]) -> dict:
             blocked_ips += 1
         elif tipo == "body_too_large":
             body_too_large += 1
+        elif tipo == "too_many_fields":
+            too_many_fields += 1
+        elif tipo == "inspection_timeout":
+            inspection_timeout += 1
         elif tipo == "rate_backend_error":
             backend_errors["true" if evento.get("fail_open") else "false"] += 1
 
@@ -89,6 +101,8 @@ def agregar(lineas: list[str]) -> dict:
         "rate_limited": rate_limited,
         "blocked_ips": blocked_ips,
         "body_too_large": body_too_large,
+        "too_many_fields": too_many_fields,
+        "inspection_timeout": inspection_timeout,
         "rate_backend_errors": dict(sorted(backend_errors.items())),
     }
 
@@ -112,6 +126,8 @@ def a_prometheus(datos: dict) -> str:
     lineas.append(f"gatekeeper_rate_limited_total {datos['rate_limited']}")
     lineas.append(f"gatekeeper_blocked_ips_total {datos['blocked_ips']}")
     lineas.append(f"gatekeeper_body_too_large_total {datos['body_too_large']}")
+    lineas.append(f"gatekeeper_too_many_fields_total {datos['too_many_fields']}")
+    lineas.append(f"gatekeeper_inspection_timeout_total {datos['inspection_timeout']}")
     if datos["rate_backend_errors"]:
         for fail_open, count in datos["rate_backend_errors"].items():
             lineas.append(

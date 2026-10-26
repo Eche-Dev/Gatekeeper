@@ -15,7 +15,8 @@ un WAF gestionado. El atacante controla:
 - el **path** y la **query string** de la petición;
 - los valores de las **cabeceras inspeccionadas** (`user-agent`, `referer`,
   `cookie`, `x-forwarded-for` por defecto; configurable);
-- el **body textual** (JSON, form-urlencoded, texto plano) hasta 1 MiB.
+- el **body textual** (JSON, form-urlencoded, texto plano) hasta 256 KiB, con
+  un presupuesto de campos y de tiempo de inspección.
 
 El atacante **no** controla el backend, la base de datos ni la red interna.
 Gatekeeper inspecciona la petición **antes** de que llegue a tu handler; si
@@ -53,9 +54,11 @@ el resto de la cobertura.
 |---|---|---|
 | Path y query | Siempre | Incluye el path completo (`/api/v1/<payload>` es vector) |
 | Cabeceras | `user-agent`, `referer`, `cookie`, `x-forwarded-for` por defecto | Configurable con `inspect_headers`; añade las tuyas si tu app las lee |
-| Body JSON/text/form | Hasta `max_body_size` (1 MiB) | Un `application/octet-stream` se **sniffea**: si el cuerpo es JSON, se inspecciona |
-| Body multipart | Hasta `max_body_size` (1 MiB) | Se inspeccionan los **nombres de campo y de fichero**, no el contenido de los ficheros (`inspect_multipart`) |
+| Body JSON/text/form | Hasta `max_body_size` (256 KiB) | Un `application/octet-stream` se **sniffea**: si el cuerpo es JSON, se inspecciona |
+| Body multipart | Hasta `max_body_size` (256 KiB) | Se inspeccionan los **nombres de campo y de fichero**, no el contenido de los ficheros (`inspect_multipart`) |
 | Body sin `Content-Length` | Se lee con límite | 413 si el stream supera `max_body_size` |
+| Presupuesto de campos | `max_fields` (1000 textos) | 413 si se supera: el coste de inspeccionar escala con los campos, no con los bytes |
+| Presupuesto de tiempo | `max_inspection_ms` (1000 ms) | 413 si la inspección lo supera (red de seguridad) |
 | Handshake de WebSocket | Ruta, query y cabeceras | El **rate limit también se aplica**; los frames no se inspeccionan (`inspect_websockets`) |
 
 ## Qué NO cubre Gatekeeper

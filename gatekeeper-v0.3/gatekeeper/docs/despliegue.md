@@ -27,6 +27,14 @@ que ves en la config es el número real.
     4 workers con `rate_limit=100` admiten ~400/min. Saltando a
     [varios workers](#varios-workers).
 
+!!! note "La memoria del backend en memoria está acotada"
+    El backend en memoria recuerda como mucho `rate_max_keys` IPs distintas
+    (10.000 por defecto). Al llegar al tope sale la menos usada, de modo que
+    una inundación de IPs inventadas no puede hacer crecer el proceso sin
+    límite. Antes de esa protección, 300.000 IPs distintas costaban ~245 MB
+    de RAM. Si atiendes a más de 10.000 clientes simultáneos, sube el valor
+    (o pasa a Redis).
+
 ## Varios workers
 
 Con varios workers en la misma máquina (gunicorn, `uvicorn --workers 4`), cada
@@ -71,8 +79,8 @@ event loop.
 
     | `rate_fail_open` | Comportamiento | Cuándo |
     |---|---|---|
-    | `True` (defecto) | Se admite la petición y se audita `rl_backend_unavailable` | Si la disponibilidad importa más que el límite exacto |
-    | `False` | `503` con `{"detail": "rate_limit_backend_unavailable"}` | Si el límite es un requisito de seguridad, no un extra |
+    | `True` (defecto) | Se admite la petición y se audita `rate_backend_error` | Si la disponibilidad importa más que el límite exacto |
+    | `False` | `503` con `{"detail": "Service Unavailable"}` | Si el límite es un requisito de seguridad, no un extra |
 
     En ambos casos el fallo queda en la auditoría: Redis no puede caerse en
     silencio. Para un servicio público, `True` con alertas configuradas suele
@@ -89,6 +97,15 @@ event loop.
       la memoria del worker. Con el backend en memoria, un reinicio pondría el
       contador a cero y el límite se podría evadir reiniciando.
     - Dos IPs distintas tienen contadores separados.
+
+!!! note "Con Redis, el tope de claves no es del middleware"
+    En Redis, cada IP es una clave que caduca a los `rate_window` segundos, así
+    que la memoria no crece sin límite en el tiempo; pero sí crece con el
+    número de IPs distintas de una ventana. Si eso es un problema en tu
+    despliegue, la protección es del lado de Redis (`maxmemory` +
+    `maxmemory-policy`), no del middleware. Lo que sí hace Gatekeeper es
+    agrupar las IPv6 por /64 al contar, que es donde se concentran las
+    rotaciones.
 
 ### Varias réplicas de Kubernetes
 
@@ -230,7 +247,8 @@ Gatekeeper **no adivina**: usa el peer y sigue siendo conservador.
 ## Lo que **no** cambia
 
 - **El body se inspecciona siempre**, sin importar la topología. El límite de
-  1 MiB (`max_body_size`) también.
+  256 KiB (`max_body_size`) también, con los presupuestos de campos
+  (`max_fields`) y de tiempo de inspección (`max_inspection_ms`).
 - **Las cabeceras de seguridad** se añaden siempre.
 - **La auditoría** va al logger `gatekeeper` en todos los casos. Si recoges
   logs centralizados (Loki, ELK, CloudWatch), los eventos JSON se pueden

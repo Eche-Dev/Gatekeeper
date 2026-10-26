@@ -93,7 +93,10 @@ corres uvicorn verás, al bloquear:
 ```
 
 El campo `pattern` dice **qué regla saltó**, para que puedas ajustar sin
-adivinar. El payload **nunca** se escribe en el log.
+adivinar. Los **valores** del payload no se escriben nunca en el log; el
+**nombre** del campo (`field`) sí, porque es lo que permite atribuir el
+falso positivo. Ese nombre lo elige el atacante, así que va saneado (sin
+caracteres de control) y acotado: trátalo como texto no confiable.
 
 !!! warning "Primero observa, luego bloquea"
     Si no sabes todavía qué falsos positivos te va a dar tu tráfico, arranca en

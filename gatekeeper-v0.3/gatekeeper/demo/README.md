@@ -15,8 +15,8 @@ uvicorn app:app --reload
 ```
 
 Abre <http://127.0.0.1:8000/> y toca los botones. En la terminal verás los
-eventos de auditoría (`attack_detected` con la regla que saltó — nunca con el
-contenido del payload).
+eventos de auditoría (`attack_detected` con la regla que saltó; nunca con los
+valores del payload).
 
 Desde la terminal, lo mismo:
 

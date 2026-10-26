@@ -7,6 +7,132 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 Nada pendiente.
 
+## [0.6.0] - 2026-10-26
+
+### Corregido
+- **El rate limiter no tenía tope de claves.** El backend en memoria guardaba un
+  `deque` por cada IP distinta, sin límite: medido, 200.000 IPs distintas
+  costaban **174,9 MB** de RAM (875 B por clave) y la poda era O(n) en cada
+  limpieza. Ahora la tabla está acotada (`rate_max_keys`, 10.000 por defecto):
+  al llegar al tope sale la clave **menos usada** (LRU). Con el tope, esas
+  mismas 200.000 IPs ocupan **9,4 MB**, y la inserción es O(1).
+- **La IPv6 se contaba por dirección, y eso no limitaba a nadie.** Un /64 es el
+  prefijo delegable más pequeño (RFC 6177): quien tiene un /64 puede rotar
+  2^64 direcciones sin que el contador se entere. Ahora las direcciones del
+  mismo prefijo cuentan juntas (`rate_ipv6_prefix`, /64 por defecto; 128 = sin
+  agrupar).
+- **`::ffff:1.2.3.4` y `1.2.3.4` contaban aparte.** La misma dirección en dos
+  formas llevaba dos contadores. Ahora la clave de conteo se normaliza. La IP
+  **cruda** se sigue registrando en la auditoría.
+- **`blocked_ips` con una entrada IPv4-mapped era un no-op silencioso.**
+  `blocked_ips={"::ffff:127.0.0.1"}` (o `{"::ffff:0:0/96"}`) se aceptaba al
+  arrancar y **no bloqueaba nada**: la IP entrante se normaliza a IPv4 y se
+  comparaba contra una red IPv6, que nunca coincide. Una protección que no
+  protege. Ahora esas entradas se traducen a su equivalente IPv4 y bloquean las
+  dos formas.
+
+### Añadido
+- `Config(rate_max_keys=...)`: tope de IPs distintas que el backend en memoria
+  recuerda (10.000). `Config(rate_ipv6_prefix=...)`: bits de prefijo IPv6 que se
+  agrupan al contar (64).
+- **Presupuesto de campos por petición** (`Config.max_fields`, 1000 textos
+  inspeccionados: una clave y su valor cuentan como dos). Al superarlo, la
+  petición se **rechaza con 413** y se audita `too_many_fields`. Los campos que
+  sobran **no se ignoran**: ignorarlos sería un bypass, porque el atacante
+  mandaría el payload en el campo que se queda sin inspeccionar.
+- **Presupuesto de tiempo de inspección** (`Config.max_inspection_ms`, 1 s).
+  Al superarlo, la petición se **rechaza con 413** y se audita
+  `inspection_timeout`. No hay modo fail-open: un presupuesto que se pudiera
+  agotar a propósito para saltarse la detección sería un bypass. El defecto
+  es holgado a propósito: la protección principal es `max_fields`, que no
+  depende de la velocidad de la máquina.
+- 23 tests que fijan el contrato de lo anterior (`tests/test_ratelimit_hardening.py`).
+- 18 tests que fijan el contrato del presupuesto
+  (`tests/test_presupuesto_inspeccion.py`), dos contadores nuevos en
+  `tools/metrics.py` (`gatekeeper_too_many_fields_total`,
+  `gatekeeper_inspection_timeout_total`) y dos eventos nuevos en el catálogo
+  `corpus/events.json`.
+- **Las reglas propias se validan al arrancar** (`src/gatekeeper/redos.py`).
+  Antes se compilaban tal cual: `(a+)+$` sobre 60 caracteres no terminaba en
+  20 segundos, y eso era un DoS en el propio WAF, sin necesidad de adversario.
+  Ahora el patrón se analiza **de forma estática** (sin ejecutarlo: medirlo
+  sería el propio DoS) y hay dos niveles:
+  - **Exponencial** → `ValueError` al arrancar: cuantificadores anidados sin
+    nada obligatorio detrás (`(a+)+`), alternativas solapadas en un grupo
+    repetido (`(a|a)+`, `(a|ab)+`) y referencias atrás repetidas.
+  - **Cuadrático** → warning en el log, la app arranca: cuantificadores
+    anidados con separador detrás (`(?:\w+\.)+\w+`). No cuelga con una
+    entrada corta, pero se degrada con el tamaño (medido: 7,4 s con 50.000
+    caracteres).
+  - `Config(allow_unsafe_custom_rules=True)` acepta el riesgo exponencial
+    (y avisa). También hay topes de longitud de patrón (1000) y de número de
+    reglas (100).
+  - 33 tests que fijan el contrato (`tests/test_custom_rules_redos.py`).
+
+### Corregido
+- **El puntero JSON perdía el segmento al llegar a 64 niveles.** Se marcaba el
+  corte y se devolvía la ruta del padre: la atribución apuntaba al campo
+  equivocado y `exclude_fields` (que compara por el último segmento) no
+  casaba con el campo real, de modo que un campo exento a 64 niveles seguía
+  bloqueándose. Ahora el puntero conserva la clave exterior, marca el corte y
+  acaba en el campo que saltó: a 80 niveles, `/n1/…/n80`.
+- **Dos patrones de inyección SQL estaban en la familia equivocada.**
+  `union all` y `or '…` vivían en `sensitive_files`, así que
+  `disabled_rules=["sqli"]` no los apagaba (medido: `union all select 1` se
+  seguía detectando y se reportaba como `sensitive_files`). Ahora están en
+  `sqli`, con los cuantificadores acotados (`\s{1,32}`) como toda regla
+  integrada. Se ha movido también `||`, que estaba en el mismo grupo con el
+  mismo comentario. El corpus no se mueve: 159/159 y 158 por la regla
+  esperada, igual que antes.
+- **Patrones duplicados dentro de `sensitive_files`:** los de logs y volcados
+  estaban escritos dos veces (con las clases de caracteres en distinto
+  orden). Ahora hay una sola copia.
+- **La documentación nombraba un evento que el middleware nunca emitía**
+  (`rl_backend_unavailable`; el real es `rate_backend_error`) y describía
+  cuerpos de error que no eran los reales (`rate limit exceeded` y
+  `rate_limit_backend_unavailable`; los reales son `Too Many Requests` y
+  `Service Unavailable`). Corregidos, con un test que comprueba que la doc no
+  invente eventos ni cuerpos.
+- **El HSTS se documentaba como condicional al esquema, y no lo es.** La doc
+  decía que se omitía en `http://` "porque forzarla en desarrollo local
+  rompería tu entorno". No es cierto: según el RFC 6797 (§7.2) el
+  navegador **tiene que ignorar** un STS recibido por una conexión no
+  segura. Y omitirlo según el esquema sería peor: detrás de un proxy que
+  termina TLS, la app ve `http` y HSTS desaparecería sin avisar. Se corrige
+  la doc; el código se queda como estaba.
+- **El escape de terminal en `gatekeeper report`** (ambos formatos). Lo que el
+  CLI imprime lo elige el atacante (el nombre de un campo, la ruta): un
+  `\x1b[2J` en la URL podía borrar la pantalla del operador o reescribir el
+  título de su ventana. En el formato JSON, `json.loads` convertía el
+  `\u001b` del archivo en un ESC real, que llegaba a la terminal tal cual. Ahora
+  todo el texto que se imprime va **saneado** (sin ESC ni otros caracteres de
+  control; el ESC se marca como `\e` para que se vea que había algo).
+- **El log de auditoría se sanea y se acota.** El mismo texto no confiable
+  llegaba al archivo de log, y de ahí a la terminal de quien lo abría (o a un
+  SIEM). Ahora el texto que se registra va sin caracteres de control y
+  acotado a 256 caracteres: un nombre de campo de 100 KB ya no produce una
+  línea de log de 100 KB.
+- **La promesa del log era falsa.** Documentaba que "nunca se registra el
+  contenido del payload", pero el **nombre** de un campo lo elige el atacante:
+  un parámetro cuyo nombre es el payload entero llegaba entero al log. Lo que
+  se garantiza (y ahora se dice con precisión en `SECURITY.md`, `docs/`,
+  `README.md` y `corpus/events.json`) es que los **valores** nunca se
+  registran; los **nombres** sí, porque sin ellos no se puede atribuir un
+  falso positivo. El log es texto no confiable, no un depósito de
+  credenciales interceptadas.
+
+### Cambiado
+- **`max_body_size` baja de 1 MiB a 256 KiB por defecto.** Es el límite de lo
+  que se lee: la inspección consume CPU. Si tu app acepta bodies mayores,
+  súbelo (por endpoint, con dos instancias de `Config` si hace falta).
+
+### Corregido
+- **El coste de inspeccionar escalaba con el número de campos, y el límite de
+  tamaño no lo cubría.** Medido: ~67 µs por campo, así que 20.000 campos
+  costaban **1,34 s** de CPU en una sola petición (y el `max_body_size` no
+  los frenaba: un cuerpo de muchos campos es pequeño). Con el presupuesto,
+  26.000 campos se rechazan en **0,003 s**.
+
 ## [0.5.0] - 2026-10-25
 
 Cierra tres de los bypasses que encontró la auditoría de seguridad del 25 de
