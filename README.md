@@ -76,8 +76,27 @@ Para decidir **dónde** desplegarlo, la
 valor cambia en cada topología (un proceso, varios workers, Docker, proxy
 inverso).
 
-## Qué mide (no qué promete)
+## Coste por petición
 
+Medido en local (Python 3.14.8, Windows), con el escenario completo de
+inspección y rate limit: **p50 de 141 µs, p95 de 155 µs, p99 de 216 µs** sobre
+una base de 13 µs sin middleware.
+
+Dos cosas que conviene saber antes de desplegarlo:
+
+- **El tamaño del body es lo que manda**: con un body de 100 KB el p50 sube a
+  **8,3 ms** (59 veces más), y el middleware lo paga antes de que la
+  aplicación vea la petición. El presupuesto `max_body_size` (256 KiB por
+  defecto) es lo que lo acota.
+- **Si Redis se cae**, cada petición espera el timeout de conexión antes de
+  decidir: **2,0 s por petición** con el valor por defecto (se ajusta con
+  `redis_timeout`).
+
+`python benchmarks/latency.py` lo reproduce en tu máquina, y el CI compara el
+código del PR con el de `main` **en el mismo runner** (el ruido de la máquina
+se cancela; un umbral absoluto no serviría).
+
+## Qué mide (no qué promete)
 Tres corpus, todos con guarda en CI (si una regla nueva los empeora, el
 workflow falla):
 

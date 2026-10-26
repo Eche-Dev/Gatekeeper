@@ -42,6 +42,7 @@ Dataclass con validación en `__post_init__`. Un valor inválido lanza
 | `rate_backend` | `str` | `"memory"` (`"memory"` \| `"redis"`) |
 | `redis_url` | `str` | `"redis://localhost:6379/0"` |
 | `redis_prefix` | `str` | `"gatekeeper:rl:"` |
+| `redis_timeout` | `float` | `2.0` — segundos de espera al conectar y leer de Redis. Con Redis caído, cada petición espera este tiempo antes de decidir (fail-open admite, fail-closed devuelve 503): medido, 2,0 s por petición. Bájalo si tu Redis está en la misma red (`0.2` basta) y súbelo si está en otra. Ojo: un timeout *muy* corto hace que un Redis lento parezca caído, y con `rate_fail_open=True` eso desactiva el rate limit en silencio |
 | `rate_fail_open` | `bool` | `True` |
 | `rate_max_keys` | `int` | `10000` — tope de IPs distintas que el backend en memoria recuerda (al llegar al tope sale la menos usada) |
 | `rate_ipv6_prefix` | `int` | `64` — bits de prefijo IPv6 que se agrupan al contar (un /64 es el prefijo delegable más pequeño, RFC 6177) |

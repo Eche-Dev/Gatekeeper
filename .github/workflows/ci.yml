@@ -372,3 +372,62 @@ jobs:
             { echo "### zizmor"; echo '```'; tail -n 25 /tmp/zizmor.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           fi
           exit "$CODE"
+
+  bench:
+    # Guard de regresiones de rendimiento.
+    #
+    # NO compara contra un umbral absoluto: en un runner de CPU compartida, una
+    # maquina lenta y una regresion real dan el mismo numero, asi que un
+    # umbral solo puede dar falsos positivos o ser ciego (esta conclusion ya
+    # estaba medida y documentada en `benchmarks/latency.py`).
+    #
+    # Lo que si es fiable es comparar DOS EJECUCIONES EN LA MISMA MAQUINA: el
+    # codigo del PR y el de main, alternados y con la mediana de varias
+    # repeticiones (la mediana ignora las pausas del sistema, que se ven como
+    # picos aislados: medido, cuatro de cinco corridas variaron un 0,3% y la
+    # quinta un 41%).
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        # El job necesita las dos copias del repositorio (el PR y main).
+        working-directory: .
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          path: pr
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          path: base
+          ref: ${{ github.event.pull_request.base.sha || 'main' }}
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12"
+      - run: pip install -q "starlette>=0.23"
+      - name: Mide el codigo del PR y el de main en la MISMA maquina
+        run: |
+          set -e
+          python pr/gatekeeper-v0.3/gatekeeper/benchmarks/latency.py \
+            --iterations 300 --rounds 3 --repeats 3 --save /tmp/nuevo.json
+          python base/gatekeeper-v0.3/gatekeeper/benchmarks/latency.py \
+            --iterations 300 --rounds 3 --repeats 3 --save /tmp/base.json
+          { echo "### Latencia (PR vs main, misma maquina)"; echo '```';
+            cat /tmp/nuevo.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: El ruido de este runner (dato, no veredicto)
+        run: |
+          python pr/gatekeeper-v0.3/gatekeeper/benchmarks/latency.py \
+            --iterations 300 --rounds 3 --repeats 1 --ruido --json > /tmp/ruido.json
+          { echo "### Ruido del runner"; echo '```'; cat /tmp/ruido.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Veredicto (bloquea si el PR empeora de mas)
+        # Margen del 50%: con la mediana de tres repeticiones, el ruido medido
+        # entre corridas del mismo codigo fue del 0,3% (con picos sueltos del
+        # 41% por pausas del sistema), pero en los escenarios cortos (p50 de
+        # 77 us) el ruido RELATIVO llega al 23%. Un margen del 25% daba
+        # falsos positivos; el job publica el ruido de su runner, que es el
+        # dato para calibrar esto con datos y no a ojo.
+        run: |
+          python pr/gatekeeper-v0.3/gatekeeper/benchmarks/latency.py \
+            --comparar /tmp/base.json /tmp/nuevo.json --margen 0.5

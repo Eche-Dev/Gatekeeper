@@ -38,6 +38,7 @@ import platform
 import statistics
 import sys
 import time
+import tracemalloc
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,6 +54,8 @@ QUERY_OK = b"q=hello+world&page=2"
 QUERY_ATTACK = b"q=1+UNION+SELECT+password+FROM+users"
 BODY_OK = b'{"comment":"A normal request body"}'
 BODY_CROSS_ATTACK = b'{"statement":"select password from users"}'
+# Carga grande: 100 KB de body, por debajo del presupuesto de 256 KiB.
+BODY_GRANDE = b'{"comment":"' + (b"x" * 100_000) + b'"}'
 
 # NO hay un presupuesto absoluto, y es una decisión con datos.
 #
@@ -186,7 +189,110 @@ def scenarios() -> list[tuple[str, Config | None, dict]]:
          Config(rate_limit=10_000_000), {}),
         ("request atacante (bloqueado con 403)",
          Config(rate_limit=10_000_000), {"query": QUERY_ATTACK}),
+        ("carga grande (body 100 KB), sin rate limit",
+         Config(rate_limit=0), {"method": "POST", "body": BODY_GRANDE}),
     ]
+
+
+def medir_recursos(
+    app,
+    iterations: int = 200,
+    query: bytes = QUERY_OK,
+    method: str = "GET",
+    body: bytes = b"",
+) -> dict:
+    """CPU (µs por peticion) y memoria pico (KiB) de un escenario.
+
+    La CPU se mide con `time.process_time_ns` (tiempo de CPU del proceso, no
+    del reloj: si el portatil esta compartido, el reloj incluye la espera de
+    otros y la CPU no). La memoria, con `tracemalloc`, que va aparte porque
+    multiplica el coste de la medicion: por eso no se mezcla con la latencia.
+    """
+
+    async def run() -> tuple[float, float]:
+        for _ in range(50):  # calentamiento
+            await app(make_scope(query, method, body), make_receive(body), _send)
+        tracemalloc.start()
+        cpu0 = time.process_time_ns()
+        for _ in range(iterations):
+            await app(make_scope(query, method, body), make_receive(body), _send)
+        cpu1 = time.process_time_ns()
+        _actual, pico = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        return (cpu1 - cpu0) / 1000.0 / iterations, pico / 1024.0
+
+    cpu_us, pico_kib = asyncio.run(run())
+    return {
+        "cpu_us": round(cpu_us, 2),
+        "pico_memoria_kib": round(pico_kib, 1),
+        "iteraciones": iterations,
+    }
+
+
+def medir_redis_caido(iterations: int = 3) -> dict:
+    """Cuánto cuesta una peticion cuando Redis no responde.
+
+    El backend de Redis se crea con `socket_connect_timeout=2.0` fijo, asi que
+    con Redis caido cada peticion espera ese timeout antes de decidir (y con
+    `rate_fail_open=True` la admite igualmente). Se mide aparte, con pocas
+    peticiones: con 300 seria esperar 10 minutos.
+
+    Si el extra [redis] no esta instalado, se dice y no se mide.
+    """
+    try:
+        from redis.asyncio import Redis  # noqa: F401
+    except ImportError:
+        return {"disponible": False}
+
+    config = Config(
+        rate_backend="redis",
+        redis_url="redis://127.0.0.1:6399/0",  # puerto cerrado
+        rate_fail_open=True,
+    )
+    app = make_app(config)
+    muestras: list[float] = []
+
+    async def run() -> None:
+        for _ in range(iterations):
+            t0 = time.perf_counter()
+            await app(make_scope(), make_receive(), _send)
+            muestras.append((time.perf_counter() - t0) * 1000.0)
+
+    asyncio.run(run())
+    return {
+        "disponible": True,
+        "peticiones": iterations,
+        "ms_por_peticion": round(statistics.fmean(muestras), 1),
+        "ms_min": round(min(muestras), 1),
+        "ms_max": round(max(muestras), 1),
+    }
+
+
+def medir_ruido(iterations: int, rounds: int, reps: int = 5) -> dict:
+    """Ruido entre dos mediciones del MISMO codigo, en la MISMA maquina.
+
+    Es el numero que decide si un umbral en CI puede existir: si el ruido
+    entre corridas es mayor que la senal de una regresion real, cualquier
+    umbral dara falsos positivos. Comparando dos EJECUCIONES en la misma
+    maquina, el ruido de fondo se cancela y la diferencia si es senal.
+    """
+    valores = []
+    for _ in range(reps):
+        muestras = measure(make_app(Config(rate_limit=0)), iterations, rounds)
+        valores.append(percentile(muestras, 50))
+    # La referencia es la MEDIANA, no la primera corrida: la primera medición
+    # de un proceso recién arrancado (CPU en reposo, caches frías) no es
+    # comparable con las siguientes, y usarlo de referencia inflaba el ruido
+    # hasta un 48% que no es real.
+    referencia = statistics.median(valores)
+    desvios = [abs(v - referencia) / referencia for v in valores] if referencia else [0.0]
+    return {
+        "repeticiones": reps,
+        "p50_us": [round(v, 2) for v in valores],
+        "referencia_us": round(referencia, 2),
+        "ruido_max_relativo": round(max(desvios), 4),
+        "ruido_medio_relativo": round(statistics.fmean(desvios), 4),
+    }
 
 
 def _stats(samples: list[float], baseline: dict[str, float] | None) -> dict:
@@ -307,11 +413,63 @@ def main(argv: list[str] | None = None) -> int:
                         help="Guarda esta medición en JSON para usarla como base.")
     parser.add_argument("--baseline", type=Path, metavar="FICHERO",
                         help="Compara contra una medición previa (misma máquina).")
+    parser.add_argument("--comparar", nargs=2, metavar=("BASE", "NUEVO"),
+                        help="Compara dos mediciones YA hechas (misma máquina) sin "
+                             "volver a medir: es lo que usa el job `bench` del CI, "
+                             "donde el codigo del PR y el de main se miden por "
+                             "separado y luego se comparan.")
     parser.add_argument("--margen", type=float, default=0.25,
                         help="Tolerancia relativa del --baseline (0.25 = 25%%).")
+    parser.add_argument("--recursos", action="store_true",
+                        help="Mide ademas CPU (µs/peticion) y memoria pico (KiB).")
+    parser.add_argument("--ruido", action="store_true",
+                        help="Mide el ruido entre varias corridas del MISMO codigo: "
+                             "es el numero que decide si un umbral en CI es viable.")
+    parser.add_argument("--redis-caido", action="store_true",
+                        help="Mede el coste de una peticion con Redis sin responder.")
     args = parser.parse_args(argv)
 
+    # El modo --comparar NO mide: solo compara dos mediciones ya hechas. Si
+    # midiera aqui, el job `bench` del CI haria tres mediciones en vez de dos
+    # (y la tercera, ya con la maquina caliente, no seria comparable).
+    if args.comparar:
+        base_path, nuevo_path = args.comparar
+        for ruta in (base_path, nuevo_path):
+            if not Path(ruta).exists():
+                print(f"no existe la medición: {ruta}", file=sys.stderr)
+                return 2
+        antes = json.loads(Path(base_path).read_text(encoding="utf-8"))
+        ahora = json.loads(Path(nuevo_path).read_text(encoding="utf-8"))
+        print(f"Comparando {nuevo_path} contra {base_path} "
+              f"(margen {args.margen:+.0%}, misma máquina):")
+        ok, fallos = comparar(antes, ahora, args.margen)
+        if not ok:
+            print("\nREGRESIÓN DE LATENCIA respecto a la medición base:")
+            for fallo in fallos:
+                print(f"  - {fallo}")
+            return 1
+        print("\n✅ sin regresión respecto a la medición base")
+        return 0
+
     data = run_benchmark(args.iterations, args.rounds, args.repeats)
+
+    if args.recursos:
+        recursos = []
+        for name, config, kwargs in scenarios():
+            if name.startswith("sin middleware"):
+                continue
+            fila = {"scenario": name}
+            fila.update(medir_recursos(make_app(config), **{
+                k: v for k, v in kwargs.items() if k in {"query", "method", "body"}
+            }))
+            recursos.append(fila)
+        data["recursos"] = recursos
+
+    if args.ruido:
+        data["ruido"] = medir_ruido(args.iterations, args.rounds)
+
+    if args.redis_caido:
+        data["redis_caido"] = medir_redis_caido()
 
     if args.save:
         args.save.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -346,7 +504,31 @@ def main(argv: list[str] | None = None) -> int:
         print(f"| {row['scenario']} | {row['p50_us']:.2f} | {row['p95_us']:.2f} "
               f"| {row['p99_us']:.2f} | {row['max_us']:.2f}{extra} |")
     print("\np95/p99 por petición: la media por ronda (v0.3) escondía justo esta cola.")
-    print("Para comparar dos versiones en tu máquina:")
+
+    if "recursos" in data:
+        print("\nCPU y memoria por escenario (tracemalloc multiplica el coste, va aparte):")
+        print("| Escenario | CPU µs/petición | pico memoria (KiB) |")
+        print("|---|---|---|")
+        for fila in data["recursos"]:
+            print(f"| {fila['scenario']} | {fila['cpu_us']:.1f} | "
+                  f"{fila['pico_memoria_kib']:.1f} |")
+
+    if "ruido" in data:
+        ruido = data["ruido"]
+        print(f"\nRuido entre {ruido['repeticiones']} corridas del MISMO código "
+              f"(misma máquina): máx {ruido['ruido_max_relativo']:.1%}, "
+              f"medio {ruido['ruido_medio_relativo']:.1%}.")
+
+    if "redis_caido" in data:
+        caido = data["redis_caido"]
+        if not caido.get("disponible"):
+            print("\nRedis caído: el extra [redis] no está instalado, no se puede medir.")
+        else:
+            print(f"\nRedis caído: {caido['ms_por_peticion']} ms por petición "
+                  f"(min {caido['ms_min']}, max {caido['ms_max']}). El timeout de "
+                  f"conexión está fijado en 2 s y no es configurable.")
+
+    print("\nPara comparar dos versiones en tu máquina:")
     print("  python benchmarks/latency.py --save base.json")
     print("  # ... cambia el código ...")
     print("  python benchmarks/latency.py --baseline base.json")
