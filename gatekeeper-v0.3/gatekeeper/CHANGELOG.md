@@ -66,6 +66,36 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   - 33 tests que fijan el contrato (`tests/test_custom_rules_redos.py`).
 
 ### Corregido
+- **El puntero JSON perdía el segmento al llegar a 64 niveles.** Se marcaba el
+  corte y se devolvía la ruta del padre: la atribución apuntaba al campo
+  equivocado y `exclude_fields` (que compara por el último segmento) no
+  casaba con el campo real, de modo que un campo exento a 64 niveles seguía
+  bloqueándose. Ahora el puntero conserva la clave exterior, marca el corte y
+  acaba en el campo que saltó: a 80 niveles, `/n1/…/n80`.
+- **Dos patrones de inyección SQL estaban en la familia equivocada.**
+  `union all` y `or '…` vivían en `sensitive_files`, así que
+  `disabled_rules=["sqli"]` no los apagaba (medido: `union all select 1` se
+  seguía detectando y se reportaba como `sensitive_files`). Ahora están en
+  `sqli`, con los cuantificadores acotados (`\s{1,32}`) como toda regla
+  integrada. Se ha movido también `||`, que estaba en el mismo grupo con el
+  mismo comentario. El corpus no se mueve: 159/159 y 158 por la regla
+  esperada, igual que antes.
+- **Patrones duplicados dentro de `sensitive_files`:** los de logs y volcados
+  estaban escritos dos veces (con las clases de caracteres en distinto
+  orden). Ahora hay una sola copia.
+- **La documentación nombraba un evento que el middleware nunca emitía**
+  (`rl_backend_unavailable`; el real es `rate_backend_error`) y describía
+  cuerpos de error que no eran los reales (`rate limit exceeded` y
+  `rate_limit_backend_unavailable`; los reales son `Too Many Requests` y
+  `Service Unavailable`). Corregidos, con un test que comprueba que la doc no
+  invente eventos ni cuerpos.
+- **El HSTS se documentaba como condicional al esquema, y no lo es.** La doc
+  decía que se omitía en `http://` "porque forzarla en desarrollo local
+  rompería tu entorno". No es cierto: según el RFC 6797 (§7.2) el
+  navegador **tiene que ignorar** un STS recibido por una conexión no
+  segura. Y omitirlo según el esquema sería peor: detrás de un proxy que
+  termina TLS, la app ve `http` y HSTS desaparecería sin avisar. Se corrige
+  la doc; el código se queda como estaba.
 - **El escape de terminal en `gatekeeper report`** (ambos formatos). Lo que el
   CLI imprime lo elige el atacante (el nombre de un campo, la ruta): un
   `\x1b[2J` en la URL podía borrar la pantalla del operador o reescribir el

@@ -228,7 +228,7 @@ Dices que desarrollas con Open Code "según tus reglas". Esas reglas **no están
 
 ### 🟡 FASE 2 — Recursos, logs y operación · 3-4 días · **84 → 90**
 
-**Objetivo:** que ningún atacante pueda convertir tu WAF en su vector de agotamiento, ni tu log en su canal de，我看 any.
+**Objetivo:** que ningún atacante pueda convertir tu WAF en su vector de agotamiento, ni tu log en su canal de fuga.
 
 1. **Presupuesto de campos por petición** (§2.2): tope configurable (p. ej. `max_fields=1000`); al superarlo, o se trunca (y se audita) o se rechaza con 413. **El parche no cubre esto.**
 2. **Timeout de inspección por petición**: presupuesto en `Config` (p. ej. `max_inspection_ms`) con la política "fail-closed" o "fail-open" **explícita y documentada**.
@@ -244,6 +244,23 @@ Dices que desarrollas con Open Code "según tus reglas". Esas reglas **no están
 
 > **Aceptación:** 26.000 campos → < 200 ms o 413; `::ffff:127.0.0.1` bloqueado con `blocked_ips={'127.0.0.1'}`; el log **no** contiene el payload (o la doc dice la verdad); `gatekeeper report` con ESC en el log → **0 bytes ESC** en stdout; `disabled_rules=['sqli']` ya no deja pasar `union all`; el puntero JSON a 80 niveles apunta al campo real.
 > **Por qué +6:** es donde están los riesgos de disponibilidad y los que rompen la promesa del producto.
+
+**Estado (ejecutada en la rama `objetivo100`, 0.6.0):** los 11 puntos están
+hechos y los 6 criterios de aceptación, medidos.
+
+| # | Decisión tomada | Medición |
+|---|---|---|
+| 1 | Presupuesto de campos (`max_fields=1000`), se **rechaza** con 413, no se trunca | 26.000 campos → 413 en **0,003 s** (antes 1,34 s de CPU) |
+| 2 | `max_inspection_ms=1000`, política **fail-closed** (413). Sin fail-open: agotar el presupuesto a propósito para saltarse la detección sería un bypass | el reloj cuenta CPU, no la espera de red |
+| 3 | `max_body_size` de 1 MiB a **256 KiB** | documentado en `docs/`, `README.md` y CHANGELOG |
+| 4 | Tope de claves en `MemoryBackend` (**LRU**), IPv6 agrupada por **/64**, IPv4-mapped normalizado | 200.000 IPs: 174,9 MB → **9,4 MB**; 10 direcciones del mismo /64 → **1** cubo |
+| 5 | Se **cambia la promesa** (no se quita el nombre del campo): los **valores** nunca se registran; los **nombres** sí, porque sin ellos no se puede atribuir un FP. El nombre va saneado y acotado | `corpus/events.json`, `SECURITY.md`, `docs/`, README actualizados |
+| 6 | `str.translate` sobre C0 + ESC en el log **y** en los dos formatos del CLI | `gatekeeper report` con ESC → **0 bytes ESC** en stdout |
+| 7 | Las reglas propias se validan **al arrancar** y de forma **estática** (sin ejecutar el regex). Riesgo exponencial → `ValueError`; cuadrático → aviso | `(a+)+$` cuelga a los 60 caracteres: ahora no llega a compilarse |
+| 8 | `_child_pointer` conserva el segmento nuevo al llegar al límite (clave exterior + corte + campo real) | puntero a 80 niveles → `/n1/…/n80` |
+| 9 | Los 3 patrones SQLi de la ruta (`union all`, `or '…`, `\|\|`) pasan a la familia `sqli`, con los cuantificadores acotados; duplicados borrados | `disabled_rules=["sqli"]` ya no deja pasar `union all`; corpus sin cambios (159/159) |
+| 10 | `rl_backend_unavailable` → `rate_backend_error` (y de paso los cuerpos de error reales: `Too Many Requests`, `Service Unavailable`) | test que comprueba que la doc no inventa eventos ni cuerpos |
+| 11 | Se **corrige la doc**, no el código: HSTS se envía siempre. El RFC 6797 §7.2 obliga al navegador a ignorarlo sobre `http://`, y omitirlo por esquema lo quitaría (sin avisar) detrás de un proxy TLS | `docs/uso.md` actualizado |
 
 ---
 

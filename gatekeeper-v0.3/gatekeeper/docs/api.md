@@ -24,9 +24,9 @@ Se añade con `app.add_middleware(GatekeeperMiddleware, config=...)`.
 | Status | Body | Cuándo |
 |---|---|---|
 | `403` | `{"detail": "Forbidden"}` | Regla de detección, IP bloqueada |
-| `429` | `{"detail": "rate limit exceeded"}` | Rate limit |
+| `429` | `{"detail": "Too Many Requests"}` | Rate limit (con `Retry-After`) |
 | `413` | `{"detail": "Payload Too Large"}` | Body mayor que `max_body_size`, o petición que agota el presupuesto de campos (`max_fields`) o de tiempo de inspección (`max_inspection_ms`) |
-| `503` | `{"detail": "rate_limit_backend_unavailable"}` | Redis caído con `rate_fail_open=False` |
+| `503` | `{"detail": "Service Unavailable"}` | Redis caído con `rate_fail_open=False` |
 
 ## `Config`
 

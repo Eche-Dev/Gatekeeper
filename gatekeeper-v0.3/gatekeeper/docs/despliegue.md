@@ -79,8 +79,8 @@ event loop.
 
     | `rate_fail_open` | Comportamiento | Cuándo |
     |---|---|---|
-    | `True` (defecto) | Se admite la petición y se audita `rl_backend_unavailable` | Si la disponibilidad importa más que el límite exacto |
-    | `False` | `503` con `{"detail": "rate_limit_backend_unavailable"}` | Si el límite es un requisito de seguridad, no un extra |
+    | `True` (defecto) | Se admite la petición y se audita `rate_backend_error` | Si la disponibilidad importa más que el límite exacto |
+    | `False` | `503` con `{"detail": "Service Unavailable"}` | Si el límite es un requisito de seguridad, no un extra |
 
     En ambos casos el fallo queda en la auditoría: Redis no puede caerse en
     silencio. Para un servicio público, `True` con alertas configuradas suele

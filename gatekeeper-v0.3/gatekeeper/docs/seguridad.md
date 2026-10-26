@@ -40,7 +40,7 @@ consultas parametrizadas y validación.
 
 | Fallo | Política | Efecto |
 |---|---|---|
-| Redis no responde | `rate_fail_open=True` (defecto) | Se admite y se audita `rl_backend_unavailable` |
+| Redis no responde | `rate_fail_open=True` (defecto) | Se admite y se audita `rate_backend_error` |
 | Redis no responde | `rate_fail_open=False` | 503, disponibilidad sacrificada |
 | Configuración inválida | Siempre | `ValueError` al arrancar, nunca protección silenciosamente ausente |
 | Body sin `Content-Length` | Se lee con límite | 413 solo si el stream supera `max_body_size` |

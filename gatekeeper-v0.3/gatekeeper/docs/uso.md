@@ -60,8 +60,8 @@ CRS publicada mide el modo normal; no representa el rendimiento de esta opción.
 
 | `rate_fail_open` | Comportamiento | Para quién |
 |---|---|---|
-| `True` (defecto) | Se admite la petición, se audita `rl_backend_unavailable` | Disponibilidad primero |
-| `False` | 503 con `{"detail": "rate_limit_backend_unavailable"}` | Seguridad estricta |
+| `True` (defecto) | Se admite la petición, se audita `rate_backend_error` | Disponibilidad primero |
+| `False` | 503 con `{"detail": "Service Unavailable"}` | Seguridad estricta |
 
 En ambos casos el fallo queda en la auditoría: no hay forma de que Redis caiga
 en silencio.
@@ -189,7 +189,7 @@ logging.basicConfig(level=logging.INFO)
 ```
 
 Eventos: `attack_detected`, `rate_limited`, `blocked_ip`, `body_too_large`,
-`rl_backend_unavailable`.
+`too_many_fields`, `inspection_timeout` y `rate_backend_error`.
 
 ## Cabeceras de seguridad
 
@@ -197,9 +197,16 @@ Se añaden sin pisar las tuyas. Por defecto: `X-Content-Type-Options`,
 `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` y HSTS.
 Para cambiarlas por completo, `Config(security_headers={...})`.
 
-!!! warning "HSTS"
-    `Strict-Transport-Security` solo se sirve sobre HTTPS (se omite en
-    `http://`), porque forzarla en desarrollo local rompería tu entorno.
+!!! note "HSTS"
+    `Strict-Transport-Security` se envía **siempre**, también en `http://`. No
+    rompe el desarrollo local: según el RFC 6797 (§7.2), el navegador
+    **tiene que ignorar** un STS recibido por una conexión no segura, así que
+    en `http://` no hace nada.
+
+    Y omitirlo según el esquema de la petición sería peor: en un despliegue
+    con un proxy que termina TLS, la app ve `http` y el navegador ve `https`,
+    así que HSTS desaparecería **sin avisar** justo donde hace falta. Si
+    prefieres controlarlo, quítalo de `security_headers`.
 
 ## Reglas propias
 

@@ -405,22 +405,22 @@ def _clip_segment(segment: str) -> str:
 def _child_pointer(segmentos: list[str], segment: str) -> list[str]:
     """Añade un segmento a la ruta, manteniendo la lista acotada.
 
-    La lista nunca crece más de `MAX_POINTER_DEPTH + 2` elementos: el primero
-    (la clave exterior, que es la que nombra el usuario en `exclude_fields`), un
-    `…` en el sitio del corte, y el último (el campo concreto que saltó).
+    Al llegar al limite de profundidad, el segmento que se anade es el que
+    ha saltado (el MAS importante: es el que se registra), asi que se
+    conserva y el corte se marca por medio con `…`.
+
+    Antes el segmento nuevo se PERDIA al llegar al limite: se marcaba el
+    corte y se devolvia la ruta del padre. El efecto era doble: la
+    atribucion apuntaba al campo equivocado y `exclude_fields` (que compara
+    por el ultimo segmento) no casaba con el campo real, con lo que un campo
+    exento a 64 niveles seguia bloqueandose.
     """
     if len(segmentos) < MAX_POINTER_DEPTH:
         segmentos.append(segment)
         return segmentos
-    # Al límite: se descarta el segmento intermedio más antiguo (el segundo,
-    # que no es el primero ni el último) y se marca el corte.
-    if len(segmentos) > 1 and segmentos[1] != "…":
-        segmentos[1] = "…"
-    else:
-        # Ya marcado: se hace sitio para el nuevo segmento.
-        segmentos.insert(-1, segment)
-        segmentos.pop(-2)
-    return segmentos
+    # Al limite: se queda la clave exterior (la que nombra el usuario en
+    # `exclude_fields`), el corte marcado y el campo que salta.
+    return [segmentos[0], "…", segment]
 
 
 def _iter_fields(
