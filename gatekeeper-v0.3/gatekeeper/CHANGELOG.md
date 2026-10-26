@@ -7,6 +7,21 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ### Corregido
 
+- **El timeout de Redis estaba escrito a pelo y no se podía ajustar.** Con
+  Redis caído, cada petición esperaba **2,0 s** antes de decidir (medido:
+  fail-open admitió la petición tras 2.017 ms; fail-closed devolvió 503 tras
+  2.018 ms). La API seguía respondiendo, pero despacio: si Redis se caía, el
+  WAF se convertía en el cuello de botella. Ahora hay **`Config.redis_timeout`**
+  (2,0 s por defecto, o sea, **el comportamiento no cambia**: lo que cambia es
+  que el operador tiene la palanca).
+  - Ojo documentado: un timeout *muy* corto hace que un Redis lento parezca
+    caído, y con `rate_fail_open=True` eso desactiva el rate limit en
+    silencio. Si lo bajas, baja también ese riesgo.
+  - La 0.6.0 ya añadió campos nuevos a la `Config` (`max_fields`,
+    `max_inspection_ms`), así que esto sigue la práctica del proyecto: campo
+    nuevo con valor por defecto, sin romper nada.
+  - 4 tests nuevos, uno de ellos de regresión: con el timeout corto, la caída
+    de Redis no puede colgar la petición.
 - **El nombre de una regla personalizada llegaba al log sin sanear.** El log
   de auditoría (`middleware._audit`) sanea y acota todo lo que escribe —la
   ruta, el nombre del campo, el patrón—, pero los avisos de `config.py` (una
@@ -46,6 +61,23 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
   workflows. El token de GitHub no se queda en `.git/config`, donde puede
   acabar en un artefacto. `zizmor` lo auditaba: 7 hallazgos de severidad
   media, ahora **0**.
+- **Job `bench` en el CI**: guard de regresiones de rendimiento. No compara
+  contra un umbral absoluto (en un runner de CPU compartida, una máquina lenta
+  y una regresión real dan el mismo número, así que un umbral solo puede dar
+  falsos positivos o ser ciego: ya estaba medido y documentado en
+  `benchmarks/latency.py`). Compara **el código del PR y el de `main` en el
+  mismo runner**, con la mediana de tres repeticiones.
+  - El ruido de la máquina se cancela al comparar dos ejecuciones en la misma
+    máquina. Medido en local: cuatro de cinco corridas del mismo código
+    variaron un **0,3 %**, y la quinta un 41 % (una pausa del sistema: por eso
+    la mediana y no la media).
+  - El job publica además el **ruido medido en ese runner**, que es el dato
+    con el que se calibra el margen.
+- **`benchmarks/latency.py` ampliado**: mide ahora **CPU** (µs por petición,
+  con `process_time`) y **memoria pico** (KiB, con `tracemalloc`), y añade los
+  escenarios que faltaban: **carga grande** (body de 100 KB) y **Redis caído**.
+  `--ruido` mide cuánto se mueven dos corridas del mismo código, que es lo que
+  decide si un umbral en CI puede existir.
 
 ## [0.8.0] - 2026-10-26
 

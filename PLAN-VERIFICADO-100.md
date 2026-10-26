@@ -418,6 +418,21 @@ existía en GitHub, no en el paquete. Lo publica la **0.8.0** (sdist de
   tests, y con cuatro reglas propias medidas en las dos direcciones.
 - `zizmor` sobre los workflows: **0 hallazgos** (antes 7 de severidad media,
   por el `persist-credentials` de los `actions/checkout`).
+- **Benchmarks reproducibles en CI con umbrales** (el punto 3), y con dos
+  hallazgos que solo aparecen al medir:
+  - **Con Redis caído, cada petición esperaba 2,0 s** (el timeout de
+    conexión estaba escrito a pelo). La API respondía, pero despacio: el WAF
+    se convertía en el cuello de botella. Ahora `Config.redis_timeout` da la
+    palanca (por defecto 2,0 s: el comportamiento no cambia).
+  - **Un body de 100 KB cuesta 59 veces más** que uno vacío (p50 de 8,3 ms
+    frente a 141 µs), y el middleware lo paga antes de que la app vea la
+    petición. El README lo dice, porque el número pequeño sin este contexto
+    engaña.
+  - El guard del CI compara **el PR y `main` en el mismo runner**: en un
+    runner compartido, una máquina lenta y una regresión real dan el mismo
+    número, así que un umbral absoluto no puede funcionar. Medido: el ruido
+    típico es del 0,3 % y los picos sueltos del 41 % (pausas del sistema), por
+    eso la mediana de tres repeticiones.
 
 Lo que queda:
 
@@ -426,9 +441,9 @@ Lo que queda:
    revisión hecha por quien ajustó las reglas. Es el punto 5 del objetivo.
 2. **`semgrep` + `zizmor` en CI**: hecho (job `sast`), pero la **revisión
    humana** de lo que reporte sigue pendiente en cada push.
-3. **Benchmarks reproducibles en CI** con umbrales (el punto 3).
-4. **Tests diferenciales contra FastAPI y Starlette** en varias versiones
-   (el punto 4).
+3. **Tests diferenciales contra FastAPI y Starlette** en varias versiones
+   (el punto 4), comprobando que el middleware y la aplicación interpretan el
+   body igual.
 
 ---
 

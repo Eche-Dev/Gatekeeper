@@ -177,6 +177,7 @@ Lo esencial, con el resto en
 | `custom_rules` | `∅` | tus propias regex: `{nombre: regex}` o `[{name, pattern}]` |
 | `max_body_size` | `256 KiB` | límite del body inspeccionado |
 | `max_fields` / `max_inspection_ms` | `1000` / `1000` | presupuestos de inspección (se agotan → 413) |
+| `redis_timeout` | `2.0` | segundos de espera al conectar con Redis. Con Redis caído, cada petición espera esto (medido: 2,0 s por petición) |
 | `allow_paths` | `[]` | globs exentos de inspección (no de rate limit) |
 | `blocked_ips` / `trust_proxy` | `∅` / `False` | bloqueo por IP o CIDR, y uso de `X-Forwarded-For` |
 
@@ -263,14 +264,36 @@ contenido.
 ## Coste por petición
 
 `python benchmarks/latency.py` mide el coste en tu máquina, invocando ASGI
-directamente y sin red. En la última corrida local (Python 3.14.8 en Windows,
-1000 iteraciones × 5 rondas), el escenario completo —inspección de query y body
-más rate limit— tuvo un **p50 de 193 µs, un p95 de 394 µs y un p99 de 678 µs**
-sobre una base de 17 µs sin middleware. Son medidas locales con ruido: no son
-latencia de extremo a extremo ni un SLA. El benchmark publica p50, p95 y p99
-para que la cola no quede escondida detrás de un promedio, y
-`python benchmarks/latency.py --save base.json` guarda una línea base para
-comparar un cambio en la misma máquina.
+directamente y sin red. En la última corrida local (Python 3.14.8 en Windows),
+el escenario completo —inspección de query más rate limit— tuvo un **p50 de
+141 µs, un p95 de 155 µs y un p99 de 216 µs** sobre una base de 13 µs sin
+middleware. Con un body JSON pequeño, p50 de 244 µs.
+
+**El tamaño del body es lo que manda**, y conviene decirlo claro:
+
+| Body | p50 | p95 | p99 | CPU |
+|---|---:|---:|---:|---:|
+| vacío | 141 µs | 155 µs | 216 µs | 0,6 ms |
+| 100 KB | **8,3 ms** | 10,9 ms | 18,7 ms | 9,0 ms |
+
+Un body de 100 KB cuesta **59 veces más** que uno vacío, y el middleware lo
+paga **antes** de que la aplicación vea la petición. El presupuesto por
+defecto (`max_body_size`, 256 KiB) es lo que evita que esto crezca sin tope;
+con bodies grandes, bajarlo es la primera palanca.
+
+Son medidas locales con ruido: no son latencia de extremo a extremo ni un SLA.
+El benchmark publica p50, p95 y p99 para que la cola no quede escondida
+detrás de un promedio, y `python benchmarks/latency.py --save base.json` guarda
+una línea base para comparar un cambio en la misma máquina. El CI compara
+**el código del PR y el de `main` en el mismo runner** (el ruido de la máquina
+se cancela; un umbral absoluto no serviría).
+
+**Y si Redis se cae**, cada petición espera el timeout de conexión antes de
+decidir: medido, **2,0 s por petición** con el valor por defecto (fail-open
+admitió la petición tras 2.017 ms; fail-closed devolvió 503 tras 2.018 ms).
+Es un tiempo de espera, no un fallo: la API sigue respondiendo, pero despacio.
+Se ajusta con `redis_timeout` (por defecto 2,0 s; bájalo si tu Redis está en
+la misma red).
 
 ## Documentación
 
