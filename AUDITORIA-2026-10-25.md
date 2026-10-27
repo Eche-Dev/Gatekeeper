@@ -82,7 +82,7 @@ Lo peor: **la petición devuelve 200**. El ataque no se bloquea, simplemente con
 
 **Impacto:** un atacante sin credenciales puede tumbar cualquier despliegue que use Gatekeeper. Y como es un **paquete de seguridad ya publicado** (0.4.0, hoy), es candidato a **GitHub Security Advisory** (GHSA) y a CVE.
 
-**Nota de honestidad:** el parche que te entregaron **no lo he revisado con el código en生产**; lo he ejecutado y medido en copia aislada (§6). El resto del informe anterior lo he **reproducido o refutado** (§5).
+**Nota de honestidad:** el parche que te entregaron **no lo he revisado con el código en producción**; lo he ejecutado y medido en copia aislada (§6). El resto del informe anterior lo he **reproducido o refutado** (§5).
 
 ---
 

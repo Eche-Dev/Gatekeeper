@@ -38,6 +38,12 @@ def revisar(ruta: Path) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
+    # La consola de Windows (cp1252) no puede imprimir un CJK: sin esto, el
+    # verificador revienta al intentar enseñar SU PROPIO hallazgo.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):  # pragma: no cover - consolas antiguas
+        pass
     if argv:
         rutas = [Path(a) for a in argv]
     else:
