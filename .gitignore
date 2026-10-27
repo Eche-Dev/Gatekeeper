@@ -10,7 +10,10 @@ dist/
 .venv/
 venv/
 env/
-.audit/venv-*/
+.audit/venv*/
+.audit/wt_*/
+.qodo/
+site/
 
 # Testing / calidad
 .pytest_cache/

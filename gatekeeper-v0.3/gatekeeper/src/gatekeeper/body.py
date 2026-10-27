@@ -144,16 +144,26 @@ _JSON_LEADING = re.compile(rb"\xef\xbb\xbf[ \t\n\r]*|[ \t\n\r]*")
 
 
 def looks_like_json(body: bytes) -> bool:
-    """¿El cuerpo parece JSON? Se mira el primer byte no blanco.
+    """¿El cuerpo parece JSON? Se mira el primer byte/carácter no blanco.
 
     `{` o `[` al principio (ignorando los espacios en blanco del JSON y un
-    posible BOM UTF-8) es la señal de que el cuerpo es JSON. No es un parser:
-    decide COMO se inspecciona, no si es valido.
+    posible BOM UTF-8, UTF-16 o UTF-32) es la señal de que el cuerpo es JSON.
+    Usa `json.detect_encoding` (RFC 8259 §8.1), que es exactamente lo que
+    aplica `json.loads(bytes)` en Starlette y FastAPI.
     """
-    match = _JSON_LEADING.match(body)
-    if match is None:
+    if not body:
         return False
-    return body[match.end():match.end() + 1] in (b"{", b"[")
+    enc = json.detect_encoding(body)
+    if enc in ("utf-8", "utf-8-sig"):
+        match = _JSON_LEADING.match(body)
+        if match is None:
+            return False
+        return body[match.end():match.end() + 1] in (b"{", b"[")
+    try:
+        texto = body.decode(enc).lstrip(" \t\n\r\ufeff")
+    except UnicodeDecodeError:
+        return False
+    return texto.startswith(("{", "["))
 
 
 def effective_content_type(content_type: str, body: bytes) -> str:
@@ -187,12 +197,19 @@ def _split_params(value: str) -> list[str]:
 
 
 def _multipart_boundary(content_type: str) -> str | None:
-    """Saca el `boundary` de un Content-Type multipart/form-data."""
-    for piece in content_type.split(";")[1:]:
-        nombre, _, valor = piece.strip().partition("=")
-        if nombre.strip().lower() == "boundary":
-            return valor.strip().strip('"') or None
-    return None
+    """Saca el `boundary` de un Content-Type multipart/form-data.
+
+    Usa `_split_params` para no partir por `;` dentro de comillas y devuelve el
+    ÚLTIMO `boundary` presente, igual que `python-multipart` (Starlette/FastAPI).
+    """
+    ultimo: str | None = None
+    for piece in _split_params(content_type)[1:]:
+        nombre, sep, valor = piece.strip().partition("=")
+        if sep and nombre.strip().lower() == "boundary":
+            limpio = valor.strip().strip('"')
+            if limpio:
+                ultimo = limpio
+    return ultimo
 
 
 def _content_disposition_params(value: str) -> dict[str, str]:
@@ -246,6 +263,7 @@ def extract_multipart(
         if budget is not None:
             # Cada parte aporta un campo (el nombre) y su valor: dos textos.
             budget.cuenta(2)
+        campos.append((nombre, nombre))
         if "filename" in params:
             campos.append((nombre, params["filename"]))
         else:

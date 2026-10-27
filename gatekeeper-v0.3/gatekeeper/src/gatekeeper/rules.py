@@ -337,7 +337,7 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         # Logs y volcados: `/wp-content/debug.log`, `backup.sql.zip`,
         # `2024/01/15/…` (una fecha en la ruta es un volcado).
         re.compile(r"(?:^|[\s/?=&])(?:/)?(?:wp-content/|/logs?/)"),
-        re.compile(r"\.(?:sql|bak|old|orig|save|swp)\s*$"),
+        re.compile(r"\.(?:sql|bak|old|orig|save|swp)(?:\s*$|[&?#])"),
         # Logs de servidor web: leerlos desde la app es reconocimiento del
         # host. Va en `sensitive_files` y no en `path_traversal` porque el
         # ORDEN de evaluacion de las familias importa: en `path_traversal`
@@ -658,7 +658,12 @@ def decode(value: str, max_rounds: int = 3, plus: bool = True) -> str:
     return value
 
 
-def normalize(value: str, max_rounds: int = 3, plus: bool = True) -> str:
+def normalize(
+    value: str,
+    max_rounds: int = 3,
+    plus: bool = True,
+    strip_sql_comments: bool = True,
+) -> str:
     """Decodifica, normaliza Unicode, quita comentarios SQL y pasa a minúsculas.
 
     - `/**/` se trata como espacio en blanco (así lo interpreta MySQL), lo que
@@ -680,7 +685,8 @@ def normalize(value: str, max_rounds: int = 3, plus: bool = True) -> str:
     text = unicodedata.normalize("NFKC", decode(value, max_rounds, plus=plus))
     text = unicodedata.normalize("NFKC", decode(text, max_rounds, plus=False))
     text = unicodedata.normalize("NFKC", decode(text, max_rounds, plus=False))
-    text = _strip_sql_comments(text)
+    if strip_sql_comments:
+        text = _strip_sql_comments(text)
     return text.lower()
 
 
@@ -734,6 +740,9 @@ PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
         # y estas detecciones se perdian SOLO con entradas >= 128
         # caracteres: un fallo que no se ve en los corpus cortos.
         "group by", "having", "outfile", "dumpfile", "analyse", "iif(",
+        "||", "::json", "<@", "@>", ">@", "@<", "load_file", "sqlite_compileoption_used",
+        "pg_read_file", "out_file", "'not", "is not", "chr(", "xmltype(",
+        "rawtohex(", "hextoraw(", "unhex(", "if(", "<<", "date_add(",
     ),
     # `on\w+=` cubre CUALQUIER handler de evento (`onerror`, `onload`,
     # `onwebkitplaybacktargetavailabilitychanged`...). Es un pre filtro, no una
@@ -742,9 +751,10 @@ PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
         "script", "javascript", "data:text/html", "<iframe", "alert",
         # namespace de etiquetas: `<x:script`, `<svg`, `<math`… y `xmlns:`
         "xmlns", "<svg", "<math", "<body", "<details", ":script",
-        # APIs de JS que ejecutan o acceden: eval(, setinterval(, document.,
-        "eval(", "setinterval", "settimeout", "document.", "window.",
-        "location=", "top.",
+        # APIs de JS que ejecutan o acceden: eval(, setinterval(, document,
+        "eval(", "setinterval", "settimeout", "document", "window",
+        "location=", "top.", "<style", "@import", "expression", "-moz-binding",
+        "j\t", "j\n", "j\r", "j\x00",
         # `on` como literal cubre cualquier handler de evento (finito o
         # exótico: `onerror=`, `onend=`, `onwebkitplaybacktarget=…`): la regla
         # real `on\w+=` decide después; aquí solo evitamos descartar la familia
@@ -754,12 +764,19 @@ PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
     ),
     "path_traversal": ("../", "..\\", "..;", "/etc/", "/proc/", "win.ini", "/windows"),
     "sensitive_files": (
-        "/etc/", "/proc/self", "win.ini", ".ssh/", ".aws/", ".docker/",
+        "/etc/", "/proc/", "win.ini", ".ssh/", ".aws/", ".docker/",
         ".git/", ".env", "web-inf", "/windows/system32",
         "/sys/", ".claude/", ".cursor/", ".windsurf/", ".vscode/",
         ".kube/", ".gnupg/",
-        # Anadidos tras medir contra el corpus retenido.
+        # Anadidos tras medir contra el corpus retenido y CRS con relleno >=128.
         "var/log/", "docker.sock", "pg_hba.conf", ".htpasswd",
+        "requirements.txt", "composer.", "package-lock.json", "yarn.lock",
+        "gemfile", "poetry.lock", "pom.xml", ".sql", ".bak", ".old", ".orig",
+        ".save", ".swp", "wp-content/", "/log", "ignore",
+        ".n8n", ".aider", ".zed", ".roo", ".cline", ".continue", ".codex",
+        ".opencode", ".kiro", ".augment", ".devin", ".tabnine", ".cody",
+        ".gemini", ".junie", ".qwizard", ".trae", ".sourcegraph", ".fabric",
+        ".plandex", ".a0proj", ".rovodev", ".copilot",
     ),
     "nosql": ("$ne", "$nin", "$where", "$regex", "$or", "$exists"),
     "cmdi": (
@@ -1027,6 +1044,29 @@ def scan_plus_literal(
     )
 
 
+def _scan_texto(
+    text: str,
+    desactivadas: set[str],
+    extra: dict[str, list[re.Pattern[str]]] | None,
+    only: frozenset[str] | set[str] | None,
+    use_prefilter: bool,
+) -> tuple[str, str] | None:
+    activas = _familias_a_evaluar(text, desactivadas, only, use_prefilter)
+    for name, patterns in RULES.items():
+        if activas is not None and name not in activas:
+            continue
+        for pattern in patterns:
+            if pattern.search(text):
+                return name, pattern.pattern
+    for name, patterns in (extra or {}).items():
+        if name in desactivadas:
+            continue
+        for pattern in patterns:
+            if pattern.search(text):
+                return name, pattern.pattern
+    return None
+
+
 def _scan_detailed(
     value: str,
     disabled: set[str] | None,
@@ -1042,26 +1082,19 @@ def _scan_detailed(
     # false positives; middleware only calls this after independent scans miss.
     if allow_cross_carrier and carriers:
         value = " ".join((value, *carriers))
-    text = normalize(value, plus=plus)
+    text_raw = normalize(value, plus=plus, strip_sql_comments=False)
+    text_sql = _strip_sql_comments(text_raw).lower() if "/*" in text_raw else text_raw
     desactivadas = disabled or set()
-    activas = _familias_a_evaluar(text, desactivadas, only, use_prefilter)
 
-    # El orden importa: primero las integradas en el orden de RULES, luego las
-    # personalizadas. Es el mismo criterio de antes (una regla integrada que
-    # casa gana a una personalizada). `activas is None` = todas evaluables.
-    for name, patterns in RULES.items():
-        if activas is not None and name not in activas:
-            continue
-        for pattern in patterns:
-            if pattern.search(text):
-                return name, pattern.pattern
-    for name, patterns in (extra or {}).items():
-        if name in desactivadas:
-            continue
-        for pattern in patterns:
-            if pattern.search(text):
-                return name, pattern.pattern
-    return None
+    hit = _scan_texto(text_sql, desactivadas, extra, only, use_prefilter)
+    if hit is None and text_raw != text_sql:
+        # En SQL `/*...*/` sí es un comentario (y `/*!...*/` ya fue desenvuelto
+        # por `_strip_sql_comments`), pero para el resto de familias (`xss`,
+        # `ssti`, `cmdi`, `log4shell`, `crlf`, `path_traversal`, `ssrf`...)
+        # envolver el payload en `/*...*/` no lo desactiva en el intérprete de
+        # destino. Por eso la segunda pasada evalúa todas las familias salvo `sqli`.
+        hit = _scan_texto(text_raw, desactivadas | {"sqli"}, extra, only, use_prefilter)
+    return hit
 
 
 def scan(

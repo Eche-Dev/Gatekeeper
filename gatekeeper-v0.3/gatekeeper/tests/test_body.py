@@ -1,6 +1,8 @@
 import json
 import logging
 
+import pytest
+
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
@@ -196,3 +198,86 @@ def test_un_mas_en_un_valor_benigno_no_es_un_falso_positivo():
         headers={"content-type": "application/x-www-form-urlencoded"},
     )
     assert r.status_code == 200
+
+
+# --- Bloque 3 y 4: multipart/form-data y sniffing JSON UTF-16/32 ------------
+
+
+def test_multipart_boundary_duplicado_usa_el_ultimo():
+    """H-1: python-multipart usa el último boundary; Gatekeeper debe hacer igual."""
+    cuerpo = (
+        b"--real\r\n"
+        b'Content-Disposition: form-data; name="q"\r\n\r\n'
+        b"1 UNION SELECT password FROM users\r\n"
+        b"--real--\r\n"
+    )
+    r = make_client().post(
+        "/echo",
+        content=cuerpo,
+        headers={"content-type": "multipart/form-data; boundary=dummy; boundary=real"},
+    )
+    assert r.status_code == 403
+
+
+def test_multipart_punto_y_coma_entrecomillado_antes_de_boundary():
+    """AG-2: un `;` dentro de comillas no debe romper la extracción del boundary."""
+    cuerpo = (
+        b"--real\r\n"
+        b'Content-Disposition: form-data; name="q"\r\n\r\n'
+        b"1 UNION SELECT password FROM users\r\n"
+        b"--real--\r\n"
+    )
+    r = make_client().post(
+        "/echo",
+        content=cuerpo,
+        headers={"content-type": 'multipart/form-data; dummy="a; boundary=fake"; boundary=real'},
+    )
+    assert r.status_code == 403
+
+
+def test_multipart_nombre_de_campo_se_inspecciona():
+    """AG-1: el nombre del campo (`name=...`) en multipart debe escanearse."""
+    cuerpo = (
+        b"--xyz\r\n"
+        b'Content-Disposition: form-data; name="1 UNION SELECT password FROM users"\r\n\r\n'
+        b"valor_inocuo\r\n"
+        b"--xyz--\r\n"
+    )
+    r = make_client().post(
+        "/echo",
+        content=cuerpo,
+        headers={"content-type": "multipart/form-data; boundary=xyz"},
+    )
+    assert r.status_code == 403
+
+
+def test_multipart_cross_carrier_query_y_campo():
+    """AG-3: con inspect_cross_carrier=True, los campos de texto multipart entran en cross_values."""
+    cuerpo = (
+        b"--xyz\r\n"
+        b'Content-Disposition: form-data; name="b"\r\n\r\n'
+        b"select password from users\r\n"
+        b"--xyz--\r\n"
+    )
+    r = make_client(inspect_cross_carrier=True).post(
+        "/echo?a=1%20union",
+        content=cuerpo,
+        headers={"content-type": "multipart/form-data; boundary=xyz"},
+    )
+    assert r.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "encoding",
+    ["utf-16", "utf-16-le", "utf-16-be", "utf-32", "utf-32-le", "utf-32-be"],
+)
+def test_octet_stream_json_utf16_y_utf32_se_inspecciona(encoding: str):
+    """AG-4: JSON codificado en UTF-16/32 bajo application/octet-stream debe detectarse."""
+    cuerpo = '{"q": "1 UNION SELECT password FROM users"}'.encode(encoding)
+    r = make_client().post(
+        "/echo",
+        content=cuerpo,
+        headers={"content-type": "application/octet-stream"},
+    )
+    assert r.status_code == 403
+

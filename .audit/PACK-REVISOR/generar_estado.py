@@ -80,7 +80,7 @@ def main() -> int:
     pruebas = _correccion(r"(\d+) passed", salida)
     saltados = _correccion(r"(\d+) skipped", salida)
     resumen = salida.strip().splitlines()[-1] if salida.strip() else "?"
-    total = next((l for l in salida.splitlines() if l.startswith("TOTAL")), "")
+    total = next((ln for ln in salida.splitlines() if ln.startswith("TOTAL")), "")
     pct_total = _correccion(r"TOTAL\s+\d+\s+\d+\s+([\d.]+)%", total)
 
     # --- los PoC -----------------------------------------------------------
@@ -90,9 +90,8 @@ def main() -> int:
         errors="replace", env=ENTORNO,
     )
     linea_resumen = next(
-        (l for l in pocs.stdout.splitlines() if l.startswith("RESUMEN")), ""
+        (ln for ln in pocs.stdout.splitlines() if ln.startswith("RESUMEN")), ""
     )
-    pasa_linea = bool(linea_resumen)
     # La linea es "RESUMEN: N pasan · M fallan · K notas". SeBUSCAN los
     # numeros en orden: un regex con grupos es fragil si el separador cambia
     # con la codificacion de la consola.

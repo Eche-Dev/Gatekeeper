@@ -276,7 +276,7 @@ class Config:
         # sin comodines coincide solo consigo mismo, uno con `*`/`?`/`[]` es un
         # glob. Se compila una vez aquí para no resolverlo en cada petición.
         self._exclude_globs = tuple(
-            re.compile(fnmatch.translate(str(raw).strip()))
+            re.compile(fnmatch.translate(str(raw).strip()), re.IGNORECASE)
             for raw in self.exclude_fields
             if str(raw).strip()
         )
@@ -407,11 +407,11 @@ class Config:
             return False
         # El puntero empieza por "/", así que el primer elemento de la lista
         # es vacío: el primer segmento DE VERDAD es el segundo.
-        segmentos = [s for s in name.split("/") if s]
+        segmentos = [s for s in name.split("/") if s] if name.startswith("/") else []
         candidates = {name}
         if segmentos:
             candidates.add(segmentos[-1])
-            if len(segmentos) > 1:
+            if len(segmentos) > 1 and "…" in segmentos:
                 candidates.add(segmentos[0])
         return any(
             pattern.match(candidate) for pattern in self._exclude_globs

@@ -127,6 +127,7 @@ bajo del corpus ajeno es tan importante como el alto del propio.
 | Los corpus y sus informes | [`gatekeeper-v0.3/gatekeeper/corpus/`](gatekeeper-v0.3/gatekeeper/corpus/) |
 | La demo (playground de payloads) | [`gatekeeper-v0.3/gatekeeper/demo/`](gatekeeper-v0.3/gatekeeper/demo/) |
 | Cómo se trabaja aquí | [`AGENTS.md`](AGENTS.md) · [el plan por fases](PLAN-VERIFICADO-100.md) |
+| Auditorías multi-IA y plan de cierre (97/100) | [`AUDITORIA-IA-COMPARATIVA.md`](AUDITORIA-IA-COMPARATIVA.md) · [`PLAN-CIERRE-97.md`](PLAN-CIERRE-97.md) |
 
 ## Documentación
 

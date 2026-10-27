@@ -26,6 +26,19 @@ Todo el contexto está en este mismo paquete:
 El código: `gatekeeper-v0.3/gatekeeper/src/gatekeeper/` (10 módulos, ~1.300
 líneas). La documentación: `gatekeeper-v0.3/gatekeeper/docs/`.
 
+> **Si no tienes acceso a un disco local** (casi todos los chats de IA), esta
+> ruta no te sirve de nada: `D:\ADEV\...` no existe para ti. Usa el material
+> **desde GitHub**, que es público:
+>
+> - briefing: <https://github.com/Eche-Dev/Gatekeeper/blob/fase7-cobertura/.audit/PACK-REVISOR/BRIEFING-IA.md>
+> - alcance: <https://github.com/Eche-Dev/Gatekeeper/blob/fase7-cobertura/.audit/PACK-REVISOR/ALCANCE.md>
+> - plantilla: <https://github.com/Eche-Dev/Gatekeeper/blob/fase7-cobertura/.audit/PACK-REVISOR/PLANTILLA-SECURITY-REVIEW.md>
+> - estado medido: <https://github.com/Eche-Dev/Gatekeeper/blob/fase7-cobertura/.audit/PACK-REVISOR/ESTADO.md>
+> - código: <https://github.com/Eche-Dev/Gatekeeper/tree/fase7-cobertura/gatekeeper-v0.3/gatekeeper/src/gatekeeper>
+>
+> El repositorio es publico y se puede leer entero. Lo que **no** puedes es
+> ejecutar: eso lo hace el propietario del repo, con tus PoC.
+
 ---
 
 ## 2. Tres formas de usarlo
@@ -101,7 +114,8 @@ resumen, hallazgos con PoC, limites conocidos aceptados/discutidos, lo que
 comprobo y estaba bien, y trazabilidad).
 
 Ademas del informe, escribe tus comprobaciones ejecutables en un fichero
-`pocs_ia.py`, en el mismo directorio del paquete, con esta forma:
+`pocs_<tu_nombre>.py` (por ejemplo `pocs_chatgpt.py`, `pocs_gemini.py`,
+`pocs_claude.py`), en el directorio del paquete, con esta forma:
 
     from gatekeeper import Config
     from gatekeeper.middleware import GatekeeperMiddleware
@@ -124,8 +138,13 @@ sigue. Con eso, tus PoC se ejecutan contra el codigo real con el mismo
 comando que las 15 comprobaciones del proyecto, y sus resultados son
 verificables por cualquiera.
 
-(El cargador ya esta probado: si dejas el fichero `pocs_ia.py` con esa forma,
-sus comprobaciones aparecen en `ejecutar_pocs.py --listar` y se ejecutan con
+Un nombre de fichero propio, y **no toques el de otro revisor**: si hay varias
+revisiones a la vez, cada una con su fichero, el ejecutor carga todos y sus
+comprobaciones se ejecutan juntas (y se distinguen por el prefijo del
+nombre del fichero).
+
+(El cargador ya esta probado: si dejas el fichero con esa forma, tus
+comprobaciones aparecen en `ejecutar_pocs.py --listar` y se ejecutan con
 `python .audit/PACK-REVISOR/ejecutar_pocs.py <nombre>`.)
 
 Si no puedes ejecutar nada, tu PoC tiene que ser un comando concreto de
