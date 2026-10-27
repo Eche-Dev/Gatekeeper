@@ -413,16 +413,44 @@ COMPROBACIONES = [
 ]
 
 
+def _cargar_pocs_extra() -> list[tuple[str, object, str]]:
+    """Las comprobaciones que haya dejado el revisor en `pocs_ia.py`.
+
+    El revisor (humano o IA) puede escribir sus propias comprobaciones en
+    ese fichero, con la misma firma que las de aqui, y quedan incorporadas al
+    ejecutar el paquete. Es lo que convierte "he leido el codigo y creo que
+    hay un problema" en "este comando imprime esto".
+    """
+    extra: list[tuple[str, object, str]] = []
+    ruta = Path(__file__).resolve().parent / "pocs_ia.py"
+    if not ruta.exists():
+        return extra
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("pocs_ia", ruta)
+    if spec is None or spec.loader is None:
+        return extra
+    modulo = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(modulo)
+    except Exception:  # noqa: BLE001 - un fichero del revisor roto no para el resto
+        return extra
+    for nombre, funcion, descripcion in getattr(modulo, "COMPROBACIONES", []):
+        extra.append((nombre, funcion, descripcion))
+    return extra
+
+
 def main(argv: list[str]) -> int:
+    comprobaciones = COMPROBACIONES + _cargar_pocs_extra()
     if "--listar" in argv:
         print("Comprobaciones disponibles:")
-        for nombre, _funcion, descripcion in COMPROBACIONES:
+        for nombre, _funcion, descripcion in comprobaciones:
             print(f"  {nombre:12} {descripcion}")
         return 0
 
     filtros = [a for a in argv if not a.startswith("-")]
     selected = [
-        (n, f, d) for n, f, d in COMPROBACIONES
+        (n, f, d) for n, f, d in comprobaciones
         if not filtros or any(filtro in n for filtro in filtros)
     ]
     if not selected:

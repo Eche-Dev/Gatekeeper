@@ -31,7 +31,7 @@ python .audit/PACK-REVISOR/ejecutar_pocs.py --listar
 python .audit/PACK-REVISOR/ejecutar_pocs.py mas redis
 ```
 
-Salida esperada (en el commit `ae08665`):
+Salida esperada (en el commit `9724daf`):
 
 ```
 [PASA] H-1 punteros JSON: sin amplificacion cuadratica

@@ -115,6 +115,13 @@ tiene su entrada en el [CHANGELOG](CHANGELOG.md) y sus notas de versión.
       versiones viejas a tags
 - [ ] Métricas Prometheus (contadores de bloqueos y de rate limit)
 
+## Calidad (tras la 0.9.0)
+- [x] Cobertura por módulo **> 95 %** en los diez módulos del paquete
+      (98,65 % global; 2.938 tests). La cobertura ya no se esconde detrás de
+      un promedio: `middleware.py`, `__init__.py`, `ratelimit.py`,
+      `sanitize.py` y `paths.py` al 100 %. Los tests no se empaquetan, así que
+      esto no necesita release
+
 ## Publicación
 - [x] Publicado en PyPI como `gatekeeper-asgi` con *Trusted Publishing* y
       provenance verificado (0.4.0, 0.4.1, 0.5.0, 0.6.0, 0.7.0, 0.8.0,

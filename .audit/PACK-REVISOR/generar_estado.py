@@ -31,6 +31,28 @@ def _correccion(patron: str, texto: str) -> str:
     return encontrado.group(1) if encontrado else "?"
 
 
+def _git(*argumentos: str) -> str:
+    """La salida de un comando de git en la raiz del repo, o '?'."""
+    try:
+        salida = subprocess.run(
+            ["git", *argumentos], cwd=RAIZ_REPO, capture_output=True,
+            text=True, encoding="utf-8", errors="replace", timeout=30,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return "?"
+    return salida.splitlines()[0] if salida else "?"
+
+
+def _version_publicada() -> str:
+    """La version del `pyproject.toml`, leida (no importada: el paquete puede
+    no estar instalado)."""
+    try:
+        texto = (PAQUETE / "pyproject.toml").read_text(encoding="utf-8")
+    except OSError:
+        return "?"
+    return _correccion(r'(?m)^version\s*=\s*"([^"]+)"', texto)
+
+
 def main() -> int:
     # --- el corpus propio, en JSON -----------------------------------------
     propio = subprocess.run(
@@ -79,16 +101,22 @@ def main() -> int:
     fallan = numeros[1] if len(numeros) > 1 else "?"
 
     ahora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    commit = _git("rev-parse", "--short", "HEAD")
+    rama = _git("rev-parse", "--abbrev-ref", "HEAD")
+    version = _version_publicada()
 
     contenido = f"""# Estado medido del código revisado
 
 Generado por `generar_estado.py` el {ahora}.
 
-**Commit:** `ae08665` (main, tras el PR #40) · **Paquete:** `gatekeeper-asgi`
-0.8.0 publicado, con la fase 6 mergeada y **sin publicar todavía**.
+**Commit:** `{commit}` (rama `{rama}`) · **Paquete:** `gatekeeper-asgi`
+{version} publicado en PyPI.
 
 > Estos números son la línea base: lo que el revisor compara con lo que
 > mida. Si algo no cuadra con lo que ve, **eso** es un hallazgo.
+>
+> El hash puede no coincidir con el que tengas delante (un merge crea otro):
+> lo que hay que comparar son las **cifras**, que se miden sobre el código.
 
 ## Detección y falsos positivos
 

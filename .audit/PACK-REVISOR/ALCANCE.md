@@ -5,9 +5,9 @@
 > informe. La revisión la tiene que escribir **alguien que no haya ajustado
 > las reglas** del proyecto.
 
-**Fecha del material:** 2026-10-27 · **Código revisado:** `main` tras el PR #40
-(`ae08665`) · **Paquete:** `gatekeeper-asgi` 0.8.0 publicado, con la fase 6
-(F6.1–F6.4) mergeada y **sin publicar todavía**.
+**Fecha del material:** 2026-10-27 · **Código revisado:** `main` tras el PR #43
+(`9724daf`, rama `fase7-cobertura`: la fase 7, la cobertura por módulo) ·
+**Paquete:** `gatekeeper-asgi` 0.9.0 publicado en PyPI.
 
 ---
 
@@ -159,8 +159,8 @@ para nada. El corpus de desarrollo sí se puede usar para ajustar.
 
 | comprobación | resultado |
 |---|---|
-| tests | **2877** verdes, 17 saltados |
-| cobertura global | 93,62 % (umbral del CI: 90 %) |
+| tests | **2938** verdes, 17 saltados |
+| cobertura global | 98,65 % (umbral del CI: 90 %), y **todos** los módulos por encima del 95 % |
 | `ruff` · `mypy` (estricto, contra 3.10) · `bandit` | sin avisos |
 | `semgrep` propio (4 reglas) · `p/default` (290) · `zizmor` | 0 hallazgos bloqueantes |
 | `pip-audit` (runtime y desarrollo) | 0 vulnerabilidades |
@@ -212,7 +212,7 @@ cd Gatekeeper
 cd gatekeeper-v0.3/gatekeeper
 pip install -e ".[dev,servers]"
 
-# La suite completa (2877 tests) y la cobertura
+# La suite completa (2938 tests) y la cobertura
 pytest -q --timeout=300
 pytest --cov=gatekeeper --cov-fail-under=90 -q
 
