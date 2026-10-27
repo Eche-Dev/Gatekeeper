@@ -184,7 +184,7 @@ Dices que desarrollas con Open Code "según tus reglas". Esas reglas **no están
 | Método de medición y honestidad | 9 | 10 | Su punto fuerte: "qué mide, no qué promete" |
 | **TOTAL** | **73** | **100** | **+27 por las 6 fases de abajo** |
 
-**Recorrido de puntos:** 73 → **79** (F0) → **84** (F1) → **90** (F2) → **93** (F3) → **96** (F4) → **98** (F5) → **100** (F6).
+**Recorrido de puntos:** 73 → **79** (F0) → **84** (F1) → **90** (F2) → **93** (F3) → **96** (F4) → **98** (F5) → **100** (F6). La fase 7 no da puntos: cierra el último punto medible de la Definition of Done.
 
 ---
 
@@ -469,6 +469,57 @@ Lo que queda:
    mueve `src/`, `tests/` y `docs/` a la raíz y rompe las URLs públicas. Es
    una decisión del propietario, no un olvido.
 
+### ✅ FASE 7 — Cobertura por módulo · 1 día · **cierra el último punto medible**
+
+**Objetivo:** que ningún módulo del paquete se esconda detrás de un umbral
+global. Un 95 % global puede esconder un módulo al 40 %, y ese módulo es el
+que nadie mira.
+
+**Lo que se ha hecho (sin tocar una línea de `src/`):** cuatro ficheros de
+tests nuevos que cubren las ramas que solo se dan cuando algo va mal —las
+que nadie ejercita en el camino feliz y las que, si se rompen, rompen en
+silencio:
+
+| Fichero | Qué fija |
+|---|---|
+| `tests/test_cobertura_api.py` | el versionado sin paquete instalado, el saneado con un texto que no es `str`, `prune_interval=0`, el `Retry-After` de una clave inexistente y de una ventana caducada, Redis caído |
+| `tests/test_cobertura_cli.py` | el informe sin eventos, un JSON roto, `--json`, `report`, un log inexistente y un comando desconocido |
+| `tests/test_cobertura_redos.py` | las ramas del analizador estático (categorías, solapamientos, alternativas, referencias atrás) y los dos niveles de riesgo |
+| `tests/test_cobertura_middleware.py` | WebSocket con Redis caído (fail-open y fail-closed), el presupuesto agotado en el handshake, en el body y en el cruce query+body, una cabecera exenta y un `Content-Length` inválido |
+
+**Medido:** 2.938 tests verdes (17 saltados), cobertura **93,62 % → 98,65 %**
+global y **todos** los módulos por encima del 95 %:
+
+| Módulo | Antes | Ahora |
+|---|---:|---:|
+| `middleware.py` | 92,42 % | **100 %** |
+| `__init__.py` | 79,17 % | **100 %** |
+| `ratelimit.py` | 94,85 % | **100 %** |
+| `sanitize.py` | 94,12 % | **100 %** |
+| `cli.py` | 90,57 % | **98,11 %** |
+| `redos.py` | 87,27 % | **99,55 %** |
+| `rules.py` | 99,29 % | 99,29 % |
+| `config.py` | 97,55 % | 97,55 % |
+| `body.py` | 96,19 % | 96,19 % |
+| `paths.py` | 100 % | 100 % |
+
+**Lo que NO cambia:** ni una regla, ni un valor por defecto, ni un mensaje. El
+sdist y el wheel no se mueven (los tests no se empaquetan), así que **esto no
+necesita release**: es un PR de calidad, no de producto.
+
+**Los tres corpus, sin cambios:** propio 160/160 (9 FP documentados), retenido
+103/109 (94,5 %, 6 FN y 5 FP documentados), CRS 465/1135 (41,0 %, 11/232 FP) y
+cruzado 7/7. No se tocó ninguna firma, y por eso las cifras no se mueven.
+
+**Un límite documentado (no es un bypass):** `_categorias()` trata un escape
+hexadecimal (`\x41`) como el literal inventado `x41` en vez de "no lo sé". Es
+una aproximación a la baja en el analizador de ReDoS de las reglas **propias**:
+con un escape hexadecimal, un patrón exponencial puede clasificarse como "solo
+cuadrático" (aviso, no rechazo). No afecta a las reglas integradas —las que
+protegen al usuario— y no es un vector de ataque: el patrón lo escribe el
+propietario de la regla, no el atacante. Queda anotado aquí para que lo mire
+quien haga la revisión independiente.
+
 ---
 
 ## 6. Definition of Done (el checklist de "100/100")
@@ -486,11 +537,11 @@ Lo que queda:
 [x]  README en inglés
 [x]  El sdist pesa < 100 KB y no lleva demo ni corpus
 [x]  Existe AGENTS.md y CONTRIBUTING.md
-[~]  Cobertura > 95 % en todos los módulos — **hoy 94 % global**; por módulo:
-     paths 100 %, rules 99 %, config 98 %, body 96 %, ratelimit 95 %, sanitize
-     94 %, middleware 92 %, cli 91 %, redos 87 %, __init__ 79 % (era 43 %). El
-     umbral por módulo sigue ABIERTO: `redos.py` (87 %) y `__init__.py` (79 %)
-     son los que quedan.
+[x]  Cobertura > 95 % en TODOS los módulos — **98,65 % global**; por módulo:
+     paths 100 %, __init__ 100 %, ratelimit 100 %, sanitize 100 %, middleware
+     100 %, redos 99,55 %, rules 99,29 %, cli 98,11 %, config 97,55 %, body
+     96,19 %. El umbral por módulo queda CERRADO (era 43 % en `__init__.py` y
+     87 % en `redos.py`).
 [x]  Test de complejidad temporal por familia de entradas hostiles — **hecho en
      la fase 3**: `tests/test_redos_comentarios.py` (linealidad medida, no un
      "que no tarde más de X"), `tests/test_fuzz.py` (linealidad del escaneo y
@@ -504,11 +555,11 @@ Lo que queda:
 
 > Las marcadas son las cerradas por las **fases 0 a 5**; las de la **fase 6**
 > están marcadas según su estado real. De las cuatro que quedaban: la del
-> **test de complejidad temporal** se hizo en la fase 3 y la de **CI con
-> SAST/DAST y umbrales** en esta fase 6 (jobs `sast` y `bench`). Quedan dos:
-> la **cobertura por módulo > 95 %** (hoy 94 % global; el umbral por módulo
-> sigue abierto) y la **revisión de seguridad independiente**, que **no la
-> puede hacer quien escribió el código**.
+> **test de complejidad temporal** se hizo en la fase 3, la de **CI con
+> SAST/DAST y umbrales** en la fase 6 (jobs `sast` y `bench`) y la de la
+> **cobertura por módulo > 95 %** en la fase 7. Queda **una**: la **revisión
+> de seguridad independiente**, que **no la puede hacer quien escribió el
+> código**.
 
 ---
 
@@ -518,7 +569,7 @@ Lo que queda:
 2. **Antes de tocar una regla, escribe el test que falla.** El proyecto ya tiene el patrón (`tools/evaluate.py --check` + corpus).
 3. **Ninguna fase termina sin los tres corpus en verde** y sin el **diff de las cifras** (detección, FP y tiempo) pegado en el PR.
 4. **Si un cambio de reglas mueve el CRS, el retenido o el tiempo**, eso va en el CHANGELOG con el número antes/después.
-5. **No subas la versión sin actualizar** README + SECURITY.md + docs + `corpus/events.json` + `SECURITY_REVIEW.md` en el **mismo** commit. Es el error que te，成本ó la incoherencia actual.
+5. **No subas la versión sin actualizar** README + SECURITY.md + docs + `corpus/events.json` + `SECURITY_REVIEW.md` en el **mismo** commit. Es el error que te costó la incoherencia actual.
 6. **Un hallazgo de seguridad = un test de regresión** con el nombre del advisory.
 
 ---
