@@ -5,6 +5,8 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ## [Sin publicar]
 
+## [0.9.0] - 2026-10-27
+
 ### Corregido
 
 - **El `+` de un body se traducía a espacio: el payload llegaba intacto a la
