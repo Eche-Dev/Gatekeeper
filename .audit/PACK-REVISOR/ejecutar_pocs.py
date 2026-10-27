@@ -414,29 +414,33 @@ COMPROBACIONES = [
 
 
 def _cargar_pocs_extra() -> list[tuple[str, object, str]]:
-    """Las comprobaciones que haya dejado el revisor en `pocs_ia.py`.
+    """Las comprobaciones que hayan dejado los revisores en `pocs_*.py`.
 
-    El revisor (humano o IA) puede escribir sus propias comprobaciones en
-    ese fichero, con la misma firma que las de aqui, y quedan incorporadas al
-    ejecutar el paquete. Es lo que convierte "he leido el codigo y creo que
-    hay un problema" en "este comando imprime esto".
+    Cada revisor (humano o IA) escribe sus comprobaciones en un fichero
+    `pocs_<nombre>.py`, con la misma firma que las de aqui, y quedan
+    incorporadas al ejecutar el paquete. Es lo que convierte "he leido el
+    codigo y creo que hay un problema" en "este comando imprime esto".
+
+    Se cargan TODOS los ficheros `pocs_*.py`: si tres revisores trabajan a la
+    vez, cada uno con su fichero, sus comprobaciones se ejecutan juntas y se
+    pueden comparar. Un `pocs_ia.py` (el nombre generico) tambien vale.
     """
     extra: list[tuple[str, object, str]] = []
-    ruta = Path(__file__).resolve().parent / "pocs_ia.py"
-    if not ruta.exists():
-        return extra
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("pocs_ia", ruta)
-    if spec is None or spec.loader is None:
-        return extra
-    modulo = importlib.util.module_from_spec(spec)
-    try:
-        spec.loader.exec_module(modulo)
-    except Exception:  # noqa: BLE001 - un fichero del revisor roto no para el resto
-        return extra
-    for nombre, funcion, descripcion in getattr(modulo, "COMPROBACIONES", []):
-        extra.append((nombre, funcion, descripcion))
+    for ruta in sorted(Path(__file__).resolve().parent.glob("pocs_*.py")):
+        nombre_modulo = ruta.stem
+        spec = importlib.util.spec_from_file_location(nombre_modulo, ruta)
+        if spec is None or spec.loader is None:
+            continue
+        modulo = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(modulo)
+        except Exception:  # noqa: BLE001 - un fichero del revisor roto no para el resto
+            print(f"[AVISO] no se pudo cargar {ruta.name}: sigue el resto")
+            continue
+        for nombre, funcion, descripcion in getattr(modulo, "COMPROBACIONES", []):
+            extra.append((f"{nombre_modulo}:{nombre}", funcion, descripcion))
     return extra
 
 
