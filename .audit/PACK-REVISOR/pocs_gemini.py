@@ -187,13 +187,6 @@ def poc_prefilter_xss_style_padding(resultados: list[tuple[str, str, str]]) -> N
 # =============================================================================
 def poc_xff_spoofing_prevented(resultados: list[tuple[str, str, str]]) -> None:
     """Verifica que un cliente no pueda eludir blocked_ips falseando XFF sin trust_proxy."""
-    app = Starlette(routes=[Route("/", lambda r: PlainTextResponse("ok"))])
-    app.add_middleware(
-        GatekeeperMiddleware,
-        config=Config(blocked_ips={"198.51.100.5"}, trust_proxy=False),
-    )
-    client = TestClient(app)
-
     # Intento de bypass enviando IP legitima en XFF pero origen bloqueado
     # En TestClient el peer por defecto es "testclient", asi que probamos bloquear "testclient"
     app2 = Starlette(routes=[Route("/", lambda r: PlainTextResponse("ok"))])

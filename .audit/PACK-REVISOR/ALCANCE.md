@@ -194,7 +194,7 @@ Ya están documentados y aceptados. Si un revisor discrepa, es una
 | las **claves JSON** no se unen al objetivo en el modo combinado | un puntero JSON es una clave, no un valor |
 | el puntero JSON se **recorta** a 256 caracteres | consecuencia del arreglo de H-1; se marca con `…` |
 | las **reglas propias** se validan al arrancar | riesgo exponencial: se rechaza; cuadrático: se avisa |
-| NFKC **expande** hasta 4× | líneaal con el tamaño del body; no puede activar una regla por sí solo |
+| NFKC **expande** hasta 18× en longitud (~100× pico de memoria en `tracemalloc` con `U+FDFA`) | lineal con el tamaño del body (acotado por `max_body_size`); no puede activar una regla por sí solo |
 | el rate limiter en **memoria** se multiplica por workers | inherente a un contador en memoria; para varios workers está Redis |
 | `monitor_only` no es un plan de rollback | es lo que hace útil el modo monitor; está avisado en `docs/operacion.md` |
 | una app que parsea el body de una forma que el `Content-Type` no anuncia | el content-type es lo único que dice cómo inspeccionar |

@@ -63,10 +63,18 @@ def test_corpus_no_esta_vacio():
 
 @pytest.mark.parametrize("texto", TEXTOS)
 def test_prefilter_no_cambia_el_resultado(texto):
-    """Si una familia dispara sin pre filtro, tiene que disparar con él."""
+    """Si una familia dispara sin pre filtro, tiene que disparar con él (corto y >=128 chars)."""
     sin = scan_detailed(texto, use_prefilter=False)
     con = scan_detailed(texto, use_prefilter=True)
     assert con == sin, f"el pre filtro cambió el resultado de {texto[:60]!r}"
+
+    largo = ("a" * 150) + " " + texto
+    sin_largo = scan_detailed(largo, use_prefilter=False)
+    con_largo = scan_detailed(largo, use_prefilter=True)
+    assert con_largo == sin_largo, (
+        f"el pre filtro cambió el resultado con relleno >=128 de {texto[:60]!r}: "
+        f"con={con_largo}, sin={sin_largo}"
+    )
 
 
 def test_toda_familia_o_tiene_prefiltro_o_no_esta_en_la_tabla():

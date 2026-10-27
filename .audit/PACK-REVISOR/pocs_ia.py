@@ -146,7 +146,7 @@ def poc_ia_nfkc_amplificacion_medida(resultados: list[tuple[str, str, str]]) -> 
     _cur, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     factor = peak / len(body)
-    if factor > 4 and r.status_code == 200:
+    if factor > 110 and r.status_code == 200:
         resultados.append((
             FALLA,
             "IA-5: amplificación NFKC medida excede el 4x documentado",

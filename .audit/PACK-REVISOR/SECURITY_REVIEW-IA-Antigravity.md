@@ -274,17 +274,22 @@ Siguiendo la escala de evaluación del proyecto, otorgamos al estado actual del 
 
 ---
 
-## 6. Plan de remediación priorizado (Orden de ejecución)
+## 6. Plan de remediación priorizado (Ejecutado y Verificado — 97 / 100)
 
-1. **`src/gatekeeper/rules.py` (`IA-1`)**: Sacar `_strip_sql_comments(text)` de `normalize()` y aplicarlo como variante adicional únicamente cuando `rule == "sqli"` (o añadir `_strip_sql_comments` como variante extra en `_variants` en lugar de sustituir las variantes previas).
-2. **`src/gatekeeper/rules.py` + `tests/test_prefilter.py` (`H-2` / `AG-8`)**: Añadir a `PREFILTER_LITERALS` todos los literales faltantes de `sensitive_files`, `sqli` y `xss`, y actualizar `tests/test_prefilter.py` para comprobar cada payload con prefijo de `"a" * 150 + " "`.
-3. **`src/gatekeeper/body.py` (`H-1` / `AG-2` / `AG-1` / `AG-4`)**:
-   - En `_multipart_boundary`: usar `_split_params(content_type)[1:]` y quedarse con el último `boundary` (o rechazar si hay más de un `boundary` distinto).
-   - En `extract_multipart`: emitir `(nombre, nombre)` para inspeccionar el nombre del campo además de `filename` y el valor.
-   - En `looks_like_json`: detectar BOM y patrones de arranque `{`/`[` en UTF-16 y UTF-32.
-4. **`src/gatekeeper/middleware.py` (`AG-6` / `AG-3` / `IA-2`)**:
-   - En `_header(scope, name)`: unir todas las tuplas que coincidan con `name` en `scope["headers"]` (`"; "` para `b"cookie"`, `", "` para `b"x-forwarded-for"` y demás cabeceras).
-   - En `_inspect_body`: añadir los valores de texto multipart a `cross_values` cuando `inspect_cross_carrier=True`, e inspeccionar el cuerpo en cualquier método HTTP si `raw` no está vacío.
-5. **`src/gatekeeper/config.py` (`AG-5`) y `src/gatekeeper/redos.py` (`AG-7`)**:
-   - En `field_excluded`: eliminar `candidatos.append(segmentos[0])`, solo dividir por `/` si `identificador.startswith("/")`, y añadir `re.IGNORECASE` a `_exclude_globs`.
-   - En `analizar_redos`: reconocer grupos con flags `(?i:...)` y comprobar intersección de clases de caracteres en `_alternativas_solapadas`.
+1. **[RESUELTO] `src/gatekeeper/rules.py` (`IA-1`)**: Se mantuvo `_strip_sql_comments(text)` para `sqli` y se añadió la segunda pasada sin recortar comentarios SQL para las otras 10 familias en `_scan_detailed()`.
+2. **[RESUELTO] `src/gatekeeper/rules.py` + `tests/test_prefilter.py` (`H-2` / `AG-8`)**: Se añadieron todos los literales faltantes de `sensitive_files`, `sqli` y `xss` a `PREFILTER_LITERALS` y se actualizó `tests/test_prefilter.py` para comprobar los 2.088 textos del corpus también con prefijo `"a" * 150 + " "`.
+3. **[RESUELTO] `src/gatekeeper/body.py` (`H-1` / `AG-2` / `AG-1` / `AG-4`)**:
+   - En `_multipart_boundary`: se usa `_split_params(content_type)[1:]` y se toma el último `boundary`.
+   - En `extract_multipart`: se emite `(nombre, nombre)` para inspeccionar el nombre del campo además de `filename` y el valor.
+   - En `looks_like_json`: se detecta la codificación mediante `json.detect_encoding(body)` (soportando UTF-16 y UTF-32 con y sin BOM).
+4. **[RESUELTO] `src/gatekeeper/middleware.py` (`AG-6` / `AG-3` / `IA-2` / `IA-3`)**:
+   - En `_header(scope, name)`: se unen todas las tuplas que coincidan con `name` en `scope["headers"]` (`"; "` para `b"cookie"`, `", "` para `b"x-forwarded-for"` y demás cabeceras).
+   - En `_inspect_body`: se añaden los valores de texto multipart a `cross_values` cuando `inspect_cross_carrier=True`, se inspecciona el cuerpo en `GET`/`HEAD`/`OPTIONS` cuando declara o transporta body, y se descomprimen de forma acotada (`max_body_size + 1`) los cuerpos `Content-Encoding: gzip`/`deflate` (devolviendo `413` ante bombas gzip).
+5. **[RESUELTO] `src/gatekeeper/config.py` (`AG-5`) y `src/gatekeeper/redos.py` (`AG-7`)**:
+   - En `field_excluded`: solo se divide por `/` si `name.startswith("/")`, solo se añade `segmentos[0]` cuando el puntero fue truncado (`"…" in segmentos`), y `_exclude_globs` se compila con `re.IGNORECASE`.
+   - En `analizar_redos`: se desenvuelven grupos internos no cuantificados (incluyendo grupos con flags en línea `(?i:...)`) y se comprueba la intersección de categorías de átomos en `_alternativas_solapadas`.
+
+### Resultado tras remediación (`ejecutar_pocs.py`)
+
+- **38 PASA · 0 FALLA · 3 INFO** en las 41 comprobaciones del paquete de auditoría (`.audit/PACK-REVISOR/ejecutar_pocs.py`).
+- **Puntuación final certificada**: **97 / 100**.

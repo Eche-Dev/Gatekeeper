@@ -26,10 +26,8 @@ exactamente lo que esta en GitHub.
 """
 from __future__ import annotations
 
-import io
 import json
 import logging
-import os
 import sys
 import time
 import tracemalloc
@@ -48,7 +46,7 @@ from starlette.testclient import TestClient  # noqa: E402
 
 from gatekeeper import Config, GatekeeperMiddleware  # noqa: E402
 from gatekeeper.body import extract_strings  # noqa: E402
-from gatekeeper.rules import normalize, scan  # noqa: E402
+from gatekeeper.rules import scan  # noqa: E402
 
 PASA, FALLA, INFO = "PASA", "FALLA", "INFO"
 

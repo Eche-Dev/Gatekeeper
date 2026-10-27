@@ -122,3 +122,16 @@ def test_un_nombre_no_texto_sigue_funcionando():
     cambia el comportamiento del resto de la configuracion."""
     cfg = Config(custom_rules={5: r"\.env"})
     assert 5 in cfg.compiled_custom
+
+
+def test_field_excluded_no_excluye_subarbol_ni_query_con_barra():
+    """Excluir `bio` solo excluye `/bio` (o un puntero truncado `/bio/…/x`),
+    nunca subcampos `/bio/admin_sql` ni parametros query `evil/bio`."""
+    cfg = Config(exclude_fields=["bio", "meta*"])
+    assert cfg.field_excluded("bio") is True
+    assert cfg.field_excluded("/bio") is True
+    assert cfg.field_excluded("/bio/…/hoja") is True
+    assert cfg.field_excluded("/bio/admin_sql") is False
+    assert cfg.field_excluded("evil/bio") is False
+    assert cfg.field_excluded("METADATA") is True
+    assert cfg.field_excluded("/METADATA") is True

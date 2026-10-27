@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+import zlib
 from urllib.parse import parse_qsl, urlencode
 
 from starlette.datastructures import MutableHeaders
@@ -74,11 +75,23 @@ def build_limiter(config: Config) -> RateLimitBackend | None:
 
 
 def _header(scope: Scope, name: bytes) -> str | None:
-    for key, value in scope.get("headers", []):
-        if key == name:
-            decoded: str = value.decode("latin-1")
-            return decoded
-    return None
+    target = name.lower()
+    if target in (b"content-type", b"content-length"):
+        for key, value in scope.get("headers", []):
+            if key.lower() == target:
+                return bytes(value).decode("latin-1")
+        return None
+    valores = [
+        bytes(value).decode("latin-1")
+        for key, value in scope.get("headers", [])
+        if key.lower() == target
+    ]
+    if not valores:
+        return None
+    if len(valores) == 1:
+        return valores[0]
+    sep = "; " if target == b"cookie" else ", "
+    return sep.join(valores)
 
 
 def _client_ip(scope: Scope, cfg: Config) -> str:
@@ -440,12 +453,17 @@ class GatekeeperMiddleware:
                 or ctype in SNIFFABLE_CONTENT_TYPES
                 or (es_multipart and cfg.inspect_multipart)
             )
+            declared = _content_length(scope)
+            tiene_cuerpo = (
+                scope.get("method") in BODY_METHODS
+                or (declared is not None and declared > 0)
+                or _header(scope, b"transfer-encoding") is not None
+            )
             if (
                 cfg.inspect_body
-                and scope.get("method") in BODY_METHODS
+                and tiene_cuerpo
                 and se_lee
             ):
-                declared = _content_length(scope)
                 if declared is not None and declared > cfg.max_body_size:
                     self._audit("body_too_large", ip, scope, size=declared)
                     await self._reject(413, "Payload Too Large", scope, receive, send)
@@ -457,6 +475,23 @@ class GatekeeperMiddleware:
                     await self._reject(413, "Payload Too Large", scope, receive, send)
                     return
                 receive = replay(messages, receive)
+                codificacion = (_header(scope, b"content-encoding") or "").strip().lower()
+                if body and codificacion in ("gzip", "x-gzip", "deflate"):
+                    try:
+                        descompresor = zlib.decompressobj(zlib.MAX_WBITS | 32)
+                        descomprimido = descompresor.decompress(body, cfg.max_body_size + 1)
+                        if not descompresor.unconsumed_tail:
+                            descomprimido += descompresor.flush(
+                                max(1, cfg.max_body_size + 1 - len(descomprimido))
+                            )
+                    except zlib.error:
+                        descomprimido = body
+                    else:
+                        if len(descomprimido) > cfg.max_body_size or descompresor.unconsumed_tail:
+                            self._audit("body_too_large", ip, scope, size=None)
+                            await self._reject(413, "Payload Too Large", scope, receive, send)
+                            return
+                        body = descomprimido
                 # Leer el body no es inspeccionarlo: el tiempo de espera por
                 # la red no cuenta contra el presupuesto de CPU.
                 presupuesto.reinicia_reloj()
@@ -474,6 +509,8 @@ class GatekeeperMiddleware:
                                 ctype_crudo or "", body, presupuesto
                             )
                         ]
+                        if cfg.inspect_cross_carrier:
+                            cross_values = body_fields[1::2]
                     else:
                         # El content-type generico lo decide el CONTENIDO, no la
                         # cabecera (que controla el atacante): un octet-stream con

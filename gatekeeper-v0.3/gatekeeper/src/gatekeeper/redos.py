@@ -267,8 +267,16 @@ def _alternativas_solapadas(alternativas: list[str]) -> bool:
             # Una alternativa vacia puede casar sin consumir: el motor
             # tiene infinitas formas de seguir.
             return True
+        items_a = _items(a)
         for b in alternativas[i + 1:]:
             if a == b or a.startswith(b) or b.startswith(a):
+                return True
+            items_b = _items(b)
+            comun = min(len(items_a), len(items_b))
+            if comun > 0 and all(
+                _se_solapan(_categorias(items_a[j][0]), _categorias(items_b[j][0]))
+                for j in range(comun)
+            ):
                 return True
     return False
 
@@ -300,6 +308,14 @@ def _riesgo_anidado(cuerpo: str) -> tuple[str, str] | None:
       (`(?:\\w+\\.)+`), las repeticiones quedan delimitadas: solo cuadratico.
     """
     items = _items(cuerpo)
+    while any(a.startswith("(") and a.endswith(")") and c is None for a, c in items):
+        expandidos: list[tuple[str, str | None]] = []
+        for a, c in items:
+            if a.startswith("(") and a.endswith(")") and c is None:
+                expandidos.extend(_items(a[1:-1]))
+            else:
+                expandidos.append((a, c))
+        items = expandidos
     for i, (atomo, cuantificador) in enumerate(items):
         if cuantificador is None or not _sin_cota(cuantificador):
             continue
@@ -339,6 +355,12 @@ def analizar_redos(patron: str) -> tuple[str, str] | None:
         if not _sin_cota(cuantificador):
             # El grupo repite un numero acotado de veces: no hay explosion.
             continue
+        if _tiene_referencia_atras(cuerpo):
+            return (
+                NIVEL_EXPONENCIAL,
+                f"referencia atras: el grupo ({cuerpo}) se repite con "
+                f"'{cuantificador}' y contiene una referencia atras",
+            )
         if "|" in cuerpo:
             alternativas = _alternativas(cuerpo)
             if len(alternativas) > 1 and _alternativas_solapadas(alternativas):
@@ -347,12 +369,6 @@ def analizar_redos(patron: str) -> tuple[str, str] | None:
                     f"alternativas solapadas: el grupo ({cuerpo}) se repite con "
                     f"'{cuantificador}' y sus alternativas se solapan",
                 )
-        if _tiene_referencia_atras(cuerpo):
-            return (
-                NIVEL_EXPONENCIAL,
-                f"referencia atras: el grupo ({cuerpo}) se repite con "
-                f"'{cuantificador}' y contiene una referencia atras",
-            )
         anidado = _riesgo_anidado(cuerpo)
         if anidado is not None:
             return anidado

@@ -45,6 +45,9 @@ from gatekeeper.redos import (
         r"(a|ab)+",          # una alternativa es prefijo de la otra
         r"(https|http)+",    # el caso clasico de prefijos
         r"(\w+)\1+",         # referencia atras repetida
+        r"(\w|\d)+$",        # clases abreviadas solapadas
+        r"([a-z]|a)+$",      # rango y literal solapados
+        r"(?:(?i:(a+))+)$",  # cuantificador anidado bajo grupo con flag en linea
     ],
 )
 def test_las_estructuras_catastroficas_se_detectan(patron: str):
