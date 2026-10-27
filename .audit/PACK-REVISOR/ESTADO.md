@@ -1,12 +1,15 @@
 # Estado medido del código revisado
 
-Generado por `generar_estado.py` el 2026-10-27 00:37.
+Generado por `generar_estado.py` el 2026-10-27 01:38.
 
-**Commit:** `ae08665` (main, tras el PR #40) · **Paquete:** `gatekeeper-asgi`
-0.8.0 publicado, con la fase 6 mergeada y **sin publicar todavía**.
+**Commit:** `9724daf` (rama `fase7-cobertura`) · **Paquete:** `gatekeeper-asgi`
+0.9.0 publicado en PyPI.
 
 > Estos números son la línea base: lo que el revisor compara con lo que
 > mida. Si algo no cuadra con lo que ve, **eso** es un hallazgo.
+>
+> El hash puede no coincidir con el que tengas delante (un merge crea otro):
+> lo que hay que comparar son las **cifras**, que se miden sobre el código.
 
 ## Detección y falsos positivos
 
@@ -22,10 +25,10 @@ Generado por `generar_estado.py` el 2026-10-27 00:37.
 
 | comprobación | resultado |
 |---|---|
-| suite | **2877 tests verdes**, 17 saltados |
-| | `2877 passed, 17 skipped, 158 warnings in 82.92s (0:01:22)` |
-| cobertura global | **93.62 %** |
-| | `TOTAL                           1333     85  93.62%` |
+| suite | **2938 tests verdes**, 17 saltados |
+| | `2938 passed, 17 skipped, 158 warnings in 82.97s (0:01:22)` |
+| cobertura global | **98.65 %** |
+| | `TOTAL                           1333     18  98.65%` |
 
 ## Paquete de pruebas de ataque
 
