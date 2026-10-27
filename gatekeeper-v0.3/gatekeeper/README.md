@@ -117,10 +117,10 @@ El primero es **nuestro**, escrito a mano y con la procedencia documentada
 
 | Métrica (corpus propio) | Valor |
 |---|---|
-| Ataques detectados | 159 / 159 (**100.0%**) |
+| Ataques detectados | 160 / 160 (**100.0%**) |
 | Falsos negativos sin documentar | 0 |
-| Peticiones legítimas bloqueadas sin documentar | **0** / 131 |
-| Falsos positivos documentados (límites aceptados) | 8 |
+| Peticiones legítimas bloqueadas sin documentar | **0** / 132 |
+| Falsos positivos documentados (límites aceptados) | 9 |
 
 El segundo es el **retenido**: un corpus escrito una vez, sin mirar las firmas
 de las reglas, y desde entonces solo medido. Es el que dice si las reglas
@@ -335,6 +335,7 @@ python -m build && twine check dist/*   # el paquete se puede publicar
 
 - [CHANGELOG.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/CHANGELOG.md) — qué cambia en cada versión.
 - [SECURITY.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY.md) — modelo de amenazas, límites y cómo reportar un fallo.
+- [AUDITORIA-IA-COMPARATIVA.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/AUDITORIA-IA-COMPARATIVA.md) — comparativa de auditorías multi-IA y certificación 97/100.
 - [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md) — informe de detección generado.
 
 Licencia MIT.

@@ -5,6 +5,25 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ## [Sin publicar]
 
+## [0.9.1] - 2026-10-28
+
+### Corregido (Cierre de Auditoría Multi-IA — 97/100)
+
+- **El recorte de comentarios SQL (`/*...*/`) en `normalize()` escondía ataques de las demás familias (`IA-1`).** `rules._scan_detailed()` mantiene ahora el recorte de comentarios SQL en la primera pasada (necesario para `1'/**/OR/**/1=1` y comentarios versionados `/*!50000...*/`) y añade una segunda pasada sobre el texto sin recortar comentarios SQL para las otras 10 familias (`xss`, `ssti`, `log4shell`, `cmdi`, `crlf`, `path_traversal`, `ssrf`, `nosql`, `proto_pollution`, `sensitive_files`), sin alterar el porcentaje de falsos positivos en OWASP CRS (`4,7 %`).
+- **El prefiltro de literales (`len >= 128`) descartaba firmas válidas en peticiones largas (`H-2A/B/C`, `AG-8`).** Sincronizados todos los literales obligatorios en `PREFILTER_LITERALS` para `sensitive_files`, `sqli` y `xss`, y actualizado `tests/test_prefilter.py` para verificar los 2.088 textos de `attacks.json`, `heldout_attacks.json` y `crs_payloads.json` también con relleno de >= 150 caracteres.
+- **Paridad de parser en `multipart/form-data` y modo cruzado (`H-1`, `AG-1`, `AG-2`, `AG-3`).**
+  - `_multipart_boundary` utiliza `_split_params` (respetando `;` dentro de comillas) y toma el último `boundary=` válido, igual que `python-multipart` en Starlette y FastAPI.
+  - `extract_multipart` emite también el nombre de cada parte `(nombre, nombre)` para su inspección.
+  - `_inspect_body` incluye los valores de texto `multipart/form-data` en `cross_values` cuando `inspect_cross_carrier=True`.
+- **Sniffing de JSON UTF-16 y UTF-32 bajo `application/octet-stream` (`AG-4`).** `looks_like_json` detecta la codificación mediante `json.detect_encoding(body)` antes de comprobar el carácter inicial `{` o `[`.
+- **Cabeceras HTTP repetidas en ASGI, cuerpos en `GET`/`HEAD`/`OPTIONS` y compresión `gzip`/`deflate` (`AG-6`, `IA-2`, `IA-3`).**
+  - `_header(scope, name)` une todas las tuplas repetidas de `scope["headers"]` (`"; "` para `Cookie` según RFC 9113, `", "` para `X-Forwarded-For` y resto de cabeceras según RFC 9110).
+  - Se inspeccionan los cuerpos enviados en `GET`, `HEAD` y `OPTIONS` cuando la petición declara `Content-Length > 0` o `Transfer-Encoding`.
+  - Se descomprimen de forma acotada (`max_body_size + 1`) los cuerpos con `Content-Encoding: gzip`, `x-gzip` o `deflate`, rechazando bombas de descompresión con **413**.
+- **Exclusión de campos (`exclude_fields`) y analizador estático ReDoS (`AG-5`, `AG-7`).**
+  - `Config.field_excluded` solo divide por `/` cuando el campo es un puntero JSON (`name.startswith("/")`), solo añade el primer segmento cuando el puntero fue truncado (`"…" in segmentos`) y compila `_exclude_globs` con `re.IGNORECASE`.
+  - `analizar_redos` detecta intersección de categorías de átomos (`\w`, `\d`, rangos `[a-z]`) en alternativas repetidas y desenvuelve grupos internos no cuantificados (incluyendo flags en línea `(?i:...)`).
+
 ## [0.9.0] - 2026-10-27
 
 ### Corregido
