@@ -1,8 +1,5 @@
-# Gatekeeper
 
 <div align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0b132b,100:1c2541&height=200&section=header&text=Gatekeeper&fontSize=48&fontColor=ffffff&animation=fadeIn&fontAlignY=35&desc=Middleware%20ASGI%20de%20Seguridad%20para%20FastAPI%20y%20Starlette&descAlignY=62&descSize=18" />
-
   <p>
     <img src="gatekeeper-v0.3/gatekeeper/imgDev.png" alt="Gatekeeper — WAF para aplicaciones ASGI" width="100%" />
   </p>
