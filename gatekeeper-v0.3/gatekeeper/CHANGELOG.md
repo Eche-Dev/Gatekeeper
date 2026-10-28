@@ -7,22 +7,23 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ## [0.9.1] - 2026-10-28
 
-### Corregido (Cierre de Auditoría Multi-IA — 97/100)
+### Corregido (Cierre de Auditoría Multi-IA — 97/100 · `42 PASA · 0 FALLA · 3 INFO`)
 
-- **El recorte de comentarios SQL (`/*...*/`) en `normalize()` escondía ataques de las demás familias (`IA-1`).** `rules._scan_detailed()` mantiene ahora el recorte de comentarios SQL en la primera pasada (necesario para `1'/**/OR/**/1=1` y comentarios versionados `/*!50000...*/`) y añade una segunda pasada sobre el texto sin recortar comentarios SQL para las otras 10 familias (`xss`, `ssti`, `log4shell`, `cmdi`, `crlf`, `path_traversal`, `ssrf`, `nosql`, `proto_pollution`, `sensitive_files`), sin alterar el porcentaje de falsos positivos en OWASP CRS (`4,7 %`).
-- **El prefiltro de literales (`len >= 128`) descartaba firmas válidas en peticiones largas (`H-2A/B/C`, `AG-8`).** Sincronizados todos los literales obligatorios en `PREFILTER_LITERALS` para `sensitive_files`, `sqli` y `xss`, y actualizado `tests/test_prefilter.py` para verificar los 2.088 textos de `attacks.json`, `heldout_attacks.json` y `crs_payloads.json` también con relleno de >= 150 caracteres.
+- **Doble lectura con y sin comentarios SQL (`/*...*/`) en las 11 familias (`IA-1`, `NUEVO-1`).** `rules._scan_detailed()` mantiene el recorte de comentarios SQL en la primera pasada (desenvolviendo `1'/**/OR/**/1=1` y cualquier comentario versionado cerrado `/*!50000...*/` sin tope de 200 caracteres) y ejecuta una segunda pasada con `/*...*/` intactos en las **11 familias incluida `sqli`** (bloqueando payloads envueltos enteros como `/*x' UNION SELECT password FROM users -- */`), manteniendo el `4,7 %` de falsos positivos en OWASP CRS (tras excluir `/document.cookie` como segmento de ruta URL con `(?<!/)\bdocument\s{0,8}\.`).
+- **El prefiltro de literales (`len >= 128`) descartaba firmas válidas en peticiones largas (`H-2A/B/C`, `AG-8`).** Sincronizados todos los literales obligatorios en `PREFILTER_LITERALS` para `sensitive_files`, `sqli`, `xss` y `cmdi`, y actualizado `tests/test_prefilter.py` con verificación con relleno $\ge 150$ caracteres sobre los 2.088 textos de los tres corpus más una campaña de fuzzing diferencial de 20.000 muestras.
 - **Paridad de parser en `multipart/form-data` y modo cruzado (`H-1`, `AG-1`, `AG-2`, `AG-3`).**
   - `_multipart_boundary` utiliza `_split_params` (respetando `;` dentro de comillas) y toma el último `boundary=` válido, igual que `python-multipart` en Starlette y FastAPI.
   - `extract_multipart` emite también el nombre de cada parte `(nombre, nombre)` para su inspección.
   - `_inspect_body` incluye los valores de texto `multipart/form-data` en `cross_values` cuando `inspect_cross_carrier=True`.
 - **Sniffing de JSON UTF-16 y UTF-32 bajo `application/octet-stream` (`AG-4`).** `looks_like_json` detecta la codificación mediante `json.detect_encoding(body)` antes de comprobar el carácter inicial `{` o `[`.
-- **Cabeceras HTTP repetidas en ASGI, cuerpos en `GET`/`HEAD`/`OPTIONS` y compresión `gzip`/`deflate` (`AG-6`, `IA-2`, `IA-3`).**
+- **Cabeceras HTTP repetidas en ASGI, cuerpos en `GET`/`HEAD`/`OPTIONS` y compresión `gzip`/`deflate` multicapa (`AG-6`, `IA-2`, `IA-3`, `NUEVO-2`).**
   - `_header(scope, name)` une todas las tuplas repetidas de `scope["headers"]` (`"; "` para `Cookie` según RFC 9113, `", "` para `X-Forwarded-For` y resto de cabeceras según RFC 9110).
   - Se inspeccionan los cuerpos enviados en `GET`, `HEAD` y `OPTIONS` cuando la petición declara `Content-Length > 0` o `Transfer-Encoding`.
-  - Se descomprimen de forma acotada (`max_body_size + 1`) los cuerpos con `Content-Encoding: gzip`, `x-gzip` o `deflate`, rechazando bombas de descompresión con **413**.
-- **Exclusión de campos (`exclude_fields`) y analizador estático ReDoS (`AG-5`, `AG-7`).**
+  - Se descomprimen de forma acotada (`max_body_size + 1`) hasta **3 capas anidadas** de cuerpos con `Content-Encoding: gzip`, `x-gzip` o `deflate`, rechazando bombas de descompresión simples o multicapa con **413**.
+- **Ampliación de binarios post-separador en `cmdi` (`IA-6`).** Añadidos `touch`, `echo`, `tee`, `awk`, `find`, `xargs`, `nohup`, `timeout`, `busybox`, `php`, `node`, `telnet` y `ssh` a `RULES["cmdi"]` y `PREFILTER_LITERALS["cmdi"]` (`0` falsos positivos nuevos en los tres corpus y `0/13 no detectados` en `IA-6`).
+- **Exclusión de campos (`exclude_fields`) y analizador estático ReDoS (`AG-5`, `AG-7`, Fase 5).**
   - `Config.field_excluded` solo divide por `/` cuando el campo es un puntero JSON (`name.startswith("/")`), solo añade el primer segmento cuando el puntero fue truncado (`"…" in segmentos`) y compila `_exclude_globs` con `re.IGNORECASE`.
-  - `analizar_redos` detecta intersección de categorías de átomos (`\w`, `\d`, rangos `[a-z]`) en alternativas repetidas y desenvuelve grupos internos no cuantificados (incluyendo flags en línea `(?i:...)`).
+  - `analizar_redos` detecta intersección de categorías de átomos (`\w`, `\d`, rangos `[a-z]`), prefijos de grupo (`?:`, `?i:`, `?P<name>`), cuantificadores perezosos (`+?`, `*?`) y rangos internos variables (`{1,2}`), validado contra 21 patrones catastróficos.
 
 ## [0.9.0] - 2026-10-27
 
