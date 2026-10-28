@@ -48,6 +48,15 @@ from gatekeeper.redos import (
         r"(\w|\d)+$",        # clases abreviadas solapadas
         r"([a-z]|a)+$",      # rango y literal solapados
         r"(?:(?i:(a+))+)$",  # cuantificador anidado bajo grupo con flag en linea
+        r"(?:a|a)+$",        # alternancia identica en grupo no capturante
+        r"(?:a|ab)+$",       # prefijo solapado en grupo no capturante
+        r"(?i:a|ab)+$",      # prefijo solapado en grupo con flag en linea
+        r"(?P<g>a|ab)+$",    # prefijo solapado en grupo con nombre
+        r"(a+?)+$",          # cuantificador interno perezoso
+        r"(a+)+?$",          # cuantificador externo perezoso
+        r"(a{1,2})+$",       # cuantificador interno con rango variable acotado
+        r"(\d{1,3})+$",     # clase con rango variable dentro de grupo sin cota
+        r"(a+b?)+$",         # sufijo opcional que no delimita las repeticiones
     ],
 )
 def test_las_estructuras_catastroficas_se_detectan(patron: str):

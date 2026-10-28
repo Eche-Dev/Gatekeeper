@@ -233,3 +233,44 @@ def test_body_comprimido_con_gzip_se_inspecciona_y_bomba_da_413():
     )
     assert r_bomba.status_code == 413
 
+
+
+def test_body_gzip_multicapa_y_variantes_content_encoding():
+    """NUEVO-2: doble/triple gzip, mayúsculas en cabecera, falso gzip y bomba multicapa."""
+    import gzip
+
+    client = make_client(max_body_size=1024)
+    crudo = b'{"q": "<script>alert(1)</script>"}'
+    doble_gz = gzip.compress(gzip.compress(crudo))
+    triple_gz = gzip.compress(doble_gz)
+
+    for cuerpo, cod in (
+        (doble_gz, "gzip"),
+        (triple_gz, "  GZIP "),
+        (crudo, "gzip"),
+    ):
+        r = client.post(
+            "/",
+            content=cuerpo,
+            headers={"content-type": "application/json", "content-encoding": cod},
+        )
+        assert r.status_code == 403
+
+    bomba_doble = gzip.compress(gzip.compress(b"A" * 5000))
+    r_bomba = client.post(
+        "/",
+        content=bomba_doble,
+        headers={"content-type": "text/plain", "content-encoding": "gzip"},
+    )
+    assert r_bomba.status_code == 413
+
+
+def test_sqli_envuelto_en_comentario_cross_carrier():
+    """NUEVO-1 combinado con cross-carrier: fragmentos en query y body dentro de `/*...*/`."""
+    client = make_client(inspect_cross_carrier=True)
+    r = client.post(
+        "/?a=/*x'+UNION",
+        content=b'{"b": "SELECT password FROM users -- */"}',
+        headers={"content-type": "application/json"},
+    )
+    assert r.status_code == 403

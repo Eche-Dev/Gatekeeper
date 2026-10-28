@@ -100,17 +100,49 @@ def _sin_cota(cuantificador: str) -> bool:
     return False
 
 
+def _repite_variable(cuantificador: str) -> bool:
+    """True si el cuantificador interno admite longitud variable (`*`, `+`, `{m,}`, `{m,n}` con m!=n)."""
+    if _sin_cota(cuantificador):
+        return True
+    if cuantificador.startswith("{") and cuantificador.endswith("}") and "," in cuantificador:
+        partes = [p.strip() for p in cuantificador[1:-1].split(",", 1)]
+        return len(partes) == 2 and partes[0] != partes[1]
+    return False
+
+
+def _sin_prefijo_grupo(texto: str) -> str:
+    """Quita el prefijo sintáctico de grupo (`?:`, `?i:`, `?P<nombre>`) si existe."""
+    if not isinstance(texto, str) or not texto.startswith("?"):
+        return texto
+    if texto.startswith("?P<"):
+        cierre = texto.find(">")
+        if cierre != -1:
+            return texto[cierre + 1:]
+    for idx in range(1, min(len(texto), 12)):
+        if texto[idx] == ":":
+            return texto[idx + 1:]
+        if texto[idx] not in "aiLmsux-":
+            break
+    return texto
+
+
 def _lee_cuantificador(patron: str, i: int) -> tuple[str | None, int]:
     """(cuantificador, indice DESPUES) del cuantificador que empieza en `i`."""
     n = len(patron)
     if i >= n:
         return None, i
     if patron[i] in _CUANTIFICADORES:
-        return patron[i], i + 1
+        fin = i + 1
+        if fin < n and patron[fin] == "?":
+            fin += 1
+        return patron[i], fin
     if patron[i] == "{":
-        fin = patron.find("}", i)
-        if fin != -1:
-            return patron[i:fin + 1], fin + 1
+        cierre = patron.find("}", i)
+        if cierre != -1:
+            fin = cierre + 1
+            if fin < n and patron[fin] == "?":
+                fin += 1
+            return patron[i:cierre + 1], fin
     return None, i
 
 
@@ -153,6 +185,7 @@ def _items(texto: str) -> list[tuple[str, str | None]]:
     Un "atomo" es lo que puede casar: un caracter, una escape, una clase de
     caracteres o un grupo anidado. El cuantificador es `None` si no lo lleva.
     """
+    texto = _sin_prefijo_grupo(texto)
     items: list[tuple[str, str | None]] = []
     i = 0
     n = len(texto)
@@ -262,6 +295,7 @@ def _alternativas_solapadas(alternativas: list[str]) -> bool:
     `(foo|bar)` no se solapa; `(foo|foobar)` si (una es prefijo de la otra), y
     ahi el motor prueba las dos formas de partir el texto.
     """
+    alternativas = [_sin_prefijo_grupo(a) for a in alternativas]
     for i, a in enumerate(alternativas):
         if not a:
             # Una alternativa vacia puede casar sin consumir: el motor
@@ -317,7 +351,7 @@ def _riesgo_anidado(cuerpo: str) -> tuple[str, str] | None:
                 expandidos.append((a, c))
         items = expandidos
     for i, (atomo, cuantificador) in enumerate(items):
-        if cuantificador is None or not _sin_cota(cuantificador):
+        if cuantificador is None or not _repite_variable(cuantificador):
             continue
         siguiente = items[i + 1] if i + 1 < len(items) else None
         if siguiente is None or siguiente[1] is not None:
@@ -351,6 +385,8 @@ def analizar_redos(patron: str) -> tuple[str, str] | None:
     `nivel` es `NIVEL_EXPONENCIAL` (cuelga con una entrada corta: se
     rechaza) o `NIVEL_CUADRATICO` (se degrada con el tamano: se avisa).
     """
+    if not isinstance(patron, str):
+        return None
     for cuerpo, cuantificador in _grupos_cuantificados(patron):
         if not _sin_cota(cuantificador):
             # El grupo repite un numero acotado de veces: no hay explosion.
