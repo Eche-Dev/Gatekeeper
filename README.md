@@ -1,4 +1,3 @@
-
 <div align="center">
   <p>
     <img src="gatekeeper-v0.3/gatekeeper/imgDev.png" alt="Gatekeeper — WAF para aplicaciones ASGI" width="100%" />
@@ -11,15 +10,12 @@
   <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" />
   <img src="https://img.shields.io/badge/Testing-pytest-0A9E4F?style=for-the-badge&logo=pytest&logoColor=white" />
   <img src="https://img.shields.io/badge/Security-Audit%2097%2F100-red?style=for-the-badge&logo=shield&logoColor=white" />
-</div>
-
-<br />
 
 ![CI](https://github.com/Eche-Dev/Gatekeeper/actions/workflows/ci.yml/badge.svg)
 ![Docs](https://github.com/Eche-Dev/Gatekeeper/actions/workflows/docs.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.13-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
-
+</div>
 **Gatekeeper es un middleware ASGI de seguridad para FastAPI y Starlette.** Se
 coloca delante de tu aplicación y, en cada petición, hace tres cosas:
 
@@ -58,6 +54,14 @@ van a atacar": **publica cuánto detecta y cuánto se equivoca**.
 
 Gatekeeper los cubre **en un punto, delante de tu app**, sin tocar endpoint por
 endpoint.
+
+## Demostración en vídeo
+
+<video src="Gatekeeper_tutorial.mp4" controls="controls" width="100%" poster="gatekeeper-v0.3/gatekeeper/social-preview.png">
+  Tu navegador no soporta la reproducción directa. Puedes ver o descargar el vídeo en <a href="Gatekeeper_tutorial.mp4">Gatekeeper_tutorial.mp4</a>.
+</video>
+
+> 📹 **Tutorial guiado (1:38 min):** Muestra la arquitectura del middleware ASGI, la integración con FastAPI en dos líneas de código, la detección y bloqueo en tiempo real de ataques (SQLi, XSS, Path Traversal con respuesta 403 y registro en auditoría) y su configuración según la topología (en memoria, Redis o tras proxy).
 
 ## Empezar
 
