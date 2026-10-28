@@ -31,10 +31,10 @@ path traversal en query, cabeceras y body, y eventos de auditoría en el logger
 Tres corpus con guarda en CI — uno propio, uno **retenido** y otro escrito por
 gente distinta:
 
-| Métrica | Corpus propio (159 ataques / 131 benignos) | **Retenido** (109 / 140) | OWASP CRS externo (1379 tests) |
+| Métrica | Corpus propio (160 ataques / 132 benignos) | **Retenido** (109 / 140) | OWASP CRS externo (1379 tests) |
 |---|---|---|---|
-| Ataques detectados | **100.0%** (159/159) | **94.5%** (103/109) | **41.0%** (465/1135) |
-| Falsos positivos sin documentar | **0** (8 documentados) | **0** (5 documentados) | 4.7% (11/232 negativos de CRS, línea base) |
+| Ataques detectados | **100.0%** (160/160) | **94.5%** (103/109) | **41.0%** (465/1135) |
+| Falsos positivos sin documentar | **0** (9 documentados) | **0** (5 documentados) | 4.7% (11/232 negativos de CRS, línea base) |
 | Falsos negativos sin documentar | 0 | 0 (6 documentados) | — (muestra en el informe) |
 
 Las cifras no incluyen el modo opt-in `inspect_cross_carrier=True`.

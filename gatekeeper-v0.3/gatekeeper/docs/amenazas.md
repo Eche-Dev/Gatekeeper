@@ -26,7 +26,7 @@ consultas parametrizadas y validación.
 ## Familias detectadas
 
 Once familias, todas medidas contra el [corpus propio](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/README.md)
-(159/159, 0 falsos positivos sin documentar). El nombre entre paréntesis es el
+(160/160, 0 falsos positivos sin documentar). El nombre entre paréntesis es el
 valor para `disabled_rules`.
 
 | Familia | Qué detecta | Ejemplo de payload | Frontera: qué NO bloquea |
@@ -112,7 +112,7 @@ Esto no son carencias por arreglar: son las fronteras del diseño.
   los casos que deliberadamente no bloqueamos están medidos y en el informe.
 - **Los falsos positivos que aceptamos están listados** en
   [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md)
-  con su motivo (hoy 8: texto técnico que cita el vector). Nada se esconde
+  con su motivo (hoy 9: texto técnico que cita el vector). Nada se esconde
   detrás de «0 FP».
 - **Las reglas personalizadas no están acotadas contra ReDoS** (las
   integradas sí); revisa tus patrones.

@@ -119,10 +119,10 @@ The first is **ours**, written by hand and with documented provenance
 
 | Metric (own corpus) | Value |
 |---|---|
-| Attacks detected | 159 / 159 (**100.0%**) |
+| Attacks detected | 160 / 160 (**100.0%**) |
 | Undocumented false negatives | 0 |
-| Legitimate requests blocked without documentation | **0** / 131 |
-| Documented false positives (accepted limits) | 8 |
+| Legitimate requests blocked without documentation | **0** / 132 |
+| Documented false positives (accepted limits) | 9 |
 
 The second one is the **held-out** corpus: written once, without looking at the
 rule signatures, and measured ever since. It is the one that says whether the
@@ -339,6 +339,7 @@ python -m build && twine check dist/*   # the package can be published
 
 - [CHANGELOG.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/CHANGELOG.md) — what changes in each version.
 - [SECURITY.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/SECURITY.md) — threat model, limits and how to report a vulnerability.
+- [AUDITORIA-IA-COMPARATIVA.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/AUDITORIA-IA-COMPARATIVA.md) — multi-AI security audit comparison and 97/100 certification.
 - [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md) — generated detection report.
 
 MIT licensed.
