@@ -122,7 +122,7 @@ include = [
   "src/gatekeeper",
   "examples",
   "README.md",
-  "README.en.md",
+
   "CHANGELOG.md",
   "SECURITY.md",
   "LICENSE",
@@ -138,6 +138,7 @@ exclude = [
   "tools",
   "tests",
   ".audit",
+  "imgDev.png",
 ]
 
 [tool.pytest.ini_options]

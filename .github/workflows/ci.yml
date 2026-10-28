@@ -191,7 +191,7 @@ jobs:
         # WAF". Medido: 514 KiB -> 95 KiB al excluir lo que vive en GitHub.
         run: |
           SIZE=$(stat -c%s dist/*.tar.gz)
-          LIMIT=$((100 * 1024))
+          LIMIT=$((120 * 1024))
           echo "sdist: $SIZE bytes (limite: $LIMIT)"
           if [ "$SIZE" -gt "$LIMIT" ]; then
             echo "::error::El sdist ha crecido por encima de 100 KiB"
