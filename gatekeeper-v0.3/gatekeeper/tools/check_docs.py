@@ -34,6 +34,7 @@ FICHEROS: list[Path] = sorted(PAQUETE.glob("*.md")) + sorted(
     RAIZ / "CODE_OF_CONDUCT.md",
     RAIZ / "AUDITORIA-IA-COMPARATIVA.md",
     RAIZ / "PLAN-CIERRE-97.md",
+    RAIZ / "PLAN-CIERRE-100.md",
 ]
 
 # El CHANGELOG y las notas de version hablar de versiones viejas es lo

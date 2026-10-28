@@ -4,14 +4,14 @@
 
 | Métrica | Valor |
 |---|---|
-| Payloads de ataque | 159 |
-| Detectados | 159 (100.0%) |
-| Detectados por la regla esperada | 158 (99.4%) |
+| Payloads de ataque | 160 |
+| Detectados | 160 (100.0%) |
+| Detectados por la regla esperada | 159 (99.4%) |
 | Falsos negativos no documentados | 0 |
 | Falsos negativos documentados | 0 |
-| Requests benignos | 131 |
+| Requests benignos | 132 |
 | Falsos positivos no documentados | 0 (0.0%) |
-| Falsos positivos documentados | 8 |
+| Falsos positivos documentados | 9 |
 
 ## Detección por regla
 
@@ -24,7 +24,7 @@
 | path_traversal | 13 / 13 |
 | proto_pollution | 3 / 3 |
 | sensitive_files | 11 / 11 |
-| sqli | 52 / 52 |
+| sqli | 53 / 53 |
 | ssrf | 7 / 7 |
 | ssti | 7 / 7 |
 | xss | 40 / 40 |
@@ -34,6 +34,7 @@
 | id | regla | motivo | payload |
 |---|---|---|---|
 | benign-009 | sqli | bloquea una búsqueda legítima sobre time.sleep; es la firma de blind time-based | `/search?q=what+is+sleep(5)+in+python` |
+| benign-011 | xss | sitios de documentación que permiten buscar por nombre de etiqueta | `/search?q=<script>+tag+in+html` |
 | benign-012 | xss | misma familia que la anterior: texto técnico que cita el vector | `/search?q=javascript:+scheme+in+urls` |
 | benign-049 | path_traversal | coincide con la firma de traversal tras decodificar; es el coste de decodificar varias veces | `/search?q=%252e%252e%252f+pruebas+de+codificacion` |
 | benign-071 | proto_pollution | búsquedas legítimas sobre proto-pollution: `__proto__` literal en el valor | `/search?q=que+es+__proto__+en+javascript` |
@@ -71,10 +72,10 @@
 |---|---|---|
 | crs-941100-t5-s1 | xss | `/get` |
 | crs-941140-t14-s1 | xss | `/get/bar?test=url%28javascript%3Aalert%281%29%29` |
-| crs-941180-t7-s1 | xss | `/get/javascript-manual/document.cookie` |
 | crs-942101-t10-s1 | sqli | `/post/foo/9'union+all/bar` |
 | crs-942101-t11-s1 | sqli | `/post/foo/24+union+all+select+1,2,3+from+aa/bar` |
 | crs-942160-t12-s1 | sqli | `/BENChmARk(2999/**/999,Md5(/` |
+| crs-942350-t9-s1 | sqli | `/get?test=%2F%2A%27%3BINSERT%20INTO%20category%28id%29%20VALUES%20%283%29--%20-%2A%2F` |
 | crs-942360-t29-s1 | sqli | `\|\|(SELECT(DBMS_LDAP.INIT('169.1.1.1',19))FROM(DUAL))/investigate` |
 | crs-942360-t30-s1 | sqli | `'\|\|(select(pg_sleep(15))where(true))\|\|'/investigate` |
 | crs-942360-t31-s1 | sqli | `UNION ALL SELECT NULL,NULL,CONCAT(CONCAT('qqkjq','mxTSrPILRz'),'qvxvq')-- sqCV` |
@@ -100,6 +101,6 @@
 
 ### Umbrales del corpus externo (guarda de regresión sobre la línea base)
 
-- detección CRS ≥ 19%: ✅ (41.0%)
+- detección CRS ≥ 40%: ✅ (41.0%)
 - FP CRS ≤ 5.0%: ✅ (4.7%)
 

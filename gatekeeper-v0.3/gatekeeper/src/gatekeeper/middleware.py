@@ -477,16 +477,20 @@ class GatekeeperMiddleware:
                 receive = replay(messages, receive)
                 codificacion = (_header(scope, b"content-encoding") or "").strip().lower()
                 if body and codificacion in ("gzip", "x-gzip", "deflate"):
-                    try:
-                        descompresor = zlib.decompressobj(zlib.MAX_WBITS | 32)
-                        descomprimido = descompresor.decompress(body, cfg.max_body_size + 1)
-                        if not descompresor.unconsumed_tail:
-                            descomprimido += descompresor.flush(
-                                max(1, cfg.max_body_size + 1 - len(descomprimido))
-                            )
-                    except zlib.error:
-                        descomprimido = body
-                    else:
+                    # Descomprime hasta 3 capas anidadas (NUEVO-2: doble gzip)
+                    # manteniendo el mismo tope max_body_size en cada capa.
+                    for capa in range(3):
+                        if capa > 0 and not body.startswith(b"\x1f\x8b"):
+                            break
+                        try:
+                            descompresor = zlib.decompressobj(zlib.MAX_WBITS | 32)
+                            descomprimido = descompresor.decompress(body, cfg.max_body_size + 1)
+                            if not descompresor.unconsumed_tail:
+                                descomprimido += descompresor.flush(
+                                    max(1, cfg.max_body_size + 1 - len(descomprimido))
+                                )
+                        except zlib.error:
+                            break
                         if len(descomprimido) > cfg.max_body_size or descompresor.unconsumed_tail:
                             self._audit("body_too_large", ip, scope, size=None)
                             await self._reject(413, "Payload Too Large", scope, receive, send)

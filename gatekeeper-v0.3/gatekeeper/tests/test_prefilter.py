@@ -170,3 +170,28 @@ def test_el_prefiltro_no_pierde_detecciones_en_textos_largos(payload, regla):
         f"con pre filtro {con}, sin pre filtro {sin}. "
         "Falta el literal de la familia en PREFILTER_LITERALS."
     )
+
+
+def test_fuzzing_diferencial_masivo_prefiltro():
+    """Fase 5: campaña de 20.000 muestras combinando fragmentos reales y relleno >=128 chars."""
+    import random
+
+    rng = random.Random(20261028)
+    semillas = [
+        "union", "select", "or 1=1", "sleep(5)", "<script>", "onerror=",
+        "javascript:", "../etc/passwd", "/.env", "$ne", "$where", "; id",
+        "| touch /tmp/x", "http://169.254.169.254", "{{7*7}}", "${jndi:ldap://x}",
+        "__proto__", "constructor.prototype", "/*x' union select 1 -- */",
+        "/*!50000union*/", "%0d%0aSet-Cookie: a=1", "normal", "texto", "12345",
+    ]
+    separadores = [" ", "+", "%20", "/**/", "\t", "\n", "/", "?", "&", "="]
+    relleno_base = "a" * 140 + " "
+
+    for i in range(20_000):
+        k = rng.randint(2, 5)
+        partes = [rng.choice(semillas) for _ in range(k)]
+        sep = rng.choice(separadores)
+        muestra = relleno_base + sep.join(partes)
+        con = scan_detailed(muestra, use_prefilter=True)
+        sin = scan_detailed(muestra, use_prefilter=False)
+        assert con == sin, f"Divergencia en muestra #{i} ({muestra!r}): con={con}, sin={sin}"

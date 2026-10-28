@@ -233,7 +233,7 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         # `setInterval(`, `document.` (acceso a cookies), `window.`… en un
         # valor de request son un intento de XSS DOM. Medido: +8 detecciones.
         re.compile(
-            r"\b(?:setinterval|settimeout|eval)\s{0,16}\(|\bdocument\s{0,8}\."
+            r"\b(?:setinterval|settimeout|eval)\s{0,16}\(|(?<!/)\bdocument\s{0,8}\."
             r"|\bwindow\s{0,8}\.|\blocation\s{0,8}=|\btop\s{0,8}\."
         ),
         # Exfiltración por CSS: `@import 'http://…'` carga una hoja externa (y
@@ -410,7 +410,8 @@ RULES: dict[str, list[re.Pattern[str]]] = {
             r"(?:ls|cat|id|whoami|uname|wget|curl|nc|ncat|bash|sh|zsh|python\d{0,2}"
             r"|perl|ruby|powershell|cmd|dir|type|chmod|chown"
             r"|rm|cp|mv|kill|ps|env|printenv|hostname|ifconfig|ipconfig|nslookup"
-            r"|dig|ping|socat|tar|dd|base64|net|mkdir|rmdir|ln)\b"
+            r"|dig|ping|socat|tar|dd|base64|net|mkdir|rmdir|ln"
+            r"|touch|echo|tee|awk|find|xargs|nohup|timeout|busybox|php|node|telnet|ssh)\b"
             # `;type=json`, `;env=prod` son params con `;` como separador, no
             # comandos: el binario no puede ir seguido de `=`.
             r"(?!\s{0,4}=)"
@@ -614,7 +615,7 @@ def _strip_sql_comments(text: str) -> str:
         body = text[start + 2:end]
         out.append(text[i:start])
         head = _VERSIONED_HEAD.match(body) if body.startswith("!") else None
-        if head and len(body) - head.end() <= 200:
+        if head:
             out.append(" " + body[head.end():] + " ")
         else:
             out.append(" ")
@@ -790,7 +791,8 @@ PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
         # `;` o `|`, y enumerarlos todos en el pre filtro es frágil (CRS genera
         # combinaciones raras como `;;dd foo bar`). Con los binarios sueltos, el
         # pre filtro deja pasar esos casos y la regex real decide.
-        "dd", "uname", "whoami",
+        "dd", "uname", "whoami", "touch", "echo", "tee", "awk", "find",
+        "xargs", "nohup", "timeout", "busybox", "php", "node", "telnet", "ssh",
         # El salto de linea como separador de comandos: el literal es el
         # propio "\n" porque el comando puede ir con espacios delante
         # (`\n rm -rf /`) y un literal "\nrm" no lo cubria. El precio es que
@@ -1088,12 +1090,12 @@ def _scan_detailed(
 
     hit = _scan_texto(text_sql, desactivadas, extra, only, use_prefilter)
     if hit is None and text_raw != text_sql:
-        # En SQL `/*...*/` sí es un comentario (y `/*!...*/` ya fue desenvuelto
-        # por `_strip_sql_comments`), pero para el resto de familias (`xss`,
-        # `ssti`, `cmdi`, `log4shell`, `crlf`, `path_traversal`, `ssrf`...)
-        # envolver el payload en `/*...*/` no lo desactiva en el intérprete de
-        # destino. Por eso la segunda pasada evalúa todas las familias salvo `sqli`.
-        hit = _scan_texto(text_raw, desactivadas | {"sqli"}, extra, only, use_prefilter)
+        # Segunda pasada con los comentarios `/*...*/` intactos para TODAS las
+        # familias (incluida `sqli`): evita tanto el bypass universal en familias
+        # no-SQL como el envoltorio `/*x' UNION SELECT ... -- */` (NUEVO-1),
+        # donde la app abre una comilla antes del valor y el atacante la cierra
+        # dentro de lo que para `_strip_sql_comments` parecía un comentario.
+        hit = _scan_texto(text_raw, desactivadas, extra, only, use_prefilter)
     return hit
 
 

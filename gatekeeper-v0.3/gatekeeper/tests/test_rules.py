@@ -240,3 +240,48 @@ def test_comentario_sql_no_oculta_otras_familias(payload: str, familia_esperada:
     """Envolver un payload en `/*...*/` no debe ocultar ataques de familias no SQL (IA-1)."""
     assert scan(payload) == familia_esperada
 
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "/*x' UNION SELECT password FROM users -- */",
+        "/*x' OR 1=1 -- */",
+        "/*x'; DROP TABLE users -- */",
+        "/*/*x' UNION SELECT 1,2,3 -- */*/",
+        "/*!50000 x'*/ /*UNION SELECT 1,2 -- */",
+        "/*x' OR sleep(5%2B5) -- */",
+    ],
+)
+def test_sqli_envuelto_en_comentario_se_detecta(payload: str) -> None:
+    """NUEVO-1: envolver un payload SQLi entero en `/*...*/` no debe evadir `sqli`."""
+    assert scan(payload) == "sqli"
+
+
+@pytest.mark.parametrize(
+    "comando",
+    [
+        "touch /tmp/x",
+        "echo pwned",
+        "tee /tmp/x",
+        "awk 'BEGIN{system(1)}'",
+        "find / -exec id ;",
+        "xargs id",
+        "nohup id",
+        "timeout 1 id",
+        "busybox id",
+        "php -r 'system(1);'",
+        "node -e 1",
+        "telnet evil.example 80",
+        "ssh evil.example",
+    ],
+)
+def test_cmdi_binarios_comunes_tras_separador(comando: str) -> None:
+    """IA-6: binarios habituales de post-explotación tras `;` se detectan en `cmdi`."""
+    assert scan(f"1.1.1.1; {comando}") == "cmdi"
+
+
+def test_comentario_versionado_largo_cerrado_se_desenvuelve() -> None:
+    """Fase 5: un `/*!50000 ... */` cerrado de >200 caracteres sigue desenvolviéndose."""
+    payload = "1 /*!50000" + ("a" * 250) + " union*/ select password from users"
+    assert scan(payload) == "sqli"
