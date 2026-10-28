@@ -9,6 +9,14 @@ reglas propias por YAML y auditoría en JSON: una capa adicional delante de tu a
     sustituye a las consultas parametrizadas ni a la validación de entradas, y
     tiene falsos positivos y negativos que se miden y se publican — no se ocultan.
 
+## Tutorial en vídeo
+
+<video controls preload="metadata" width="100%" poster="assets/video-preview.png">
+  <source src="assets/Gatekeeper_tutorial.mp4" type="video/mp4">
+  Tu navegador no reproduce vídeo HTML5:
+  <a href="assets/Gatekeeper_tutorial.mp4">abre el tutorial (MP4, 1:38 min)</a>.
+</video>
+
 ## Ejemplo
 
 ```python
