@@ -61,7 +61,7 @@ endpoint.
   <a href="https://github.com/Eche-Dev/Gatekeeper/raw/main/Gatekeeper_tutorial.mp4">
     <img src="gatekeeper-v0.3/gatekeeper/video-preview.png" alt="Ver tutorial guiado de Gatekeeper" width="100%" />
   </a>
-  <p><em>Haz clic en la imagen o <a href="Gatekeeper_tutorial.mp4">aquí</a> para ver o descargar el vídeo tutorial interactivo (1:38 min).</em></p>
+  <p><em>Haz clic en la imagen o <a href="Gatekeeper_tutorial.mp4">aquí</a> para ver el vídeo tutorial interactivo (1:38 min).</em></p>
 </div>
 
 > 📹 **Tutorial guiado (1:38 min):** Muestra la arquitectura del middleware ASGI, la integración con FastAPI en dos líneas de código, la detección y bloqueo en tiempo real de ataques (SQLi, XSS, Path Traversal con respuesta 403 y registro en auditoría) y su configuración según la topología (en memoria, Redis o tras proxy).
