@@ -5,9 +5,18 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ## [Sin publicar]
 
+## [0.9.2] - 2026-10-28
+
+### Corregido (Re-Auditoría Adversarial Final y `PLAN-CIERRE-100` — 97/100 · `42 PASA · 0 FALLA · 3 INFO`)
+
+- **Segunda lectura sin quitar `/*...*/` extendida a `sqli` y comentarios versionados largos (`NUEVO-1`, Fase 1/3/5).** `_scan_detailed()` incluye ahora también a la familia `sqli` en la segunda pasada sobre `text_raw` (bloqueando payloads SQLi envueltos enteros como `/*x' UNION SELECT password FROM users -- */`, anidados `/*/*...*/*/` y cross-carrier), desenvuelve comentarios versionados cerrados `/*!50000...*/` de más de 200 caracteres, y evita falsos positivos de XSS en rutas URL `/document.cookie` (`(?<!/)\bdocument\s{0,8}\.`).
+- **Descompresión `Content-Encoding: gzip / deflate` multicapa acotada (`NUEVO-2`, Fase 2/3).** `GatekeeperMiddleware` descomprime hasta **3 capas anidadas** (`gzip(gzip(...))`) aplicando el tope `max_body_size` en cada vuelta (`413` si cualquier capa lo supera).
+- **Ampliación de binarios post-separador en `cmdi` (`IA-6`, Fase 4).** Añadidos `touch`, `echo`, `tee`, `awk`, `find`, `xargs`, `nohup`, `timeout`, `busybox`, `php`, `node`, `telnet` y `ssh` a `RULES["cmdi"]` y `PREFILTER_LITERALS["cmdi"]`, dejando `IA-6` en `0/13 no detectados` con `0` falsos positivos nuevos en los tres corpus.
+- **Endurecimiento del analizador estático ReDoS y campaña de 20.000 muestras del prefiltro (Fase 5).** `analizar_redos` detecta solapamientos en grupos con prefijo (`?:`, `?i:`, `?P<nombre>`), cuantificadores perezosos (`+?`, `*?`, `{m,}?`) y rangos internos variables (`{1,2}`), validado contra 21 patrones catastróficos; `tests/test_prefilter.py` añade fuzzing diferencial sobre 20.000 muestras de $\ge 140$ bytes (`0` divergencias).
+
 ## [0.9.1] - 2026-10-28
 
-### Corregido (Cierre de Auditoría Multi-IA — 97/100 · `42 PASA · 0 FALLA · 3 INFO`)
+### Corregido (Cierre de Auditoría Multi-IA — Ronda 1 · `38 PASA · 0 FALLA · 3 INFO`)
 
 - **Doble lectura con y sin comentarios SQL (`/*...*/`) en las 11 familias (`IA-1`, `NUEVO-1`).** `rules._scan_detailed()` mantiene el recorte de comentarios SQL en la primera pasada (desenvolviendo `1'/**/OR/**/1=1` y cualquier comentario versionado cerrado `/*!50000...*/` sin tope de 200 caracteres) y ejecuta una segunda pasada con `/*...*/` intactos en las **11 familias incluida `sqli`** (bloqueando payloads envueltos enteros como `/*x' UNION SELECT password FROM users -- */`), manteniendo el `4,7 %` de falsos positivos en OWASP CRS (tras excluir `/document.cookie` como segmento de ruta URL con `(?<!/)\bdocument\s{0,8}\.`).
 - **El prefiltro de literales (`len >= 128`) descartaba firmas válidas en peticiones largas (`H-2A/B/C`, `AG-8`).** Sincronizados todos los literales obligatorios en `PREFILTER_LITERALS` para `sensitive_files`, `sqli`, `xss` y `cmdi`, y actualizado `tests/test_prefilter.py` con verificación con relleno $\ge 150$ caracteres sobre los 2.088 textos de los tres corpus más una campaña de fuzzing diferencial de 20.000 muestras.

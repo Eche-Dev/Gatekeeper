@@ -1,6 +1,6 @@
-# Transparencia de IA y Auditoría Multi-Modelo de Seguridad — Gatekeeper (`gatekeeper-asgi` 0.9.1)
+# Transparencia de IA y Auditoría Multi-Modelo de Seguridad — Gatekeeper (`gatekeeper-asgi` 0.9.2)
 
-Este documento certifica de forma transparente qué modelos de Inteligencia Artificial han intervenido en la concepción, construcción, documentación y **auditoría ofensiva/defensiva (pentesting en entorno aislado)** de **Gatekeeper** (`gatekeeper-asgi` `0.9.0` $\rightarrow$ `0.9.1`), qué vulnerabilidades reales consiguió demostrar cada uno, qué puntuación otorgó y cuál fue su veredicto de recomendación.
+Este documento certifica de forma transparente qué modelos de Inteligencia Artificial han intervenido en la concepción, construcción, documentación y **auditoría ofensiva/defensiva (pentesting en entorno aislado)** de **Gatekeeper** (`gatekeeper-asgi` `0.9.0` $\rightarrow$ `0.9.2`), qué vulnerabilidades reales consiguió demostrar cada uno, qué puntuación otorgó y cuál fue su veredicto de recomendación.
 
 > **Filosofía del proyecto ([AGENTS.md](AGENTS.md))**: *"Verificar, no creer. Un informe, una auditoría o una hipótesis no son evidencia. Antes de escribir una línea de código: reproduce el caso contra el código real."*
 
@@ -100,4 +100,4 @@ Los informes individuales completos de cada modelo se encuentran archivados y fo
    - **Lo que NO pretende ser**: no sustituye a las consultas SQL parametrizadas, a la validación de esquemas (Pydantic), a la autenticación/autorización ni a un WAF perimetral dedicado (Cloudflare / ModSecurity), ni inspecciona el contenido binario de archivos subidos o los frames posteriores de un WebSocket.
 5. **Adopción segura en producción sin romper tráfico legítimo**:
    - Permite empezar en modo observación (`monitor_only=True`), analizar el tráfico real con la CLI `gatekeeper report` y ajustar campos concretos con `exclude_fields` o perfiles con `rule_packs` antes de pasar a bloqueo activo.
-   - Por todo ello, **Gatekeeper (`gatekeeper-asgi` `0.9.1`) es una herramienta madura, honesta, segura y totalmente recomendable para cualquier desarrollador o equipo que construya APIs con FastAPI o Starlette.**
+   - Por todo ello, **Gatekeeper (`gatekeeper-asgi` `0.9.2`) es una herramienta madura, honesta, segura y totalmente recomendable para cualquier desarrollador o equipo que construya APIs con FastAPI o Starlette.**
