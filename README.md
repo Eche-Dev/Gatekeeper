@@ -1,12 +1,6 @@
 <div align="center">
   <p>
-<div align="center">
-  <a href="https://github.com/Eche-Dev/Gatekeeper/raw/main/Gatekeeper_tutorial.mp4">
-    <img src="gatekeeper-v0.3/gatekeeper/video-preview.png" alt="Ver tutorial guiado de Gatekeeper" width="100%" />
-  </a>
-</div>
-
-> 📹 **Tutorial guiado (1:38 min):** Muestra la arquitectura del middleware ASGI, la integración con FastAPI en dos líneas de código, la detección y bloqueo en tiempo real de ataques (SQLi, XSS, Path Traversal con respuesta 403 y registro en auditoría) y su configuración según la topología (en memoria, Redis o tras proxy).  
+    <img src="gatekeeper-v0.3/gatekeeper/imgDev.png" alt="Gatekeeper — WAF para aplicaciones ASGI" width="100%" />
   </p>
 
   <!-- Stack principal -->
@@ -60,6 +54,17 @@ van a atacar": **publica cuánto detecta y cuánto se equivoca**.
 
 Gatekeeper los cubre **en un punto, delante de tu app**, sin tocar endpoint por
 endpoint.
+
+## Demostración en vídeo
+
+<div align="center">
+  <a href="https://github.com/Eche-Dev/Gatekeeper/raw/main/Gatekeeper_tutorial.mp4">
+    <img src="gatekeeper-v0.3/gatekeeper/video-preview.png" alt="Ver tutorial guiado de Gatekeeper" width="100%" />
+  </a>
+  <p><em>Haz clic en la imagen o <a href="Gatekeeper_tutorial.mp4">aquí</a> para ver el vídeo tutorial interactivo (1:38 min).</em></p>
+</div>
+
+> 📹 **Tutorial guiado (1:38 min):** Muestra la arquitectura del middleware ASGI, la integración con FastAPI en dos líneas de código, la detección y bloqueo en tiempo real de ataques (SQLi, XSS, Path Traversal con respuesta 403 y registro en auditoría) y su configuración según la topología (en memoria, Redis o tras proxy).
 
 ## Empezar
 
