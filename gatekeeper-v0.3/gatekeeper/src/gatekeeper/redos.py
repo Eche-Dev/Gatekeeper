@@ -112,7 +112,7 @@ def _repite_variable(cuantificador: str) -> bool:
 
 def _sin_prefijo_grupo(texto: str) -> str:
     """Quita el prefijo sintáctico de grupo (`?:`, `?i:`, `?P<nombre>`) si existe."""
-    if not texto.startswith("?"):
+    if not isinstance(texto, str) or not texto.startswith("?"):
         return texto
     if texto.startswith("?P<"):
         cierre = texto.find(">")
@@ -385,6 +385,8 @@ def analizar_redos(patron: str) -> tuple[str, str] | None:
     `nivel` es `NIVEL_EXPONENCIAL` (cuelga con una entrada corta: se
     rechaza) o `NIVEL_CUADRATICO` (se degrada con el tamano: se avisa).
     """
+    if not isinstance(patron, str):
+        return None
     for cuerpo, cuantificador in _grupos_cuantificados(patron):
         if not _sin_cota(cuantificador):
             # El grupo repite un numero acotado de veces: no hay explosion.

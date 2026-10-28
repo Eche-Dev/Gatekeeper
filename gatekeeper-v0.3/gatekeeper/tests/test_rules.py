@@ -261,9 +261,9 @@ def test_sqli_envuelto_en_comentario_se_detecta(payload: str) -> None:
 @pytest.mark.parametrize(
     "comando",
     [
-        "touch /tmp/x",
+        "touch /tmp/x",  # NOSONAR
         "echo pwned",
-        "tee /tmp/x",
+        "tee /tmp/x",  # NOSONAR
         "awk 'BEGIN{system(1)}'",
         "find / -exec id ;",
         "xargs id",

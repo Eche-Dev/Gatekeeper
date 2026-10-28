@@ -176,11 +176,11 @@ def test_fuzzing_diferencial_masivo_prefiltro():
     """Fase 5: campaña de 20.000 muestras combinando fragmentos reales y relleno >=128 chars."""
     import random
 
-    rng = random.Random(20261028)
+    rng = random.Random(20261028)  # NOSONAR
     semillas = [
         "union", "select", "or 1=1", "sleep(5)", "<script>", "onerror=",
         "javascript:", "../etc/passwd", "/.env", "$ne", "$where", "; id",
-        "| touch /tmp/x", "http://169.254.169.254", "{{7*7}}", "${jndi:ldap://x}",
+        "| touch /tmp/x", "http://169.254.169.254", "{{7*7}}", "${jndi:ldap://x}",  # NOSONAR
         "__proto__", "constructor.prototype", "/*x' union select 1 -- */",
         "/*!50000union*/", "%0d%0aSet-Cookie: a=1", "normal", "texto", "12345",
     ]
