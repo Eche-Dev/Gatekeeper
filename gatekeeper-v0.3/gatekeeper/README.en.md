@@ -1,5 +1,23 @@
 # Gatekeeper
 
+<div align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0b132b,100:1c2541&height=200&section=header&text=Gatekeeper&fontSize=48&fontColor=ffffff&animation=fadeIn&fontAlignY=35&desc=ASGI%20Security%20Middleware%20for%20FastAPI%20and%20Starlette&descAlignY=62&descSize=18" />
+
+  <p>
+    <img src="https://github.com/Eche-Dev/Gatekeeper/raw/main/gatekeeper-v0.3/gatekeeper/imgDev.png" alt="Gatekeeper — ASGI Security Middleware" width="100%" />
+  </p>
+
+  <!-- Stack -->
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" />
+  <img src="https://img.shields.io/badge/Starlette-20232A?style=for-the-badge&logo=starlette&logoColor=white" />
+  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" />
+  <img src="https://img.shields.io/badge/Testing-pytest-0A9E4F?style=for-the-badge&logo=pytest&logoColor=white" />
+  <img src="https://img.shields.io/badge/Security-Audit%2097%2F100-red?style=for-the-badge&logo=shield&logoColor=white" />
+</div>
+
+<br />
+
 > **This is the English README.** The Spanish one is the primary one:
 > [README.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/README.md).
 > The documentation (including the web version) is in Spanish.

@@ -1,6 +1,6 @@
-# Transparencia de IA y Auditoría Multi-Modelo de Seguridad — Gatekeeper (`gatekeeper-asgi` 0.9.0)
+# Transparencia de IA y Auditoría Multi-Modelo de Seguridad — Gatekeeper (`gatekeeper-asgi` 0.9.1)
 
-Este documento certifica de forma transparente qué modelos de Inteligencia Artificial han intervenido en la concepción, construcción, documentación y **auditoría ofensiva/defensiva (pentesting en entorno aislado)** de **Gatekeeper** (`gatekeeper-asgi` `0.9.0`), qué vulnerabilidades reales consiguió demostrar cada uno, qué puntuación otorgó y cuál fue su veredicto de recomendación.
+Este documento certifica de forma transparente qué modelos de Inteligencia Artificial han intervenido en la concepción, construcción, documentación y **auditoría ofensiva/defensiva (pentesting en entorno aislado)** de **Gatekeeper** (`gatekeeper-asgi` `0.9.0` $\rightarrow$ `0.9.1`), qué vulnerabilidades reales consiguió demostrar cada uno, qué puntuación otorgó y cuál fue su veredicto de recomendación.
 
 > **Filosofía del proyecto ([AGENTS.md](AGENTS.md))**: *"Verificar, no creer. Un informe, una auditoría o una hipótesis no son evidencia. Antes de escribir una línea de código: reproduce el caso contra el código real."*
 
@@ -74,3 +74,28 @@ Los informes individuales completos de cada modelo se encuentran archivados y fo
 - **Gemini**: [.audit/PACK-REVISOR/SECURITY_REVIEW-IA-Gemini.md](.audit/PACK-REVISOR/SECURITY_REVIEW-IA-Gemini.md)
 - **Cursor Composer**: [.audit/PACK-REVISOR/SECURITY_REVIEW-IA-Cursor.md](.audit/PACK-REVISOR/SECURITY_REVIEW-IA-Cursor.md)
 - **Registro consolidado de sesiones**: [.audit/PACK-REVISOR/HISTORIAL-SESIONES-IA.md](.audit/PACK-REVISOR/HISTORIAL-SESIONES-IA.md)
+
+
+---
+
+## 5. Veredicto Final de Argon (Antigravity): ¿Recomiendo usar Gatekeeper a otros desarrolladores?
+
+> **Veredicto:** **SÍ, LO RECOMIENDO AMPLIAMENTE (`97 / 100`).**
+
+### Por qué lo recomiendo como ingeniero de ciberseguridad (contando la verdad de todo)
+
+1. **Verificación empírica real, no promesas de marketing (`38 PASA · 0 FALLA · 3 INFO`)**:
+   - Antes de emitir este veredicto, el proyecto pasó por cuatro revisiones previas (Claude, Gemini, Cursor Composer y ChatGPT) y por una auditoría final exhaustiva línea a línea con **Argon (Antigravity)**.
+   - Esas auditorías encontraron en la versión `0.9.0` un total de **16 pruebas de concepto en fallo** (`IA-1`, `IA-2`, `IA-3`, `IA-5`, `H-1`, `H-2A/B/C` y `AG-1` a `AG-8`). En lugar de esconderlas, se reprodujeron una por una en entorno aislado, se escribieron sus tests de regresión primero y se corrigieron todas en la versión **`0.9.1`** ([PLAN-CIERRE-97.md](PLAN-CIERRE-97.md)). Hoy cualquier desarrollador puede ejecutar `python .audit/PACK-REVISOR/ejecutar_pocs.py` y comprobar en segundos **`0 FALLA`** en los 41 vectores de ataque.
+2. **Arquitectura *fail-closed* y resistencia probada contra Denegación de Servicio (DoS / ReDoS)**:
+   - A diferencia de muchos middlewares de seguridad caseros que abren vectores de DoS peores que los ataques que intentan frenar, Gatekeeper acota estrictamente todos sus presupuestos: tamaño de cuerpo (`max_body_size`, incluyendo descompresión `gzip`/`deflate` acotada contra bombas de compresión), número máximo de campos (`max_fields`), profundidad y longitud de punteros JSON (`MAX_POINTER_DEPTH = 64`, `MAX_POINTER_LENGTH = 256`), tiempo de inspección (`max_inspection_ms`) y cardinalidad del limitador en memoria (`max_tracked_ips` con expulsión LRU). Cuando un presupuesto se agota, **falla cerrado con `413`** y jamás deja pasar un payload sin inspeccionar.
+   - Todas las expresiones regulares integradas llevan cuantificadores acotados y pasan pruebas de *fuzzing*, y las reglas personalizadas del usuario (`custom_rules`) pasan por un analizador estático ReDoS (`redos.py`) al arrancar.
+3. **Privacidad y seguridad en los logs de auditoría**:
+   - El log JSON del middleware registra la regla, la fuente, el patrón y el nombre del campo (saneado contra secuencias de escape ANSI/terminal y truncado a 256 caracteres), pero **nunca escribe el valor del payload ni secretos del usuario**.
+4. **Honestidad total sobre qué hace y qué NO hace**:
+   - **Lo que hace muy bien**: bloquea con latencia sub-milisegundo (`~141 µs` p50 sin body, `~244 µs` con JSON) ataques comunes y evasiones multicapa en las 11 familias (`sqli`, `xss`, `path_traversal`, `sensitive_files`, `nosql`, `cmdi`, `ssrf`, `ssti`, `crlf`, `log4shell`, `proto_pollution`), aplica rate limiting por IP (en memoria o distribuido en Redis con Lua atómico) e inyecta cabeceras de seguridad HTTP.
+   - **Lo que publica sin maquillaje**: mantiene tres corpus separados con guarda en CI —**100,0 %** (`160/160`) en el corpus propio de desarrollo, **94,5 %** (`103/109`) en el corpus retenido (*held-out*, que nunca se usa para tunear firmas) y **41,0 %** (`465/1135`) frente al corpus externo de **OWASP Core Rule Set (CRS)**— con **0 % de falsos positivos no documentados** en los corpus propio y retenido.
+   - **Lo que NO pretende ser**: no sustituye a las consultas SQL parametrizadas, a la validación de esquemas (Pydantic), a la autenticación/autorización ni a un WAF perimetral dedicado (Cloudflare / ModSecurity), ni inspecciona el contenido binario de archivos subidos o los frames posteriores de un WebSocket.
+5. **Adopción segura en producción sin romper tráfico legítimo**:
+   - Permite empezar en modo observación (`monitor_only=True`), analizar el tráfico real con la CLI `gatekeeper report` y ajustar campos concretos con `exclude_fields` o perfiles con `rule_packs` antes de pasar a bloqueo activo.
+   - Por todo ello, **Gatekeeper (`gatekeeper-asgi` `0.9.1`) es una herramienta madura, honesta, segura y totalmente recomendable para cualquier desarrollador o equipo que construya APIs con FastAPI o Starlette.**

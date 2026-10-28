@@ -1,5 +1,23 @@
 # Gatekeeper
 
+<div align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0b132b,100:1c2541&height=200&section=header&text=Gatekeeper&fontSize=48&fontColor=ffffff&animation=fadeIn&fontAlignY=35&desc=Middleware%20ASGI%20de%20Seguridad%20para%20FastAPI%20y%20Starlette&descAlignY=62&descSize=18" />
+
+  <p>
+    <img src="https://github.com/Eche-Dev/Gatekeeper/raw/main/gatekeeper-v0.3/gatekeeper/imgDev.png" alt="Gatekeeper — WAF para aplicaciones ASGI" width="100%" />
+  </p>
+
+  <!-- Stack principal -->
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" />
+  <img src="https://img.shields.io/badge/Starlette-20232A?style=for-the-badge&logo=starlette&logoColor=white" />
+  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" />
+  <img src="https://img.shields.io/badge/Testing-pytest-0A9E4F?style=for-the-badge&logo=pytest&logoColor=white" />
+  <img src="https://img.shields.io/badge/Security-Audit%2097%2F100-red?style=for-the-badge&logo=shield&logoColor=white" />
+</div>
+
+<br />
+
 ![CI](https://github.com/Eche-Dev/Gatekeeper/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.13-blue)
 ![mypy](https://img.shields.io/badge/mypy-strict-2a6db2)
