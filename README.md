@@ -55,6 +55,14 @@ van a atacar": **publica cuánto detecta y cuánto se equivoca**.
 Gatekeeper los cubre **en un punto, delante de tu app**, sin tocar endpoint por
 endpoint.
 
+## Demostración en vídeo
+
+<video src="Gatekeeper_tutorial.mp4" controls="controls" width="100%" poster="gatekeeper-v0.3/gatekeeper/social-preview.png">
+  Tu navegador no soporta la reproducción directa. Puedes ver o descargar el vídeo en <a href="Gatekeeper_tutorial.mp4">Gatekeeper_tutorial.mp4</a>.
+</video>
+
+> 📹 **Tutorial guiado (1:38 min):** Muestra la arquitectura del middleware ASGI, la integración con FastAPI en dos líneas de código, la detección y bloqueo en tiempo real de ataques (SQLi, XSS, Path Traversal con respuesta 403 y registro en auditoría) y su configuración según la topología (en memoria, Redis o tras proxy).
+
 ## Empezar
 
 ```bash
