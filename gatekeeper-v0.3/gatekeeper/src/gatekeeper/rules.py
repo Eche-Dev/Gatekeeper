@@ -231,14 +231,22 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"xmlns\s{0,4}:"),
         # APIs de JS que ejecutan código pasado como argumento: `eval(`,
         # `setInterval(`, `document.` (acceso a cookies), `window.`… en un
-        # valor de request son un intento de XSS DOM. Medido: +8 detecciones.
+        # valor de request son un intento de XSS DOM. En `self`, `parent` y
+        # `frames` solo se marca el acceso a sinks/globales DOM o el indexado
+        # con cadena/template (`self['eval']`), para no bloquear `self.attr`
+        # en Python ni `parent.postMessage` / `frames.length` en JS (NUEVO-7).
         re.compile(
             r"\b(?:setinterval|settimeout|eval)\s{0,16}(?:\?\s{0,4}\.\s{0,8})?[\(`]"
             r"|(?<!/)\bdocument\s{0,8}(?:\?\s{0,4}\.\s{0,4}\[|\?\s{0,4}\.|\.|\[)"
-            r"|\b(?:window|globalthis|top|parent|frames)\s{0,8}(?:\?\s{0,4}\.\s{0,4}\[|\?\s{0,4}\.|\.|\[)"
-            r"|\bself\s{0,8}(?:\?\s{0,4}\.\s{0,4}\[|\?\s{0,4}\.(?!_)|\.(?!_)|\[)"
-            r"|\blocation\s{0,8}(?:=|\?\s{0,4}\.\s{0,4}\[|\?\s{0,4}\.|\.\s{0,4}(?:href|replace|assign)\b|\[)"
-
+            r"|\bwindow\s{0,8}(?:\?\s{0,4}\.\s{0,4}\[|"
+            r"(?:\?\s{0,4}\.|\.)(?!\s{0,4}addeventlistener\b)|\[)"
+            r"|\b(?:globalthis|top)\s{0,8}(?:\?\s{0,4}\.\s{0,4}\[|\?\s{0,4}\.|\.|\[)"
+            r"|\b(?:self|parent|frames)\s{0,8}(?:"
+            r"(?:\?\s{0,4})?\.\s{0,4}(?:document|window|globalthis|top|location|"
+            r"eval|settimeout|setinterval|alert|prompt|confirm)\b|"
+            r"(?:\?\s{0,4}\.\s{0,4})?\[\s{0,8}['\"`])"
+            r"|\blocation\s{0,8}(?:=|\?\s{0,4}\.\s{0,4}\[|\?\s{0,4}\.|"
+            r"\.\s{0,4}(?:href|replace|assign)\b|\[)"
         ),
         # Exfiltración por CSS: `@import 'http://…'` carga una hoja externa (y
         # con ella puede filtrar), `<style>` es el vehículo, `expression()` es el

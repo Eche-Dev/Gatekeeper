@@ -74,12 +74,12 @@ botones en [`demo/`](https://github.com/Eche-Dev/Gatekeeper/tree/main/gatekeeper
 | Rate limiting | Ventana deslizante por IP, en memoria o Redis (script Lua atómico, no bloquea el event loop) |
 | Cabeceras | nosniff, X-Frame-Options, HSTS, Referrer-Policy, Permissions-Policy |
 | SQLi | UNION SELECT, tautologías, consultas apiladas, time-based, error-based |
-| XSS | `<script>`, handlers de evento, `javascript:`, entidades nombradas, con doble codificación |
+| XSS | `<script>`, handlers de evento, `javascript:`, APIs DOM (`document`/`window`/`eval` por punto, corchetes o `?.`), entidades nombradas, con doble codificación |
 | Path traversal | `../`, `..;`, con decodificación repetida y frontera de segmento |
 | Ficheros sensibles | `/etc/shadow`, `.ssh/*`, `.aws/credentials`, `.env` y más |
-| NoSQL · Comandos · SSRF | `$ne`/`$where`; `; ls` y `` `id` ``; metadata cloud y `file://` |
+| NoSQL · Comandos · SSRF | `$ne`/`$where`; `; ls` y `` `id` ``; metadata cloud, loopback ofuscado (decimal/hex/octal) y `file://` |
 | SSTI · CRLF · Log4Shell · Proto | `{{7*7}}`; splitting con cabecera; `${jndi:…}`; `__proto__` |
-| Evasiones | URL-encoding repetido, escapes `%uXXXX` (IIS), ancho completo (NFKC), comentarios versionados `/*!…*/` |
+| Evasiones | URL-encoding repetido, escapes `%uXXXX` y `\uXXXX`, ancho completo (NFKC), comentarios SQL `/**/` y versionados `/*!…*/`, `gzip`/`deflate` multicapa |
 | Límite de body | 256 KiB por defecto → 413 |
 | Auditoría | Eventos JSON en el logger `gatekeeper`, sin los valores de los campos (el nombre del que saltó, saneado y acotado) |
 

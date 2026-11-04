@@ -122,7 +122,7 @@ The full event catalogue is in
 | Headers | `nosniff`, `X-Frame-Options`, `HSTS`, `Referrer-Policy`, `Permissions-Policy`. It never overwrites your app's, and they also go on the rejections |
 | Detection | Eleven families: SQLi, XSS, path traversal, sensitive files, NoSQL, system commands, SSRF, SSTI, CRLF, Log4Shell and proto pollution. The detail of each one, with its false-positive boundary, is in [docs/amenazas.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/amenazas.md) (in Spanish) |
 | Surfaces | Path, query string, headers, JSON and form body, multipart names and the WebSocket handshake |
-| Evasion | Repeated URL encoding (3 rounds), IIS `%uXXXX` escapes, full-width characters (NFKC), SQL comments `/**/` and versioned ones (`/*!50000…*/`), HTML entities, numeric **and named** |
+| Evasion | Repeated URL encoding (3 rounds), Unicode `%uXXXX` and `\uXXXX` escapes, full-width characters (NFKC), SQL comments `/**/` and versioned ones (`/*!50000…*/`), HTML entities (numeric **and named**), multi-layer `gzip`/`deflate` bodies |
 | Budgets | `max_body_size` (256 KiB), `max_fields` (1000 texts) and `max_inspection_ms` (1000 ms). When they run out the request is rejected with **413**: it is never admitted uninspected |
 | Your own rules | Regexes in YAML or in `Config(custom_rules=...)`, validated at startup (a regex with catastrophic backtracking is a `ValueError`) |
 | Audit | JSON events on the `gatekeeper` logger. Never the values of the fields |
@@ -261,8 +261,9 @@ emitted by Gatekeeper's logger or a generic access log
   `inspect_cross_carrier=True` the path/query is combined with the non-excluded
   textual values; it is opt-in and its result is **not** in the numbers above.
 - Mongo's `$gt`/`$lt`/`$in` operators are left out of the NoSQL signature on
-  purpose (legitimate filters use them); `localhost` and `127.0.0.1` do not
-  count as SSRF (development OAuth).
+  purpose (legitimate filters use them); plain `localhost` and `127.0.0.1` do
+  not count as SSRF (development OAuth; obfuscated decimal, hex and octal
+  loopback forms are blocked).
 - With `rate_backend="memory"` and several workers, the effective limit is
   multiplied: use Redis.
 - If Redis does not answer, `rate_fail_open=True` (the default) keeps admitting

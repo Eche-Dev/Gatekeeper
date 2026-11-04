@@ -5,14 +5,14 @@
 Cada cadena se normaliza antes de tocar las reglas:
 
 ```
-petición ──► decode()          3 rondas de URL-decoding + escapes %uXXXX (IIS)
+petición ──► decode()          3 rondas de URL-decoding + escapes %uXXXX / \uXXXX
            ──► entidades       numéricas (&#60;) y nombradas (&lt;) por rondas
            ──► NFKC            ＜script (ancho completo) → <script
            ──► decode()        segundo pase acotado (NFKC puede revelar %U0027)
            ──► comentarios     /**/ = espacio en blanco; /*!50000union*/ se
                              desenvuelve a `union` (MySQL lo ejecuta)
            ──► minúsculas
-           ──► reglas (regex)  sobre el texto ya normalizado
+           ──► reglas (regex)  1.ª pasada (sin /*...*/) + 2.ª pasada (con /*...*/ intactos)
 ```
 
 Todas las reglas integradas usan **cuantificadores acotados** (`\s{0,16}`):
@@ -57,20 +57,20 @@ en [Modelo de amenazas](amenazas.md).
 
 ## El corpus propio
 
-159 payloads de ataque y 131 peticiones benignas, **redactados para este proyecto**
+160 payloads de ataque y 132 peticiones benignas, **redactados para este proyecto**
 a partir de técnicas documentadas públicamente (OWASP WSTG, cheat sheets de
 PortSwigger), con procedencia en [corpus/README.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/README.md).
 
 | Métrica | Valor |
 |---|---|
-| Ataques detectados | **159 / 159 (100.0%)** |
+| Ataques detectados | **160 / 160 (100.0%)** |
 | Falsos negativos sin documentar | 0 |
-| Falsos positivos sin documentar | **0** / 131 (8 documentados) |
+| Falsos positivos sin documentar | **0** / 132 (9 documentados) |
 
 Estas cifras miden los escaneos individuales del corpus; no incluyen el modo
 opt-in `inspect_cross_carrier=True`.
 
-Los 8 FP documentados existen y se listan con su motivo en
+Los 9 FP documentados existen y se listan con su motivo en
 [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md):
 texto técnico que cita vectores (`sleep(5)` en búsquedas, `<script>` como término
 de búsqueda, `javascript:` en prosa, `%252e%252e%252f` al hablar de codificación,
@@ -114,10 +114,10 @@ y en los informes generados.
 
 | Métrica | Desarrollo | **Retenido** |
 |---|---|---|
-| Ataques detectados | 159/159 (100%) | **103/109 (94,5%)** |
+| Ataques detectados | 160/160 (100%) | **103/109 (94,5%)** |
 | Falsos positivos sin documentar | 0 | **0** / 140 |
 | Falsos negativos documentados | 0 | 6 |
-| Falsos positivos documentados | 8 | 5 |
+| Falsos positivos documentados | 9 | 5 |
 
 !!! success "Por qué el retenido da 94,5% y no 100%"
     Porque es **más difícil a propósito**: incluye técnicas que las reglas no
