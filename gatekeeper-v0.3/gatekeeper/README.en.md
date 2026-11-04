@@ -168,13 +168,13 @@ for a different WAF, with its own negatives:
 | Metric (external CRS corpus, families 930/941/942) | Value |
 |---|---|
 | Imported tests | 1379 (1135 in scope, 12 excluded and declared) |
-| Attacks detected | 465 / 1135 (**41.0%**) |
+| Attacks detected | 471 / 1135 (**41.5%**) |
 | CRS negatives blocked (FP) | 11 / 232 (4.7%) |
 
-That 41.0% is not a goal: it is the **baseline** of a corpus designed for a
+That 41.5% is not a goal: it is the **baseline** of a corpus designed for a
 500+ rule WAF with far more obfuscated payloads, and the workflow watches it so
 that it does not drop. Publishing the whole thing is the point: a 100% of our
-own and a 41.0% of someone else's, both measured and both guarded in CI.
+own and a 41.5% of someone else's, both measured and both guarded in CI.
 
 The details, including the payloads that slip through and why, are in
 [corpus/REPORT.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/corpus/REPORT.md).

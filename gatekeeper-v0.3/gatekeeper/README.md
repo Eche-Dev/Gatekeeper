@@ -165,12 +165,12 @@ para otro WAF, con sus propios negativos:
 | Métrica (corpus externo CRS, familias 930/941/942) | Valor |
 |---|---|
 | Tests importados | 1379 (1135 en alcance, 12 excluidos y declarados) |
-| Ataques detectados | 465 / 1135 (**41.0%**) |
+| Ataques detectados | 471 / 1135 (**41.5%**) |
 | Negativos de CRS bloqueados (FP) | 11 / 232 (4.7%) |
 
-Ese 41.0% no es una meta: es la **línea base** de un corpus diseñado para un
+Ese 41.5% no es una meta: es la **línea base** de un corpus diseñado para un
 WAF de 500+ reglas y payloads mucho más ofuscados, y el workflow la vigila para
-que no baje. Publicarlo entero es el punto: un 100% propio y un 41.0% ajeno,
+que no baje. Publicarlo entero es el punto: un 100% propio y un 41.5% ajeno,
 los dos medidos y los dos con guarda en CI.
 
 El detalle, incluidos los payloads que escapan y por qué, está en
