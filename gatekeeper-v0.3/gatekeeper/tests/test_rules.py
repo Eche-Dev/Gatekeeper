@@ -371,3 +371,20 @@ def test_ssrf_loopback_ofuscado_decimal_hex_octal(payload: str) -> None:
 def test_unicode_escape_js_json_se_decodifica(payload: str, familia: str) -> None:
     """Escapes Unicode `\\uXXXX` (JS/JSON) se resuelven en `decode()` igual que `%uXXXX`."""
     assert scan(payload) == familia
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "def test_suma(self):\n    self.assertEqual(suma(2,2), 4)",
+        "class Usuario:\n    def __init__(self):\n        self.nombre = ''\n        self.id = None",
+        "window.addEventListener('message', (e) => {\n  if (e.source === parent) handle(e);\n});",
+        "parent.postMessage({type: 'ready'}, 'https://example.com');",
+        "if (frames.length > 0) { console.log('ok'); }",
+        "return self[indice] + self.calcular_total()",
+    ],
+)
+def test_xss_dom_no_bloquea_codigo_python_ni_js_legitimo(snippet: str) -> None:
+    """NUEVO-7 (Claude R5): código Python (`self.attr`, `self[i]`) o JS (`parent.postMessage`, `frames.length`) no debe saltar como `xss`."""
+    assert scan(snippet) is None
+
