@@ -1,6 +1,6 @@
-# Transparencia de IA y Auditoría Multi-Modelo de Seguridad — Gatekeeper (`gatekeeper-asgi` 0.9.3)
+# Transparencia de IA y Auditoría Multi-Modelo de Seguridad — Gatekeeper (`gatekeeper-asgi` 0.9.4)
 
-Este documento certifica de forma transparente qué modelos de Inteligencia Artificial han intervenido en la concepción, construcción, documentación y **auditoría ofensiva/defensiva (pentesting en entorno aislado)** de **Gatekeeper** (`gatekeeper-asgi` `0.9.0` $\rightarrow$ `0.9.3`), qué vulnerabilidades reales consiguió demostrar cada uno, qué puntuación otorgó y cuál fue su veredicto de recomendación.
+Este documento certifica de forma transparente qué modelos de Inteligencia Artificial han intervenido en la concepción, construcción, documentación y **auditoría ofensiva/defensiva (pentesting en entorno aislado)** de **Gatekeeper** (`gatekeeper-asgi` `0.9.0` $\rightarrow$ `0.9.4`), qué vulnerabilidades reales consiguió demostrar cada uno, qué puntuación otorgó y cuál fue su veredicto de recomendación.
 
 > **Filosofía del proyecto ([AGENTS.md](AGENTS.md))**: *"Verificar, no creer. Un informe, una auditoría o una hipótesis no son evidencia. Antes de escribir una línea de código: reproduce el caso contra el código real."*
 
