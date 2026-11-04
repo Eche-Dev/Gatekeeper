@@ -144,6 +144,18 @@ def test_los_prefiltros_se_pueden_desactivar():
         ('{"$exists": true}', "nosql"),
         ("${T(java.lang.Runtime).getRuntime().exec('id')}", "ssti"),
         ('{"constructor": {"prototype": {"admin": true}}}', "proto_pollution"),
+        (" document['cookie']", "xss"),
+        (" document?.cookie", "xss"),
+        (" window['eval']('1')", "xss"),
+        (" globalThis['document']['cookie']", "xss"),
+        (" top?.location", "xss"),
+        (" self['eval']('1')", "xss"),
+        (" eval?.('alert(1)')", "xss"),
+        (" http://0251.0376.0251.0376/latest/meta-data/", "ssrf"),
+        (" http://0251.0376.0252.0002/v2/credentials", "ssrf"),
+        (" http://2130706433/admin", "ssrf"),
+        (" http://0x7f000001/admin", "ssrf"),
+        (" http://0177.0.0.1/admin", "ssrf"),
     ],
 )
 def test_el_prefiltro_no_pierde_detecciones_en_textos_largos(payload, regla):

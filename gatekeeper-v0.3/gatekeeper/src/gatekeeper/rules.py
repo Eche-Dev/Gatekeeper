@@ -233,8 +233,12 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         # `setInterval(`, `document.` (acceso a cookies), `window.`… en un
         # valor de request son un intento de XSS DOM. Medido: +8 detecciones.
         re.compile(
-            r"\b(?:setinterval|settimeout|eval)\s{0,16}\(|(?<!/)\bdocument\s{0,8}\."
-            r"|\bwindow\s{0,8}\.|\blocation\s{0,8}=|\btop\s{0,8}\."
+            r"\b(?:setinterval|settimeout|eval)\s{0,16}(?:\?\s{0,4}\.\s{0,8})?[\(`]"
+            r"|(?<!/)\bdocument\s{0,8}(?:\?\s{0,4}\.\s{0,4}\[|\?\s{0,4}\.|\.|\[)"
+            r"|\b(?:window|globalthis|top|parent|frames)\s{0,8}(?:\?\s{0,4}\.\s{0,4}\[|\?\s{0,4}\.|\.|\[)"
+            r"|\bself\s{0,8}(?:\?\s{0,4}\.\s{0,4}\[|\?\s{0,4}\.(?!_)|\.(?!_)|\[)"
+            r"|\blocation\s{0,8}(?:=|\?\s{0,4}\.\s{0,4}\[|\?\s{0,4}\.|\.\s{0,4}(?:href|replace|assign)\b|\[)"
+
         ),
         # Exfiltración por CSS: `@import 'http://…'` carga una hoja externa (y
         # con ella puede filtrar), `<style>` es el vehículo, `expression()` es el
@@ -464,10 +468,13 @@ RULES: dict[str, list[re.Pattern[str]]] = {
         # suelto puede ser un identificador legitimo.
         re.compile(
             r"(?:https?|ftp|ftps)://\s{0,4}"
-            r"(?:2852039166|2852038914|1684301000"        # decimal
-            r"|0xa9fea9fe|0xa9feaa02|0x646464c8"          # hexadecimal
-            r"|0252\.0376\.0252\.0376"                   # octal
-            r"|0252\.0376\.0252\.0002|0144\.0144\.0144\.0310)"
+            r"(?:2852039166|2852038914|1684301000|2130706433"        # decimal (IMDS, ECS, Alibaba, loopback)
+            r"|0xa9fea9fe|0xa9feaa02|0x646464c8|0x7f000001"          # hexadecimal
+            r"|0xa9\.0xfe\.0xa9\.0xfe|0x7f\.0x0{1,2}\.0x0{1,2}\.0x0?1"
+            r"|0251\.0376\.0251\.0376"                               # octal IMDS (169.254.169.254)
+            r"|0251\.0376\.025[12]\.0{0,3}2|0144\.0144\.0144\.0310"
+            r"|0177\.0{1,4}\.0{1,4}\.0{0,3}1"
+            r"|025177524776|025177525002|014431062310|017700000001)"
             r"(?![0-9a-fx.])"
         ),
     ],
@@ -542,7 +549,7 @@ RULES: dict[str, list[re.Pattern[str]]] = {
 }
 
 
-_UNICODE_ESCAPE = re.compile(r"%u([0-9a-fA-F]{4})", re.IGNORECASE)
+_UNICODE_ESCAPE = re.compile(r"(?:%u|\\u)([0-9a-fA-F]{4})", re.IGNORECASE)
 # Entidades HTML numéricas: `&#60;` es `<` y `&#106;avascript:` es `javascript:`.
 # Sin este paso, `&#60;script&#62;alert(1)` pasa intacto por cualquier inspección.
 _HTML_ENTITY = re.compile(r"&#(?:x([0-9a-fA-F]{1,6})|(\d{1,7}));", re.IGNORECASE)
@@ -753,8 +760,9 @@ PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
         # namespace de etiquetas: `<x:script`, `<svg`, `<math`… y `xmlns:`
         "xmlns", "<svg", "<math", "<body", "<details", ":script",
         # APIs de JS que ejecutan o acceden: eval(, setinterval(, document,
-        "eval(", "setinterval", "settimeout", "document", "window",
-        "location=", "top.", "<style", "@import", "expression", "-moz-binding",
+        "eval", "setinterval", "settimeout", "document", "window", "globalthis",
+        "location", "top", "parent", "frames", "self.", "self?", "self[", "self ",
+        "<style", "@import", "expression", "-moz-binding",
         "j\t", "j\n", "j\r", "j\x00",
         # `on` como literal cubre cualquier handler de evento (finito o
         # exótico: `onerror=`, `onend=`, `onwebkitplaybacktarget=…`): la regla
@@ -811,9 +819,10 @@ PREFILTER_LITERALS: dict[str, tuple[str, ...] | None] = {
         # La IP de metadata en decimal, hex y octal (con esquema delante):
         # sin estos literales, el pre filtro descartaba la familia y las
         # tres formas se colaban.
-        "2852039166", "2852038914", "1684301000",
-        "0xa9fea9fe", "0xa9feaa02", "0x646464c8",
-        "0252.0376.0252.0376", "0252.0376.0252.0002", "0144.0144.0144.0310",
+        "2852039166", "2852038914", "1684301000", "2130706433",
+        "0xa9fea9fe", "0xa9feaa02", "0x646464c8", "0x7f000001", "0xa9.0xfe.", "0x7f.0x0",
+        "0251.0376.", "0144.0144.0144.0310", "0177.0",
+        "025177524776", "025177525002", "014431062310", "017700000001",
     ),
     "ssti": ("{{", "${", "<%=", "#{", "config", "request", "self.", "lipsum",
             "cycler", "namespace", "globals", "builtins", "__class__", "__mro__",
