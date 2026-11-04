@@ -115,7 +115,7 @@ workflow falla):
 
 | Métrica | Corpus propio (160 + 132) | **Retenido** (109 + 140) | OWASP CRS externo (1379 tests) |
 |---|---|---|---|
-| Ataques detectados | **100.0%** (160/160) | **94.5%** (103/109) | **41.0%** (465/1135, familias 930/941/942) |
+| Ataques detectados | **100.0%** (160/160) | **94.5%** (103/109) | **41.5%** (471/1135, familias 930/941/942) |
 | Falsos positivos sin documentar | **0** | **0** | 4.7% (11/232 negativos de CRS, línea base) |
 
 El **retenido** se escribió una vez sin mirar las firmas de las reglas y desde

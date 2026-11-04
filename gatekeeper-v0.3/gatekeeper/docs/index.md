@@ -41,12 +41,12 @@ gente distinta:
 
 | Métrica | Corpus propio (160 ataques / 132 benignos) | **Retenido** (109 / 140) | OWASP CRS externo (1379 tests) |
 |---|---|---|---|
-| Ataques detectados | **100.0%** (160/160) | **94.5%** (103/109) | **41.0%** (465/1135) |
+| Ataques detectados | **100.0%** (160/160) | **94.5%** (103/109) | **41.5%** (471/1135) |
 | Falsos positivos sin documentar | **0** (9 documentados) | **0** (5 documentados) | 4.7% (11/232 negativos de CRS, línea base) |
 | Falsos negativos sin documentar | 0 | 0 (6 documentados) | — (muestra en el informe) |
 
 Las cifras no incluyen el modo opt-in `inspect_cross_carrier=True`.
-El 41.0% del corpus externo no es una meta: es la **línea base** de un corpus
+El 41.5% del corpus externo no es una meta: es la **línea base** de un corpus
 diseñado para un WAF de 500+ reglas y mucho más ofuscado, y el workflow la
 vigila para que no baje.
 

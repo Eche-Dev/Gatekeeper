@@ -18,7 +18,7 @@ Generado por `generar_estado.py` el 2026-10-27 01:38.
 | propio (ataques) | **160 / 160** detectados |
 | propio (benignos) | 132 benignos · 9 marcados, 9 documentados · FP sin documentar: **0.0** |
 | retenido | 103 / 109 (94,5 %) · 0 FP sin documentar |
-| CRS (externo) | 465 / 1135 (41,0 %) · 11 / 232 FP (4,7 %) |
+| CRS (externo) | 471 / 1135 (41,5 %) · 11 / 232 FP (4,7 %) |
 | modo cruzado | 7 / 7 |
 
 ## Calidad
@@ -33,10 +33,10 @@ Generado por `generar_estado.py` el 2026-10-27 01:38.
 ## Paquete de pruebas de ataque
 
 ```
-RESUMEN: 15 pasan · 0 fallan · 0 notas
+RESUMEN: 47 pasan · 0 fallan · 3 notas
 ```
 
-(15 comprobaciones pasan, 0 fallan.)
+(47 comprobaciones pasan, 0 fallan.)
 
 ## Cómo se mide cada cosa
 

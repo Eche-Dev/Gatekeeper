@@ -56,8 +56,8 @@
 |---|---|
 | path_traversal | 55 / 62 |
 | sqli | 310 / 869 |
-| xss | 100 / 204 |
-| **total en alcance** | **465 / 1135 (41.0%)** |
+| xss | 106 / 204 |
+| **total en alcance** | **471 / 1135 (41.5%)** |
 
 | Métrica externa | Valor |
 |---|---|
@@ -82,7 +82,7 @@
 | crs-942521-t16-s1 | sqli | `var=Incorrectly%20constructed%20SQL%20statements%0AThis%20form%20of%20injection%20relies%2…` |
 | crs-942522-t8-s1 | sqli | `var=Incorrectly%20constructed%20SQL%20statements%0AThis%20form%20of%20injection%20relies%2…` |
 
-### Muestra de falsos negativos (12 de 670)
+### Muestra de falsos negativos (12 de 664)
 
 | id | familia | payload |
 |---|---|---|
@@ -101,6 +101,6 @@
 
 ### Umbrales del corpus externo (guarda de regresión sobre la línea base)
 
-- detección CRS ≥ 40%: ✅ (41.0%)
+- detección CRS ≥ 40%: ✅ (41.5%)
 - FP CRS ≤ 5.0%: ✅ (4.7%)
 

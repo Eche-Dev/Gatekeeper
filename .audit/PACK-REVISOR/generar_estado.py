@@ -124,7 +124,7 @@ Generado por `generar_estado.py` el {ahora}.
 | propio (ataques) | **{datos_propio.get('attacks_detected', '?')} / {datos_propio.get('attacks_total', '?')}** detectados |
 | propio (benignos) | {datos_propio.get('benign_total', '?')} benignos · {datos_propio.get('benign_flagged', '?')} marcados, {datos_propio.get('benign_documented_fp', '?')} documentados · FP sin documentar: **{datos_propio.get('fp_rate', '?')}** |
 | retenido | 103 / 109 (94,5 %) · 0 FP sin documentar |
-| CRS (externo) | 465 / 1135 (41,0 %) · 11 / 232 FP (4,7 %) |
+| CRS (externo) | 471 / 1135 (41,5 %) · 11 / 232 FP (4,7 %) |
 | modo cruzado | 7 / 7 |
 
 ## Calidad

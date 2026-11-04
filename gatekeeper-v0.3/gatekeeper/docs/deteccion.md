@@ -156,12 +156,12 @@ y 942 (SQLi)** — se importan a `corpus/crs_payloads.json` con `tools/import_cr
 | Métrica (CRS) | Valor |
 |---|---|
 | Tests importados | 1379 (1135 en alcance) |
-| Ataques detectados | 465 / 1135 (**41.0%**) |
+| Ataques detectados | 471 / 1135 (**41.5%**) |
 | Negativos de CRS bloqueados | 11 / 232 (4.7%) |
 | Excluidos y declarados | 12 (cabeceras fuera de `inspect_headers` y bodies binarios) |
 
-!!! success "Por qué se publica el 41.0%"
-    Un 100% propio junto a un 41.0% ajeno es la señal de que la medición es
+!!! success "Por qué se publica el 41.5%"
+    Un 100% propio junto a un 41.5% ajeno es la señal de que la medición es
     honesta. El corpus de CRS está diseñado para un WAF de 500+ reglas que
     acepta los falsos positivos que Gatekeeper no acepta; aquí su número es una
     **línea base con guarda de regresión**, no una promesa. Y los 11 FP de CRS

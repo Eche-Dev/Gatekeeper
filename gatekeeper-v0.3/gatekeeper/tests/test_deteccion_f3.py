@@ -21,7 +21,7 @@ Medido antes de este commit (ver `.audit/f3_probe.py`):
 | `foo\\nrm -rf /` | no detectado |
 | `http://2852039166/admin` (IP de metadata en decimal) | no detectado |
 | `http://0xa9fea9fe/admin` (hex) | no detectado |
-| `http://0252.0376.0252.0376/admin` (octal) | no detectado |
+| `http://0251.0376.0251.0376/admin` (octal) | no detectado |
 | `En el manual pone: <script> para incrustar codigo` | **xss** (falso positivo) |
 | `La consulta sleep(8 hours) devuelve un error` | **sqli** (falso positivo) |
 """
@@ -58,7 +58,7 @@ from gatekeeper.rules import scan
         # URL del navegador las resuelve igual.
         "http://2852039166/admin",
         "http://0xa9fea9fe/admin",
-        "http://0252.0376.0252.0376/admin",
+        "http://0251.0376.0251.0376/admin",
     ],
 )
 def test_los_falsos_negativos_se_detectan(payload: str):
@@ -83,7 +83,7 @@ def test_el_cmd_con_salto_de_linea_es_cmdi():
     [
         "http://2852039166/admin",
         "http://0xa9fea9fe/admin",
-        "http://0252.0376.0252.0376/admin",
+        "http://0251.0376.0251.0376/admin",
     ],
 )
 def test_la_ip_de_metadata_en_cualquier_notacion_es_ssrf(payload: str):
