@@ -33,10 +33,10 @@ Generado por `generar_estado.py` el 2026-10-27 01:38.
 ## Paquete de pruebas de ataque
 
 ```
-RESUMEN: 47 pasan · 0 fallan · 3 notas
+RESUMEN: 49 pasan · 0 fallan · 3 notas
 ```
 
-(47 comprobaciones pasan, 0 fallan.)
+(49 comprobaciones pasan, 0 fallan.)
 
 ## Cómo se mide cada cosa
 

@@ -3,7 +3,7 @@
 **Punto de partida:** `gatekeeper-asgi 0.9.1` (cerrado en **Gatekeeper 0.9.3**), revisión final de Claude ([SECURITY_REVIEW-IA-Claude-FINAL.md](.audit/PACK-REVISOR/SECURITY_REVIEW-IA-Claude-FINAL.md), 86/100),
 2 hallazgos abiertos (`NUEVO-1`, `NUEVO-2`).
 
-**Estado actual:** **Fases 1 a 5 más Rondas 3 y 4 de Claude completadas y verificadas (`47 PASA · 0 FALLA · 3 INFO` en [.audit/PACK-REVISOR/ejecutar_pocs.py](.audit/PACK-REVISOR/ejecutar_pocs.py), `0/13` en `IA-6`, CRS sube a `41,5 %`, 3.000+ tests en verde). Puntuación alcanzada dentro del techo técnico de IA: `97 / 100`.**
+**Estado actual:** **Fases 1 a 5 más Rondas 3, 4 y 5 de Claude completadas y verificadas (`49 PASA · 0 FALLA · 3 INFO` en [.audit/PACK-REVISOR/ejecutar_pocs.py](.audit/PACK-REVISOR/ejecutar_pocs.py), `0/13` en `IA-6`, CRS sube a `41,5 %`, 3.000+ tests en verde). Puntuación alcanzada dentro del techo técnico de IA: `97 / 100`.**
 
 **Techo realista sin auditoría humana externa: ~95-97/100.** Un WAF por
 patrones nunca llega a 100 contra ataques desconocidos (es una limitación
