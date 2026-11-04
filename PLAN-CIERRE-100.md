@@ -1,6 +1,6 @@
 # Plan de fases: de 86/100 a lo más cerca posible de 100/100 (Ejecutado ✅)
 
-**Punto de partida:** `gatekeeper-asgi 0.9.1` (cerrado en **Gatekeeper 0.9.2**), revisión final de Claude ([SECURITY_REVIEW-IA-Claude-FINAL.md](.audit/PACK-REVISOR/SECURITY_REVIEW-IA-Claude-FINAL.md), 86/100),
+**Punto de partida:** `gatekeeper-asgi 0.9.1` (cerrado en **Gatekeeper 0.9.3**), revisión final de Claude ([SECURITY_REVIEW-IA-Claude-FINAL.md](.audit/PACK-REVISOR/SECURITY_REVIEW-IA-Claude-FINAL.md), 86/100),
 2 hallazgos abiertos (`NUEVO-1`, `NUEVO-2`).
 
 **Estado actual:** **Fases 1 a 5 más Rondas 3 y 4 de Claude completadas y verificadas (`47 PASA · 0 FALLA · 3 INFO` en [.audit/PACK-REVISOR/ejecutar_pocs.py](.audit/PACK-REVISOR/ejecutar_pocs.py), `0/13` en `IA-6`, CRS sube a `41,5 %`, 3.000+ tests en verde). Puntuación alcanzada dentro del techo técnico de IA: `97 / 100`.**

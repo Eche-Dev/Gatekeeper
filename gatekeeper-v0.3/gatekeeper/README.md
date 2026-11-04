@@ -120,7 +120,7 @@ El catálogo completo de eventos está en
 | Cabeceras | `nosniff`, `X-Frame-Options`, `HSTS`, `Referrer-Policy`, `Permissions-Policy`. Nunca pisa las de tu app, y también van en los rechazos |
 | Detección | Once familias: SQLi, XSS, path traversal, ficheros sensibles, NoSQL, comandos del sistema, SSRF, SSTI, CRLF, Log4Shell y proto-pollución. El detalle de cada una, con su frontera de falsos positivos, está en [docs/amenazas.md](https://github.com/Eche-Dev/Gatekeeper/blob/main/gatekeeper-v0.3/gatekeeper/docs/amenazas.md) |
 | Superficies | Ruta, query string, cabeceras, body JSON y de formulario, nombres de multipart y handshake de WebSocket |
-| Evasiones | URL-encoding repetido (3 rondas), escapes IIS `%uXXXX`, caracteres de ancho completo (NFKC), comentarios SQL `/**/` y versionados (`/*!50000…*/`), entidades HTML numéricas **y nombradas** |
+| Evasiones | URL-encoding repetido (3 rondas), escapes Unicode `%uXXXX` y `\uXXXX`, caracteres de ancho completo (NFKC), comentarios SQL `/**/` y versionados (`/*!50000…*/`), entidades HTML numéricas **y nombradas**, cuerpos `gzip`/`deflate` multicapa |
 | Presupuestos | `max_body_size` (256 KiB), `max_fields` (1000 textos) y `max_inspection_ms` (1000 ms). Si se agotan, la petición se rechaza con **413**: nunca se admite sin inspeccionar |
 | Reglas propias | Regex en YAML o en `Config(custom_rules=...)`, validadas al arrancar (una regex con backtracking catastrófico es un `ValueError`) |
 | Auditoría | Eventos JSON en el logger `gatekeeper`. Nunca los valores de los campos |
@@ -258,8 +258,9 @@ emite el logger de Gatekeeper o un log de acceso genérico
   `inspect_cross_carrier=True` se combinan ruta/query con los valores textuales
   no excluidos; es opt-in y su resultado **no** está en las cifras de arriba.
 - Los operadores `$gt`/`$lt`/`$in` de Mongo quedan fuera de la firma NoSQL a
-  propósito (los usan los filtros legítimos); `localhost` y `127.0.0.1` no
-  cuentan como SSRF (OAuth de desarrollo).
+  propósito (los usan los filtros legítimos); `localhost` y `127.0.0.1` en texto
+  plano no cuentan como SSRF (OAuth de desarrollo; sus formas ofuscadas en
+  decimal, hex u octal sí se bloquean).
 - Con `rate_backend="memory"` y varios workers, el límite efectivo se
   multiplica: usa Redis.
 - Si Redis no responde, `rate_fail_open=True` (por defecto) sigue admitiendo

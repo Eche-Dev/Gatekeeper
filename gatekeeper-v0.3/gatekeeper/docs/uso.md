@@ -11,7 +11,7 @@ app.add_middleware(GatekeeperMiddleware, config=Config())
 ```
 
 `Config()` con sus defectos ya es una configuración sensata: 100 peticiones por
-minuto por IP, inspección activa, body hasta 1 MiB.
+minuto por IP, inspección activa, body hasta 256 KiB.
 
 La combinación de ruta/query con valores textuales del body es opt-in:
 `Config(inspect_cross_carrier=True)`. Puede detectar firmas divididas entre

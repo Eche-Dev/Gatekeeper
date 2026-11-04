@@ -34,7 +34,7 @@ consultas parametrizadas y validación.
 | Red/proxy | `trust_proxy` con lectura XFF de derecha a izquierda (`trusted_proxies` / `trusted_proxy_cidrs`) y `blocked_ips` (IP o CIDR) |
 | Abuso | Rate limiting por IP, memoria o Redis atómico |
 | Transporte | Límite de body (256 KiB → 413 si el tamaño declarado o leído lo supera) y presupuestos de campos y de tiempo de inspección |
-| Contenido | Normalización (3 rondas, `%uXXXX`, NFKC) + reglas acotadas |
+| Contenido | Normalización (3 rondas, `%uXXXX` / `\uXXXX`, NFKC) + reglas acotadas |
 
 ## Políticas de fallo
 
@@ -124,7 +124,8 @@ sin volcar credenciales.
 
 | Versión | Estado |
 |---|---|
-| 0.4.x | Activa |
+| 0.9.x | Activa |
+| 0.8.x – 0.4.x | Históricas (solo seguridad crítica) |
 | 0.3.x, 0.2.x, 0.1.x | Históricas, sin soporte (0.3.x nunca se publicó en PyPI) |
 
 ## Reportar una vulnerabilidad

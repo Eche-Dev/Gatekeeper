@@ -66,24 +66,6 @@ incluye).
     instalar el WAF. En producción, el núcleo (o `yaml`/`redis`) es todo lo
     que necesitas.
 
-!!! info "El extra `dev` existe, pero no se ofrece a quien instala"
-    `pip install "gatekeeper-asgi[dev]"` arrastra pytest, mypy, bandit, ruff,
-    hypothesis, mkdocs y más: es para **contribuir al proyecto**, no para
-    instalar el WAF. En producción, el núcleo (o `yaml`/`redis`) es todo lo
-    que necesitas.
-
-!!! info "El extra `dev` existe, pero no se ofrece a quien instala"
-    `pip install "gatekeeper-asgi[dev]"` arrastra pytest, mypy, bandit, ruff,
-    hypothesis, mkdocs y más: es para **contribuir al proyecto**, no para
-    instalar el WAF. En producción, el núcleo (o `yaml`/`redis`) es todo lo
-    que necesitas.
-
-!!! info "El extra `dev` existe, pero no se ofrece a quien instala"
-    `pip install "gatekeeper-asgi[dev]"` arrastra pytest, mypy, bandit, ruff,
-    hypothesis, mkdocs y más: es para **contribuir al proyecto**, no para
-    instalar el WAF. En producción, el núcleo (o `yaml`/`redis`) es todo lo
-    que necesitas.
-
 !!! info "Por qué los servidores están en un extra aparte"
     `daphne` arrastra `Twisted`, cuya versión **estable** (26.4.0) tiene
     avisos de seguridad cuyos parches solo están en una *release candidate*

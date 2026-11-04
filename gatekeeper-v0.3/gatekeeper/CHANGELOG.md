@@ -5,6 +5,15 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 
 ## [Sin publicar]
 
+## [0.9.3] - 2026-11-04
+
+### Corregido (Cierre de Rondas 3 y 4 de Re-Auditoría de Claude — `47 PASA · 0 FALLA · 3 INFO`)
+
+- **Acceso DOM XSS por corchetes `[]`, *optional chaining* `?.` y *template literals* (`NUEVO-3`, Rondas 3 y 4).** Ampliado el patrón de acceso a APIs DOM (`document`, `window`, `globalThis`, `top`, `parent`, `frames`, `self`, `location`) y llamadas `eval`/`setTimeout`/`setInterval` en `src/gatekeeper/rules.py` y `PREFILTER_LITERALS["xss"]` para cubrir notación de corchetes (`document['cookie']`, `window['eval']`), *optional chaining* (`document?.cookie`, `document?.['cookie']`, `eval?.(...)`) y *template literals* (``eval`alert(1)` ``). Medido: **+6 detecciones nuevas en OWASP CRS** (`xss` sube de `100/204` a `106/204`, elevando el total en alcance de CRS de `41,0 %` a **`41,5 %`**, `471/1135`) y **0 falsos positivos nuevos**.
+- **Corrección aritmética de literales octales de metadata cloud en `ssrf` (`NUEVO-5`, Ronda 4).** Corregidos los literales octales de AWS/GCP IMDS (`169.254.169.254` $\rightarrow$ `0251.0376.0251.0376` y `025177524776`, antes `0252` que codificaba `170`) y AWS ECS (`169.254.170.2` $\rightarrow$ `0251.0376.0252.0002` y `025177525002`) en `RULES["ssrf"]` y `PREFILTER_LITERALS["ssrf"]`, más hexadecimal por octeto (`0xa9.0xfe.0xa9.0xfe`) y test de regresión calculado aritméticamente con `oct()`.
+- **Loopback `127.0.0.1` ofuscado en decimal, hexadecimal y octal en `ssrf` (`NUEVO-6`, Ronda 4).** Añadidos a `RULES["ssrf"]` y `PREFILTER_LITERALS["ssrf"]` los literales de loopback bajo esquema de URL (`http://`, `https://`, `ftp://`, `ftps://`) en decimal (`2130706433`), hexadecimal (`0x7f000001`, `0x7f.0x0.0x0.0x1`) y octal (`0177.0.0.1`, `0177.0000.0000.0001`, `017700000001`), cumpliendo la promesa de `docs/amenazas.md` sin bloquear `localhost` ni `127.0.0.1` en claro (`0` falsos positivos nuevos).
+- **Decodificación de escapes `\uXXXX` (JS/JSON) en `decode()` (Ronda 4).** `_UNICODE_ESCAPE` en `decode()` resuelve también secuencias `\uXXXX` además de `%uXXXX`, bloqueando evasiones como `\u005f\u005fproto\u005f\u005f` o `\u0064ocument['cookie']` con `0` falsos positivos en los tres corpus.
+
 ## [0.9.2] - 2026-10-28
 
 ### Corregido (Re-Auditoría Adversarial Final y `PLAN-CIERRE-100` — 97/100 · `42 PASA · 0 FALLA · 3 INFO`)
@@ -13,11 +22,6 @@ y las versiones siguen [SemVer](https://semver.org/lang/es/spec/v2.0.0.html).
 - **Descompresión `Content-Encoding: gzip / deflate` multicapa acotada (`NUEVO-2`, Fase 2/3).** `GatekeeperMiddleware` descomprime hasta **3 capas anidadas** (`gzip(gzip(...))`) aplicando el tope `max_body_size` en cada vuelta (`413` si cualquier capa lo supera).
 - **Ampliación de binarios post-separador en `cmdi` (`IA-6`, Fase 4).** Añadidos `touch`, `echo`, `tee`, `awk`, `find`, `xargs`, `nohup`, `timeout`, `busybox`, `php`, `node`, `telnet` y `ssh` a `RULES["cmdi"]` y `PREFILTER_LITERALS["cmdi"]`, dejando `IA-6` en `0/13 no detectados` con `0` falsos positivos nuevos en los tres corpus.
 - **Endurecimiento del analizador estático ReDoS y campaña de 20.000 muestras del prefiltro (Fase 5).** `analizar_redos` detecta solapamientos en grupos con prefijo (`?:`, `?i:`, `?P<nombre>`), cuantificadores perezosos (`+?`, `*?`, `{m,}?`) y rangos internos variables (`{1,2}`), validado contra 21 patrones catastróficos; `tests/test_prefilter.py` añade fuzzing diferencial sobre 20.000 muestras de $\ge 140$ bytes (`0` divergencias).
-- **Cierre de las rondas 3 y 4 de re-auditoría de Claude (`NUEVO-3`, `NUEVO-5`, `NUEVO-6` — `47 PASA · 0 FALLA · 3 INFO`).**
-  - **`NUEVO-3` (`xss`)**: ampliado el patrón de acceso a APIs DOM (`document`, `window`, `globalThis`, `top`, `parent`, `frames`, `self`, `location`) y llamadas `eval`/`setTimeout`/`setInterval` en `rules.py` y `PREFILTER_LITERALS["xss"]` para cubrir notación de corchetes (`document['cookie']`, `window['eval']`), *optional chaining* (`document?.cookie`, `document?.['cookie']`, `eval?.(...)`) y *template literals* (``eval`alert(1)` ``). Medido: **+6 detecciones nuevas en OWASP CRS** (`xss` sube de `100/204` a `106/204`, total CRS de `41,0 %` a **`41,5 %`**) y **0 falsos positivos nuevos**.
-  - **`NUEVO-5` (`ssrf`)**: corregidos los literales octales de las IPs de metadata cloud AWS/GCP IMDS (`169.254.169.254` $\rightarrow$ `0251.0376.0251.0376` y `025177524776`, antes `0252` que codificaba `170`) y AWS ECS (`169.254.170.2` $\rightarrow$ `0251.0376.0252.0002` y `025177525002`) en `RULES["ssrf"]` y `PREFILTER_LITERALS["ssrf"]`, más test de regresión calculado aritméticamente con `oct()`.
-  - **`NUEVO-6` (`ssrf`)**: añadidos a `RULES["ssrf"]` y `PREFILTER_LITERALS["ssrf"]` los literales de loopback (`127.0.0.1`) ofuscados en decimal (`2130706433`), hexadecimal (`0x7f000001`, `0x7f.0x0.0x0.0x1`) y octal (`0177.0.0.1`, `0177.0000.0000.0001`, `017700000001`) bajo esquema de URL, cumpliendo la promesa de `docs/amenazas.md` sin bloquear `localhost` ni `127.0.0.1` en claro (`0` falsos positivos nuevos).
-  - **Decodificación de escapes `\uXXXX` (JS/JSON)**: `_UNICODE_ESCAPE` en `decode()` resuelve también secuencias `\uXXXX` además de `%uXXXX`, bloqueando evasiones como `\u005f\u005fproto\u005f\u005f` o `\u0064ocument['cookie']` con `0` falsos positivos en los tres corpus.
 
 ## [0.9.1] - 2026-10-28
 

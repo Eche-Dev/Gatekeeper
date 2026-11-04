@@ -106,7 +106,8 @@ responda en un plazo concreto.
 
 | Rama | Estado | Recibe |
 |---|---|---|
-| 0.4.x | **Activa** | Todo: seguridad, errores, nuevas features |
+| 0.9.x | **Activa** | Todo: seguridad, errores, nuevas features |
+| 0.8.x – 0.4.x | Históricas | Solo correcciones de seguridad críticas |
 | 0.3.x | Histórica (nunca publicada en PyPI) | Solo correcciones de seguridad críticas |
 | 0.2.x | Histórica (nunca publicada en PyPI) | Solo correcciones de seguridad críticas |
 | 0.1.x | Histórica (nunca publicada en PyPI) | Nada |
